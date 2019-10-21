@@ -8,11 +8,13 @@ set(CMAKE_C_STANDARD_REQUIRED on)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE} with compiler: ${CMAKE_C_COMPILER}")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
+set_source_files_properties(runtime_noop.c PROPERTIES COMPILE_FLAGS -Wno-unused-parameter)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DDEBUG_ENABLED)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+add_definitions(-DDEBUG_ENABLED)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
 elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif ()
 
 add_library(aardwolf_runtime STATIC runtime.c)
+add_library(aardwolf_runtime_noop STATIC runtime_noop.c)
