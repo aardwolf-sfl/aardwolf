@@ -1,0 +1,6 @@
+# General for C/C++ projects
+build
+
+# LLVM
+*.ll
+*.bc
