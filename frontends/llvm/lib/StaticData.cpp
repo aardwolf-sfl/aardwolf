@@ -1,5 +1,7 @@
 #include "StaticData.h"
 
+#include <cstdint>
+
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -7,6 +9,10 @@
 #include "StatementRepository.h"
 
 using namespace aardwolf;
+
+#define TOKEN_STATEMENT 0xff
+#define TOKEN_FUNCTION 0xfe
+#define TOKEN_FILENAMES 0xfd
 
 std::string getFilepath(llvm::DebugLoc Loc) {
     if (Loc->getScope()->getDirectory() == "") {
@@ -16,57 +22,73 @@ std::string getFilepath(llvm::DebugLoc Loc) {
     }
 }
 
-void exportStatement(StatementRepository& Repo, llvm::raw_ostream& Stream, Statement& Stmt, std::vector<Statement*>& Successors) {
+void writeBytes(llvm::raw_ostream &Stream, uint8_t value) {
+    Stream.write((const char*)&value, sizeof(uint8_t));
+}
+
+void writeBytes(llvm::raw_ostream &Stream, uint32_t value) {
+    Stream.write((const char*)&value, sizeof(uint32_t));
+}
+
+void writeBytes(llvm::raw_ostream &Stream, uint64_t value) {
+    Stream.write((const char*)&value, sizeof(uint64_t));
+}
+
+void writeBytes(llvm::raw_ostream &Stream, std::string value) {
+    Stream.write(value.c_str(), sizeof(char) * value.size());
+    Stream.write(0);
+}
+
+void exportFunctionName(llvm::raw_ostream &Stream, llvm::Function &F) {
+    writeBytes(Stream, (uint8_t)TOKEN_FUNCTION);
+    writeBytes(Stream, F.getName().str());
+}
+
+void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream, Statement& Stmt, std::vector<Statement*>& Successors) {
     // Statement id.
-    uint64_t Id = Repo.getStatementId(Stmt);
-    Stream << "#" << Id;
+    writeBytes(Stream, (uint8_t)TOKEN_STATEMENT);
+    writeBytes(Stream, Repo.getStatementId(Stmt));
 
-    // Successors
-    if (Successors.size() > 0) {
-        Stream << " -> ";
+    // Successors.
+    writeBytes(Stream, (uint8_t)Successors.size());
 
-        auto It = Successors.begin();
-        Id = Repo.getStatementId(**It);
-        Stream << "#" << Id;
-
-        while (++It != Successors.end()) {
-            Id = Repo.getStatementId(**It);
-            Stream << ", #" << Id;
-        }
+    for (auto Succ : Successors) {
+        writeBytes(Stream, Repo.getStatementId(*Succ));
     }
 
-    // Statement ids / values ids delimiter.
-    Stream << "  ::  ";
-
-    // Input values.
-    if (Stmt.In.size() > 0) {
-        auto It = Stmt.In.begin();
-        Id = Repo.getValueId(*It);
-        Stream << "%" << Id;
-        
-        while (++It != Stmt.In.end()) {
-            Id = Repo.getValueId(*It);
-            Stream << ", %" << Id;
-        }
-    }
-
-    // Output / inputs delimiter.
-    Stream << " ; ";
-
-    // Output value.
+    // Defs.
     if (Stmt.Out != nullptr) {
-        Id = Repo.getValueId(Stmt.Out);
-        Stream << "%" << Id;
+        writeBytes(Stream, (uint8_t)1);
+        writeBytes(Stream, Repo.getValueId(Stmt.Out));
+    } else {
+        writeBytes(Stream, (uint8_t)0);
+    }
+
+    // Uses.
+    writeBytes(Stream, (uint8_t)Stmt.In.size());
+
+    for (auto Use : Stmt.In) {
+        writeBytes(Stream, Repo.getValueId(Use));
     }
 
     // Location.
-    Id = Repo.getFileId(getFilepath(Stmt.Loc));
-    Stream << " [@" << Id << ", " << Stmt.Loc.getLine() << ", " << Stmt.Loc.getCol() << "]\n";
+    writeBytes(Stream, (uint8_t)3); // file, line, column
+    writeBytes(Stream, Repo.getFileId(getFilepath(Stmt.Loc)));
+    writeBytes(Stream, (uint32_t)Stmt.Loc.getLine());
+    writeBytes(Stream, (uint32_t)Stmt.Loc.getCol());
+
+    // Statement metadata (bitflags)
+    // TODO
+    writeBytes(Stream, (uint8_t)0);
 }
 
-void exportMetadata(StatementRepository& Repo, llvm::raw_ostream& Stream) {
+void exportMetadata(StatementRepository &Repo, llvm::raw_ostream &Stream) {
+    writeBytes(Stream, (uint8_t)TOKEN_FILENAMES);
+    writeBytes(Stream, (uint32_t)Repo.FilesIdMap.size());
+
     for (auto F : Repo.FilesIdMap) {
-        Stream << "@" << F.second << " = " << F.first << "\n";
+        writeBytes(Stream, F.second);
+        writeBytes(Stream, F.first);
     }
 }
 
@@ -90,6 +112,9 @@ bool StaticData::runOnModule(llvm::Module &M) {
         return false;
     }
 
+    // Header.
+    Stream << "AARD/S1";
+
     std::vector<Statement*> Outgoing;
     auto Repo = getAnalysis<StatementDetection>().Repo;
 
@@ -98,7 +123,7 @@ bool StaticData::runOnModule(llvm::Module &M) {
             continue;
         }
 
-        Stream << F.getName() << "\n\n";
+        exportFunctionName(Stream, F);
 
         for (auto &BB : F) {
             for (auto &I : BB) {
@@ -114,11 +139,8 @@ bool StaticData::runOnModule(llvm::Module &M) {
                 }
             }
         }
-
-        Stream << "\n";
     }
 
-    Stream << "\n";
     exportMetadata(Repo, Stream);
 
     return false;

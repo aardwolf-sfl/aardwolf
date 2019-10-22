@@ -8,7 +8,6 @@
 #define FILE_FORMAT_VERSION 1
 
 #define ASCII_ZERO 48
-#define ASCII_NEWLINE 10
 
 // Opened on the first API use. Closed after the process termination.
 static FILE * __aardwolf_fd = NULL;
@@ -30,9 +29,8 @@ FILE * __aardwolf_get_fd(void)
         __aardwolf_fd = fopen(filename, "w");
 
         // Print header.
-        fputs("AARD", __aardwolf_fd);
+        fputs("AARD/D", __aardwolf_fd);
         fputc(FILE_FORMAT_VERSION + ASCII_ZERO, __aardwolf_fd);
-        fputc(ASCII_NEWLINE, __aardwolf_fd);
     }
 
     return __aardwolf_fd;

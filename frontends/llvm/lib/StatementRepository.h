@@ -33,7 +33,7 @@ public:
     std::unordered_map<const llvm::Value*, uint64_t> ValuesIdMap;
 
     // Mapping from filenames in analysed module to assigned numeric id.
-    std::map<const std::string, uint64_t> FilesIdMap;
+    std::map<const std::string, uint32_t> FilesIdMap;
 
     // TODO: Mappings: Function names to statements (for function-level granularity).
 
@@ -46,7 +46,7 @@ public:
 
     uint64_t getStatementId(Statement& Stmt);
     uint64_t getValueId(const llvm::Value* Value);
-    uint64_t getFileId(const std::string Filepath);
+    uint32_t getFileId(const std::string Filepath);
 };
 }
 

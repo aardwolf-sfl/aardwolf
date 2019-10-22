@@ -26,7 +26,7 @@ uint64_t StatementRepository::getValueId(const llvm::Value* Value) {
     }
 }
 
-uint64_t StatementRepository::getFileId(const std::string Filepath) {
+uint32_t StatementRepository::getFileId(const std::string Filepath) {
     auto Found = FilesIdMap.find(Filepath);
     if (Found == FilesIdMap.end()) {
         uint64_t Id = FilesIdMap.size() + 1;
