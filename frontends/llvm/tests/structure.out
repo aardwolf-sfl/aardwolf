@@ -1,0 +1,17 @@
+
+function: complex_init
+
+#1 -> #2  ::  defs: %1 / uses:  [@1, 8, 35]
+#2 -> #3  ::  defs: %2 / uses:  [@1, 8, 47]
+#3 -> #4  ::  defs: %3 / uses:  [@1, 8, 59]
+#4 -> #5  ::  defs: %1.(%6) / uses: %2 [@1, 10, 16]
+#5 -> #6  ::  defs: %1.(%7) / uses: %3 [@1, 11, 16]
+#6 ->   ::  defs:  / uses:  [@1, 12, 1]
+
+function: complex_abs
+
+#7 -> #8  ::  defs: %4 / uses:  [@1, 14, 35]
+#8 -> #9  ::  defs: %5 / uses: %4.(%6), %4.(%6), %4.(%7), %4.(%7) [@1, 16, 12]
+#9 ->   ::  defs:  / uses: %5 [@1, 16, 5]
+
+@1 = tests/structure.c

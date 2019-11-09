@@ -13,6 +13,9 @@ using namespace aardwolf;
 #define TOKEN_STATEMENT 0xff
 #define TOKEN_FUNCTION 0xfe
 #define TOKEN_FILENAMES 0xfd
+#define TOKEN_VALUE_SCALAR 0xe0
+#define TOKEN_VALUE_STRUCT 0xe1
+#define TOKEN_VALUE_POINTER 0xe2
 
 std::string getFilepath(llvm::DebugLoc Loc) {
   if (Loc->getScope()->getDirectory() == "") {
@@ -46,6 +49,31 @@ void exportFunctionName(llvm::raw_ostream &Stream, llvm::Function &F) {
   writeBytes(Stream, F.getName().str());
 }
 
+void exportValue(StatementRepository &Repo, llvm::raw_ostream &Stream,
+                 Value *Value) {
+  switch (Value->Type) {
+  case ValueType::Scalar:
+    writeBytes(Stream, (uint8_t)TOKEN_VALUE_SCALAR);
+    writeBytes(Stream, Repo.getValueId(Value->Base));
+    break;
+
+  case ValueType::Struct:
+    writeBytes(Stream, (uint8_t)TOKEN_VALUE_STRUCT);
+    writeBytes(Stream, Repo.getValueId(Value->Base));
+    exportValue(Repo, Stream, Value->Accessor.get());
+    break;
+
+  case ValueType::Pointer:
+    writeBytes(Stream, (uint8_t)TOKEN_VALUE_POINTER);
+    writeBytes(Stream, Repo.getValueId(Value->Base));
+    exportValue(Repo, Stream, Value->Accessor.get());
+    break;
+
+  default:
+    break;
+  }
+}
+
 void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
                      Statement &Stmt, std::vector<Statement *> &Successors) {
   // Statement id.
@@ -62,7 +90,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   // Defs.
   if (Stmt.Out != nullptr) {
     writeBytes(Stream, (uint8_t)1);
-    writeBytes(Stream, Repo.getValueId(Stmt.Out->Base));
+    exportValue(Repo, Stream, Stmt.Out.get());
   } else {
     writeBytes(Stream, (uint8_t)0);
   }
@@ -71,7 +99,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   writeBytes(Stream, (uint8_t)Stmt.In.size());
 
   for (auto Use : Stmt.In) {
-    writeBytes(Stream, Repo.getValueId(Use->Base));
+    exportValue(Repo, Stream, Use.get());
   }
 
   // Location.

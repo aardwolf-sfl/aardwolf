@@ -11,6 +11,10 @@ TOKEN_STATEMENT = b'\xff'
 TOKEN_FUNCTION = TOKEN_EXTERNAL = b'\xfe'
 TOKEN_FILENAMES = b'\xfd'
 
+TOKEN_VALUE_SCALAR = b'\xe0'
+TOKEN_VALUE_STRUCT = b'\xe1'
+TOKEN_VALUE_POINTER = b'\xe2'
+
 TOKEN_DATA_I32 = b'\x11'
 TOKEN_DATA_I64 = b'\x12'
 TOKEN_DATA_F32 = b'\x15'
@@ -47,25 +51,36 @@ def read_cstr(f):
     while byte != b'\0' and byte != 0 and byte is not None:
         result += chr(byte[0])
         byte = f.read(1)
-    
+
     return result
 
-def read_str(f):    
+def read_str(f):
     return f'"{read_cstr(f)}"'
+
+def read_value(f):
+    value_type = f.read(1)
+    assert value_type in [TOKEN_VALUE_SCALAR, TOKEN_VALUE_STRUCT, TOKEN_VALUE_POINTER], 'invalid value type'
+
+    if value_type == TOKEN_VALUE_SCALAR:
+        return f'%{read_u64(f)}'
+    elif value_type == TOKEN_VALUE_STRUCT:
+        return f'%{read_u64(f)}.({read_value(f)})'
+    elif value_type == TOKEN_VALUE_POINTER:
+        return f'%{read_u64(f)}[{read_value(f)}]'
 
 
 def get_static_handlers():
     def _parse_stmt(f):
         stmt_id = read_stmt(f)
-        
+
         n_succ = read_u8(f)
         succ_ids = ', '.join([read_stmt(f) for _ in range(n_succ)])
 
         n_defs = read_u8(f)
-        defs = ', '.join([f'%{read_u64(f)}' for _ in range(n_defs)])
+        defs = ', '.join([read_value(f) for _ in range(n_defs)])
 
         n_uses = read_u8(f)
-        uses = ', '.join([f'%{read_u64(f)}' for _ in range(n_uses)])
+        uses = ', '.join([read_value(f) for _ in range(n_uses)])
 
         n_loc = read_u8(f)
         loc = [str(read_u32(f)) for _ in range(n_loc)]

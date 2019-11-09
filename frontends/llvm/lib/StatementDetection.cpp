@@ -12,108 +12,136 @@
 
 using namespace aardwolf;
 
+std::shared_ptr<Value> getValue(const llvm::User *U);
+std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I);
+
+const llvm::Value *getCompositeBase(const llvm::GetElementPtrInst *GEPI) {
+  if (auto I = llvm::dyn_cast<llvm::Instruction>(GEPI->getOperand(0))) {
+    // Found on first try (this applies for arrays).
+    if (llvm::isa<llvm::AllocaInst>(I)) {
+      return I;
+    }
+
+    // Find the alloca instruction transitively.
+    auto Inputs = findInputs(I);
+    if (Inputs.size() == 1) {
+      return Inputs.begin()->get()->Base;
+    }
+
+    return nullptr;
+  }
+
+  return nullptr;
+}
+
+std::shared_ptr<Value>
+getCompositeAccessor(const llvm::GetElementPtrInst *GEPI) {
+  auto AU =
+      llvm::dyn_cast<llvm::User>(GEPI->getOperand(GEPI->getNumOperands() - 1));
+
+  // Try if the accessor is value on its own.
+  auto A = getValue(AU);
+
+  if (A == nullptr) {
+    if (auto C = llvm::dyn_cast<llvm::Constant>(AU)) {
+      // Constant. For pointers accessors they are important.
+      return Value::Scalar(C);
+    } else if (auto I = llvm::dyn_cast<llvm::Instruction>(AU)) {
+      // Find the alloca instruction representing the variable.
+      auto Inputs = findInputs(I);
+      if (Inputs.size() == 1) {
+        return *Inputs.begin();
+      }
+    }
+
+    return nullptr;
+  } else {
+    return A;
+  }
+}
+
+std::shared_ptr<Value> getValue(const llvm::User *U) {
+  if (U == nullptr) {
+    return nullptr;
+  } else if (llvm::isa<llvm::AllocaInst>(U)) {
+    // Local variable.
+    return Value::Scalar(U);
+  } else if (llvm::isa<llvm::CallInst>(U)) {
+    // Result of a function call.
+    return Value::Scalar(U);
+  } else if (auto GV = llvm::dyn_cast<llvm::GlobalVariable>(U)) {
+    if (GV->isConstant()) {
+      // If isConstant is true, then the value is immutable throughout the
+      // execution, therefore we do not treat such values as variables.
+      return nullptr;
+    }
+
+    // Global variable.
+    return Value::Scalar(U);
+  } else if (auto GEPI = llvm::dyn_cast<llvm::GetElementPtrInst>(U)) {
+    auto B = getCompositeBase(GEPI);
+    auto A = getCompositeAccessor(GEPI);
+
+    if (B == nullptr || A == nullptr) {
+      llvm::errs() << "TODO: invalid state\n";
+      return nullptr;
+    }
+
+    // TODO: Implementation so far marks `i` and `i + 1` as identical values,
+    //       but they are obviously not.
+    //       This could lead to invalid assumptions during localization.
+
+    // Struct pointer is special for us, all other are treated as general
+    // pointers.
+    if (GEPI->getSourceElementType()->isStructTy()) {
+      return Value::Struct(B, A);
+    } else {
+      return Value::Pointer(B, A);
+    }
+  } else {
+    return nullptr;
+  }
+}
+
 // Finds inputs of an instruction which are then used as inputs
-// in the Statement structure. The values it returns are these llvm
-// instructions:
-//
-//   * AllocaInst - represents a local variable.
-//   * CallInst - represents the result of a function call.
-//   * GlobalValue - represents a global variable.
-//
-// It also properly handles pointer accesses - it adds both the pointer and
-// the offset variables/values.
+// in the Statement structure.
 //
 // If given instruction is StoreInst, the resulting set does not contain
-// the destination variable. If the destination variable is a pointer,
-// it does include the accessor (e.g., offset) value.
+// the destination variable.
 std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I) {
   std::set<std::shared_ptr<Value>> Result;
 
   // Use BFS-like search backwards in the control flow graph and search for
-  // AllocaInst and CallInst. While doing it, properly handle "transitive"
-  // nodes like GetElementPtrInst which might use the instructions that
-  // we are looking for.
-  std::queue<const llvm::Instruction *> Q;
+  // instructions that represent supported values (see Statement.h). While doing
+  // it, properly handle "transitive" nodes like loads, arithmetics or
+  // conversions which might use the instructions that we are looking for.
+  std::queue<const llvm::User *> Q;
   Q.push(I);
 
   while (!Q.empty()) {
-    auto QI = Q.front();
+    auto QU = Q.front();
     Q.pop();
 
-    if (llvm::isa<llvm::AllocaInst>(QI) && QI != I) {
-      // Local variable.
-      Result.insert(Value::Scalar(QI));
-    } else if (llvm::isa<llvm::CallInst>(QI) && QI != I) {
-      // Result of a function call.
-      Result.insert(Value::Scalar(QI));
-    } else if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(QI)) {
+    auto V = getValue(QU);
+    if (QU != I && V != nullptr) {
+      Result.insert(V);
+    } else if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(QU)) {
       // If the instruction is StoreInst, we must not to include the destination
       // variable.
-      if (auto *In = llvm::dyn_cast<llvm::Instruction>(SI->getOperand(0))) {
+      if (auto *In = llvm::dyn_cast<llvm::User>(SI->getOperand(0))) {
         Q.push(In);
-      }
-
-      // However, in case of pointers, we must include the accessor values.
-      if (auto *GEPI =
-              llvm::dyn_cast<llvm::GetElementPtrInst>(SI->getOperand(1))) {
-        for (auto &Idx : GEPI->indices()) {
-          if (auto *In = llvm::dyn_cast<llvm::Instruction>(Idx)) {
-            Q.push(In);
-          }
-        }
       }
     } else {
       // Add all operands as neighbors into the queue.
-      for (const llvm::Use &U : QI->operands()) {
-        if (auto *In = llvm::dyn_cast<llvm::Instruction>(U)) {
+      for (const llvm::Use &U : QU->operands()) {
+        if (auto *In = llvm::dyn_cast<llvm::User>(U)) {
           Q.push(In);
-        } else if (llvm::isa<llvm::GlobalValue>(U)) {
-          // Global variable.
-          Result.insert(Value::Scalar(U));
         }
       }
     }
   }
 
   return Result;
-}
-
-// Finds the variable into which the StoreInst assigns the value. The output
-// is one of these llvm classes:
-//
-//   * AllocaInst - represents a local variable.
-//   * GlobalValue - represents a global variable.
-//
-// Pointers are treated such that only the pointer base address variable
-// is returned, not the accessor (e.g., offset) values, because these are
-// rather the inputs of the instruction (just specifying the precise location,
-// but the contents of the pointer is what is actually changed).
-std::shared_ptr<Value> findStoreDest(const llvm::StoreInst *SI) {
-  auto Dest = SI->getOperand(1);
-
-  if (llvm::isa<llvm::AllocaInst>(Dest)) {
-    // Local variable.
-    return Value::Scalar(Dest);
-  } else if (auto *GEPI = llvm::dyn_cast<llvm::GetElementPtrInst>(Dest)) {
-    // Pointer variable (array, etc.).
-    auto Inputs =
-        findInputs(llvm::dyn_cast<llvm::Instruction>(GEPI->getOperand(0)));
-
-    for (auto Input : Inputs) {
-      if (llvm::isa<llvm::AllocaInst>(Input->Base)) {
-        return Input;
-      } else if (llvm::isa<llvm::GlobalValue>(Input->Base)) {
-        return Input;
-      }
-    }
-
-    return nullptr;
-  } else if (llvm::isa<llvm::GlobalValue>(Dest)) {
-    // Global variable.
-    return Value::Scalar(Dest);
-  } else {
-    return nullptr;
-  }
 }
 
 // Retrieves the instruction location in the original source code. If this data
@@ -179,7 +207,7 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
   if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(I)) {
     Result.Instr = SI;
     Result.In = findInputs(SI);
-    Result.Out = findStoreDest(SI);
+    Result.Out = getValue(llvm::dyn_cast<llvm::User>(SI->getOperand(1)));
     Result.Loc = getDebugLoc(SI);
     return Result;
   }
@@ -195,7 +223,7 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
     Result.In = findInputs(CI);
     Result.Loc = getDebugLoc(CI);
 
-    if (!CI->doesNotReturn()) {
+    if (!CI->getType()->isVoidTy()) {
       Result.Out = Value::Scalar(CI);
     }
 

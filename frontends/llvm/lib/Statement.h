@@ -9,30 +9,44 @@
 
 namespace aardwolf {
 
+// Struct and Pointer represent *access* to a structure or pointer.
+// That is, it does not covers when whole structs or pointers are assigned to
+// variables. In such cases, Scalar is used (as well as in all other cases).
+// TODO: More precise naming.
 enum ValueType { Scalar, Struct, Pointer };
 
 struct Value {
   ValueType Type;
+
+  // One of the following:
+  //   * AllocaInst - represents a local variable.
+  //   * CallInst - represents the result of a function call.
+  //   * GlobalVariable - represents a global variable.
+  //   * GetElementPtrInst - represents a composite variable (struct or pointer).
+  // If the scalar value represents an accessor, this member field can be also:
+  //   * Constant - represents a constant.
   const llvm::Value *Base;
-  const llvm::Value *Accessor;
+
+  const std::shared_ptr<Value> Accessor;
 
   static std::shared_ptr<Value> Scalar(const llvm::Value *Val) {
     return std::make_shared<Value>(ValueType::Scalar, Val, nullptr);
   }
 
   static std::shared_ptr<Value> Struct(const llvm::Value *Instance,
-                                       const llvm::Value *Field) {
+                                       const std::shared_ptr<Value> Field) {
     return std::make_shared<Value>(ValueType::Struct, Instance, Field);
   }
 
   static std::shared_ptr<Value> Pointer(const llvm::Value *Base,
-                                        const llvm::Value *Offset) {
+                                        const std::shared_ptr<Value> Offset) {
     return std::make_shared<Value>(ValueType::Pointer, Base, Offset);
   }
 
   Value() : Type(ValueType::Scalar), Base(nullptr), Accessor(nullptr) {}
 
-  Value(ValueType Type, const llvm::Value *Base, const llvm::Value *Accessor)
+  Value(ValueType Type, const llvm::Value *Base,
+        std::shared_ptr<Value> Accessor)
       : Type(Type), Base(Base), Accessor(Accessor) {}
 };
 
