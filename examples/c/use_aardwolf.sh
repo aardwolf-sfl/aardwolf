@@ -2,7 +2,7 @@
 cd bin
 
 # Prepare source code bitcode files
-clang -c -emit-llvm -g ../src/*.c
+clang -g -c -emit-llvm -g ../src/*.c
 
 # Go back
 cd ..
@@ -14,7 +14,7 @@ do
 done
 
 # Compile them together with test runner
-clang -o bin/test tests/test.c bin/*_instr.bc $RUNTIME_PATH/libaardwolf_runtime.a
+clang -g -o bin/test tests/test.c bin/*_instr.bc $RUNTIME_PATH/libaardwolf_runtime.a
 
 # Clean temporaries
 rm -rf bin/*.bc

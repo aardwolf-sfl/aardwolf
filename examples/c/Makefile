@@ -3,7 +3,7 @@ RUNTIME_PATH = ../../runtime/build
 
 test: src/* tests/*
 	@mkdir -p bin
-	@clang -o bin/test tests/test.c src/*.c ${RUNTIME_PATH}/libaardwolf_runtime_noop.a
+	@clang -g -o bin/test tests/test.c src/*.c ${RUNTIME_PATH}/libaardwolf_runtime_noop.a
 	@./bin/test
 
 aardwolf: src/* tests/*
