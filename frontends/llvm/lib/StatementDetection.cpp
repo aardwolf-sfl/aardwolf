@@ -26,8 +26,8 @@ using namespace aardwolf;
 // If given instruction is StoreInst, the resulting set does not contain
 // the destination variable. If the destination variable is a pointer,
 // it does include the accessor (e.g., offset) value.
-std::set<const llvm::Value*> findInputs(const llvm::Instruction *I) {
-    std::set<const llvm::Value*> Result;
+std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I) {
+    std::set<std::shared_ptr<Value>> Result;
 
     // Use BFS-like search backwards in the control flow graph and search for
     // AllocaInst and CallInst. While doing it, properly handle "transitive"
@@ -42,10 +42,10 @@ std::set<const llvm::Value*> findInputs(const llvm::Instruction *I) {
 
         if (llvm::isa<llvm::AllocaInst>(QI) && QI != I) {
             // Local variable.
-            Result.insert(QI);
+            Result.insert(Value::Scalar(QI));
         } else if (llvm::isa<llvm::CallInst>(QI) && QI != I) {
             // Result of a function call.
-            Result.insert(QI);
+            Result.insert(Value::Scalar(QI));
         } else if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(QI)) {
             // If the instruction is StoreInst, we must not to include the destination variable.
             if (auto *In = llvm::dyn_cast<llvm::Instruction>(SI->getOperand(0))) {
@@ -67,7 +67,7 @@ std::set<const llvm::Value*> findInputs(const llvm::Instruction *I) {
                     Q.push(In);
                 } else if (llvm::isa<llvm::GlobalValue>(U)) {
                     // Global variable.
-                    Result.insert(U);
+                    Result.insert(Value::Scalar(U));
                 }
             }
         }
@@ -86,20 +86,20 @@ std::set<const llvm::Value*> findInputs(const llvm::Instruction *I) {
 // is returned, not the accessor (e.g., offset) values, because these are
 // rather the inputs of the instruction (just specifying the precise location,
 // but the contents of the pointer is what is actually changed).
-const llvm::Value* findStoreDest(const llvm::StoreInst *SI) {
+std::shared_ptr<Value> findStoreDest(const llvm::StoreInst *SI) {
     auto Dest = SI->getOperand(1);
 
     if (llvm::isa<llvm::AllocaInst>(Dest)) {
         // Local variable.
-        return Dest;
+        return Value::Scalar(Dest);
     } else if (auto *GEPI = llvm::dyn_cast<llvm::GetElementPtrInst>(Dest)) {
         // Pointer variable (array, etc.).
         auto Inputs = findInputs(llvm::dyn_cast<llvm::Instruction>(GEPI->getOperand(0)));
 
         for (auto Input : Inputs) {
-            if (llvm::isa<llvm::AllocaInst>(Input)) {
+            if (llvm::isa<llvm::AllocaInst>(Input->Base)) {
                 return Input;
-            } else if (llvm::isa<llvm::GlobalValue>(Input)) {
+            } else if (llvm::isa<llvm::GlobalValue>(Input->Base)) {
                 return Input;
             }
         }
@@ -107,7 +107,7 @@ const llvm::Value* findStoreDest(const llvm::StoreInst *SI) {
         return nullptr;
     } else if (llvm::isa<llvm::GlobalValue>(Dest)) {
         // Global variable.
-        return Dest;
+        return Value::Scalar(Dest);
     } else {
         return nullptr;
     }
@@ -190,7 +190,7 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
         Result.Loc = getDebugLoc(CI);
 
         if (!CI->doesNotReturn()) {
-            Result.Out = CI;
+            Result.Out = Value::Scalar(CI);
         }
 
         return Result;

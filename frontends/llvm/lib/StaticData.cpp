@@ -59,7 +59,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream, State
     // Defs.
     if (Stmt.Out != nullptr) {
         writeBytes(Stream, (uint8_t)1);
-        writeBytes(Stream, Repo.getValueId(Stmt.Out));
+        writeBytes(Stream, Repo.getValueId(Stmt.Out->Base));
     } else {
         writeBytes(Stream, (uint8_t)0);
     }
@@ -68,7 +68,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream, State
     writeBytes(Stream, (uint8_t)Stmt.In.size());
 
     for (auto Use : Stmt.In) {
-        writeBytes(Stream, Repo.getValueId(Use));
+        writeBytes(Stream, Repo.getValueId(Use->Base));
     }
 
     // Location.

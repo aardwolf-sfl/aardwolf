@@ -41,10 +41,12 @@ void StatementRepository::registerStatement(llvm::Function *F, Statement& Stmt) 
     getStatementId(Stmt);
 
     for (auto I : Stmt.In) {
-        getValueId(I);
+        getValueId(I->Base);
     }
 
-    getValueId(Stmt.Out);
+    if (Stmt.Out != nullptr) {
+        getValueId(Stmt.Out->Base);
+    }
 
     FuncMap[F].push_back(Stmt.Instr);
 }
