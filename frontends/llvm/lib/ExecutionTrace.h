@@ -12,7 +12,7 @@ namespace aardwolf {
 class ExecutionTrace : public llvm::FunctionPass {
 private:
     llvm::FunctionType *WriteStmtTy;
-    llvm::Value *WriteStmt;
+    llvm::FunctionCallee WriteStmt;
 
 public:
     static char ID;
