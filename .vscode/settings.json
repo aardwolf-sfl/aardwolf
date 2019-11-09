@@ -64,5 +64,9 @@
     },
     "cSpell.words": [
         "AARD"
-    ]
+    ],
+    "C_Cpp.clang_format_fallbackStyle": "LLVM",
+    "[cpp]": {
+        "editor.tabSize": 2,
+    }
 }

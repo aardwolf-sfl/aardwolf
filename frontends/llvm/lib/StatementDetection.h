@@ -3,27 +3,27 @@
 
 #include <map>
 
-#include "llvm/Pass.h"
-#include "llvm/IR/Value.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Value.h"
+#include "llvm/Pass.h"
 
-#include "StatementRepository.h"
 #include "Statement.h"
+#include "StatementRepository.h"
 
 namespace aardwolf {
 class StatementDetection : public llvm::ModulePass {
 private:
-    Statement runOnInstruction(llvm::Instruction *I) const;
+  Statement runOnInstruction(llvm::Instruction *I) const;
 
 public:
-    static char ID;
-    StatementRepository Repo;
+  static char ID;
+  StatementRepository Repo;
 
-    StatementDetection() : ModulePass(ID) {}
+  StatementDetection() : ModulePass(ID) {}
 
-    virtual bool runOnModule(llvm::Module &M);
-    virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  virtual bool runOnModule(llvm::Module &M);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
-}
+} // namespace aardwolf
 
 #endif // AARDWOLF_STATEMENT_DETECTION_H

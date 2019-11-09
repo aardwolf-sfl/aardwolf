@@ -9,13 +9,13 @@
 namespace aardwolf {
 class StaticData : public llvm::ModulePass {
 public:
-    static char ID;
+  static char ID;
 
-    StaticData() : ModulePass(ID) {}
+  StaticData() : ModulePass(ID) {}
 
-    virtual bool runOnModule(llvm::Module &M);
-    virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  virtual bool runOnModule(llvm::Module &M);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
-}
+} // namespace aardwolf
 
 #endif // AARDWOLF_STATIC_DATA_H
