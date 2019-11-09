@@ -4,3 +4,6 @@ build
 # LLVM
 *.ll
 *.bc
+
+# Aardwolf
+aardwolf.*.data
