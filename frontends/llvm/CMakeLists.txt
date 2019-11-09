@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 project(aardwolf_llvm)
 
-# C++11
-set(CMAKE_CXX_STANDARD 11)
+# C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE} with compiler: ${CMAKE_CXX_COMPILER}")
