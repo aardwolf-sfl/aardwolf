@@ -1,6 +1,7 @@
 #include "StaticData.h"
 
 #include <cstdint>
+#include <cstdlib>
 
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
@@ -151,7 +152,15 @@ std::string filename(std::string Name) {
 }
 
 bool StaticData::runOnModule(llvm::Module &M) {
-  std::string Filename = ("aardwolf." + filename(M.getName().str()) + ".data");
+  char *DestRaw = std::getenv("AARDWOLF_DATA_DEST");
+  std::string Dest;
+
+  if (DestRaw != nullptr) {
+    Dest = DestRaw;
+    Dest += '/';
+  }
+
+  std::string Filename = (Dest + filename(M.getName().str()) + ".aard");
   std::error_code EC;
   llvm::raw_fd_ostream Stream(llvm::StringRef(Filename), EC);
 

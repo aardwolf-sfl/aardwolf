@@ -6,4 +6,4 @@ build
 *.bc
 
 # Aardwolf
-aardwolf.*.data
+*.aard

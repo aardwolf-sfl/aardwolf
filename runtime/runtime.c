@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <time.h>
+#include <string.h>
 
 #define FILE_FORMAT_VERSION 1
 
@@ -16,21 +16,43 @@ FILE * __aardwolf_get_fd(void)
 {
     if (__aardwolf_fd == NULL) {
         // Initialization.
-        char filename[15] = "aardwolf.xx.log";
+        char *destination = getenv("AARDWOLF_DATA_DEST");
+        // "execution-trace" is quite general name, we use exclamation mark
+        // at the beginning as an attempt to prevent collisions with source
+        // filenames.
+        char filename[] = "!execution-trace.aard";
+        char * filepath;
 
-        // This is called at most once.
-        srand(time(NULL));
-        uint8_t random = rand() % 100;
+        // NOTE: sizeof(filename) includes null terminator as well.
+        if (destination == NULL) {
+            filepath = (char*)malloc(sizeof(filename));
+            strcpy(filepath, filename);
+        } else {
+            size_t destination_length = strlen(destination);
 
-        // Replace `xx` with an actual id.
-        filename[9] = random / 10 + ASCII_ZERO;
-        filename[10] = random % 10 + ASCII_ZERO;
+            if (destination[destination_length - 1] != '/') {
+                destination_length++;
+            }
 
-        __aardwolf_fd = fopen(filename, "w");
+            filepath = (char*)malloc(destination_length + sizeof(filename));
+            memset(filepath, 0, destination_length + sizeof(filename));
+
+            strcpy(filepath, destination);
+
+            if (destination[destination_length - 1] != '/') {
+                filepath[destination_length - 1] = '/';
+            }
+
+            strcpy(filepath + destination_length, filename);
+        }
+
+        __aardwolf_fd = fopen(filepath, "w");
 
         // Print header.
         fputs("AARD/D", __aardwolf_fd);
         fputc(FILE_FORMAT_VERSION + ASCII_ZERO, __aardwolf_fd);
+
+        free(filepath);
     }
 
     return __aardwolf_fd;
