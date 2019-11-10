@@ -15,6 +15,10 @@ TOKEN_VALUE_SCALAR = b'\xe0'
 TOKEN_VALUE_STRUCT = b'\xe1'
 TOKEN_VALUE_POINTER = b'\xe2'
 
+META = 0x60
+META_ARG = 0x61
+META_RET = 0x62
+
 TOKEN_DATA_I32 = b'\x11'
 TOKEN_DATA_I64 = b'\x12'
 TOKEN_DATA_F32 = b'\x15'
@@ -68,6 +72,23 @@ def read_value(f):
     elif value_type == TOKEN_VALUE_POINTER:
         return f'%{read_u64(f)}[{read_value(f)}]'
 
+def read_metadata(f):
+    raw_metadata = read_u8(f)
+
+    if raw_metadata & META:
+        meta = []
+
+        if (raw_metadata & ~META) == (META_ARG & ~META):
+            meta.append('arg')
+
+        if (raw_metadata & ~META) == (META_RET & ~META):
+            meta.append('ret')
+
+        joined = ', '.join(meta)
+        return f'  {{ {joined} }}'
+    else:
+        return ''
+
 
 def get_static_handlers():
     def _parse_stmt(f):
@@ -91,10 +112,9 @@ def get_static_handlers():
 
         loc = ', '.join(loc)
 
-        # TODO: Statement metadata
-        read_u8(f)
+        metadata = read_metadata(f)
 
-        return f'{stmt_id} -> {succ_ids}  ::  defs: {defs} / uses: {uses} [{loc}]'
+        return f'{stmt_id} -> {succ_ids}  ::  defs: {defs} / uses: {uses} [{loc}]{metadata}'
 
     def _parse_func(f):
         name = read_cstr(f)

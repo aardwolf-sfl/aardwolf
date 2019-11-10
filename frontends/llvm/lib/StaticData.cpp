@@ -13,9 +13,13 @@ using namespace aardwolf;
 #define TOKEN_STATEMENT 0xff
 #define TOKEN_FUNCTION 0xfe
 #define TOKEN_FILENAMES 0xfd
+
 #define TOKEN_VALUE_SCALAR 0xe0
 #define TOKEN_VALUE_STRUCT 0xe1
 #define TOKEN_VALUE_POINTER 0xe2
+
+#define META_ARG 0x61
+#define META_RET 0x62
 
 std::string getFilepath(llvm::DebugLoc Loc) {
   if (Loc->getScope()->getDirectory() == "") {
@@ -74,6 +78,20 @@ void exportValue(StatementRepository &Repo, llvm::raw_ostream &Stream,
   }
 }
 
+uint8_t getMetadata(Statement &Stmt) {
+  uint8_t metadata = 0;
+
+  if (Stmt.isArg()) {
+    metadata |= META_ARG;
+  }
+
+  if (Stmt.isRet()) {
+    metadata |= META_RET;
+  }
+
+  return metadata;
+}
+
 void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
                      Statement &Stmt, std::vector<Statement *> &Successors) {
   // Statement id.
@@ -108,9 +126,8 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   writeBytes(Stream, (uint32_t)Stmt.Loc.getLine());
   writeBytes(Stream, (uint32_t)Stmt.Loc.getCol());
 
-  // Statement metadata (bitflags)
-  // TODO
-  writeBytes(Stream, (uint8_t)0);
+  // Statement metadata
+  writeBytes(Stream, getMetadata(Stmt));
 }
 
 void exportMetadata(StatementRepository &Repo, llvm::raw_ostream &Stream) {

@@ -22,7 +22,8 @@ struct Value {
   //   * AllocaInst - represents a local variable.
   //   * CallInst - represents the result of a function call.
   //   * GlobalVariable - represents a global variable.
-  //   * GetElementPtrInst - represents a composite variable (struct or pointer).
+  //   * GetElementPtrInst - represents a composite variable (struct or
+  //   pointer).
   // If the scalar value represents an accessor, this member field can be also:
   //   * Constant - represents a constant.
   const llvm::Value *Base;
@@ -68,6 +69,15 @@ struct Statement {
   llvm::DebugLoc Loc;
 
   Statement() : Instr(nullptr), Out(nullptr) {}
+
+  bool isArg() const {
+    // Argument is the first operand of a store instruction (if the instruction
+    // represents initialization of local variable with argument value).
+    return Instr->getNumOperands() > 0 &&
+           llvm::isa<llvm::Argument>(Instr->getOperand(0));
+  }
+
+  bool isRet() const { return llvm::isa<llvm::ReturnInst>(Instr); }
 };
 
 } // namespace aardwolf

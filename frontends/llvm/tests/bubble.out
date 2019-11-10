@@ -1,8 +1,8 @@
 
 function: bubble_sort
 
-#1 -> #2  ::  defs: %1 / uses:  [@1, 1, 23]
-#2 -> #3  ::  defs: %2 / uses:  [@1, 1, 40]
+#1 -> #2  ::  defs: %1 / uses:  [@1, 1, 23]  { arg }
+#2 -> #3  ::  defs: %2 / uses:  [@1, 1, 40]  { arg }
 #3 -> #4  ::  defs: %3 / uses:  [@1, 5, 19]
 #4 -> #5  ::  defs: %4 / uses:  [@1, 8, 16]
 #5 -> #6, #13  ::  defs:  / uses: %4, %2 [@1, 8, 9]
@@ -15,6 +15,6 @@ function: bubble_sort
 #12 -> #5  ::  defs: %4 / uses: %4 [@1, 8, 33]
 #13 -> #14  ::  defs: %2 / uses: %2 [@1, 19, 11]
 #14 -> #4, #15  ::  defs:  / uses: %3 [@1, 20, 5]
-#15 ->   ::  defs:  / uses:  [@1, 21, 1]
+#15 ->   ::  defs:  / uses:  [@1, 21, 1]  { ret }
 
 @1 = tests/bubble.c
