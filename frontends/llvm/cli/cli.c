@@ -183,6 +183,7 @@ int aardwolf_llvm() {
 }
 
 int main(int argc, char *argv[]) {
+  // TODO: Use configuration files rather than CLI options.
   void *argtable[] = {
       help = arg_lit0("h", "help", "displays this help and exits"),
       language = arg_str0(
