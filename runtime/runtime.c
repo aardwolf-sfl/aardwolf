@@ -28,21 +28,13 @@ FILE * __aardwolf_get_fd(void)
             filepath = (char*)malloc(sizeof(filename));
             strcpy(filepath, filename);
         } else {
-            size_t destination_length = strlen(destination);
-
-            if (destination[destination_length - 1] != '/') {
-                destination_length++;
-            }
+            size_t destination_length = strlen(destination) + 1;
 
             filepath = (char*)malloc(destination_length + sizeof(filename));
             memset(filepath, 0, destination_length + sizeof(filename));
 
             strcpy(filepath, destination);
-
-            if (destination[destination_length - 1] != '/') {
-                filepath[destination_length - 1] = '/';
-            }
-
+            filepath[destination_length - 1] = '/';
             strcpy(filepath + destination_length, filename);
         }
 
