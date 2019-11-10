@@ -15,8 +15,10 @@ void test(const char *name, test_fn *fn)
     __GLOBAL_STATUS = 1;
     aardwolf_write_external(name);
     fn();
-    printf("%s: %s\n", name, __GLOBAL_STATUS ? "OK" : "FAIL");
+    printf("\"%s\": %s\n", name, __GLOBAL_STATUS ? "OK" : "FAIL");
 }
+
+#define INIT() printf("#aardwolf plain\n")
 
 #define TEST(fn) test(#fn, &fn)
 // Important that the test case ends right after a failed assertion, because
