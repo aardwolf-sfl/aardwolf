@@ -159,7 +159,6 @@ void test_critical_tasks()
 
 int main()
 {
-    INIT();
     TEST(test_tasks_threshold);
     TEST(test_standard_names);
     TEST(test_waiting_threshold);

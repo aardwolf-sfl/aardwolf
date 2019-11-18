@@ -12,7 +12,6 @@ struct arg_file *sources, *tests, *output, *compiler_flags;
 struct arg_str *test_script, *parse_test_output, *language;
 struct arg_end *end;
 
-
 int error(const char *message) {
   fprintf(stderr, "%s\n", message);
   return 1;
@@ -72,24 +71,37 @@ int prepare_precompilation(char *command, int base_path_levels) {
   return 0;
 }
 
-int prepare_analysis(char *command, char *bitcode_file) {
-  char *llvm_path = getenv("AARDWOLF_LLVM_PATH");
-  if (llvm_path == NULL) {
-    return 1;
+int prepare_linking(char *command, const char *output_dir) {
+  char *cursor = command;
+  cursor = stpcpy(cursor, "llvm-link -o ");
+  cursor = stpcpy(cursor, output_dir);
+  cursor = stpcpy(cursor, "/!linked.bc ");
+
+  struct dir_iter iter;
+  list_dir(output_dir, &iter);
+  while (iter.file != NULL) {
+    if (iter.ext != NULL && strcmp(iter.ext, "bc") == 0) {
+      cursor = stpcpy(cursor, iter.file);
+      cursor = stpcpy(cursor, " ");
+    }
+    dir_iter_next(&iter);
   }
 
-  char *instrumented_file = (char *)malloc(strlen(bitcode_file) + 5);
-  char *cursor = instrumented_file;
-  cursor = stpcpy(cursor, bitcode_file);
-  strcpy(cursor - 2, "bin.bc");
+  return 0;
+}
 
-  sprintf(command,
-          "opt -load %s/libLLVMStatementDetection.so -load "
-          "%s/libLLVMStaticData.so -load %s/libLLVMExecutionTrace.so "
-          "-aard-static-data -aard-exec-trace %s > %s",
-          llvm_path, llvm_path, llvm_path, bitcode_file, instrumented_file);
+int prepare_analysis(char *command, const char *output_dir) {
+  char *llvm_path = getenv("AARDWOLF_LLVM_PATH");
+  if (llvm_path == NULL) {
+    return error("AARDWOLF_LLVM_PATH is not set");
+  }
 
-  free(instrumented_file);
+  sprintf(
+      command,
+      "opt -load %s/libLLVMStatementDetection.so -load "
+      "%s/libLLVMStaticData.so -load %s/libLLVMExecutionTrace.so "
+      "-aard-static-data -aard-exec-trace %s/!linked.bc > %s/!instrumented.bc",
+      llvm_path, llvm_path, llvm_path, output_dir, output_dir);
 
   return 0;
 }
@@ -97,7 +109,7 @@ int prepare_analysis(char *command, char *bitcode_file) {
 int prepare_compilation(char *command, const char *output_dir) {
   char *runtime_path = getenv("AARDWOLF_RUNTIME_PATH");
   if (runtime_path == NULL) {
-    return 1;
+    return error("AARDWOLF_RUNTIME_PATH is not set");
   }
 
   char *tests_str = (char *)malloc(0x1000);
@@ -107,9 +119,10 @@ int prepare_compilation(char *command, const char *output_dir) {
     cursor = stpcpy(cursor, " ");
   }
 
-  sprintf(command,
-          "clang -g -o %s/!run %s %s/*.bin.bc %s/libaardwolf_runtime.a ",
-          output_dir, tests_str, output_dir, runtime_path);
+  sprintf(
+      command,
+      "clang -g -o %s/!run %s %s/!instrumented.bc %s/libaardwolf_runtime.a ",
+      output_dir, tests_str, output_dir, runtime_path);
 
   free(tests_str);
 
@@ -122,6 +135,15 @@ int prepare_running(char *command, const char *output_dir) {
 }
 
 int aardwolf_llvm() {
+#define TRY(body)                                                              \
+  if (body) {                                                                  \
+    return 1;                                                                  \
+  }
+#define TRY_AND_LOG(body, message)                                             \
+  if (body) {                                                                  \
+    return error(message);                                                     \
+  }
+
   if (language->count > 0 && strcmp(language->sval[0], "c") != 0) {
     return error("Unsupported programming language!");
   }
@@ -144,9 +166,9 @@ int aardwolf_llvm() {
   change_dir(output_dir);
 
   // Compile bitcode files.
-  prepare_precompilation(command, output_dir_levels);
+  TRY(prepare_precompilation(command, output_dir_levels));
   printf("aardwolf: %s  (in %s)\n", command, output_dir);
-  execute(command);
+  TRY_AND_LOG(execute(command), "precompilation failed");
 
   // Change the directory back to the original.
   relative_path(cursor, output_dir_levels);
@@ -155,27 +177,26 @@ int aardwolf_llvm() {
   // Set data directory so Aardwolf generates files to proper destination.
   setenv("AARDWOLF_DATA_DEST", output_dir, 1);
 
-  struct dir_iter iter;
-  list_dir(output_dir, &iter);
-  while (iter.file != NULL) {
-    if (iter.ext != NULL && strcmp(iter.ext, "bc") == 0) {
-      // Generate static data and do the instrumentation.
-      prepare_analysis(command, iter.file);
-      printf("aardwolf: %s\n", command);
-      execute(command);
-    }
-    dir_iter_next(&iter);
-  }
+  // Link all generated bitcode files to one (so LLVM passes generate unique
+  // identifiers).
+  TRY(prepare_linking(command, output_dir));
+  printf("aardwolf: %s\n", command);
+  TRY_AND_LOG(execute(command), "linking failed");
+
+  // Run Aardwolf passes - generate static data and do the instrumentation.
+  TRY(prepare_analysis(command, output_dir));
+  printf("aardwolf: %s\n", command);
+  TRY_AND_LOG(execute(command), "analysis failed");
 
   // Compile an executable.
-  prepare_compilation(command, output_dir);
+  TRY(prepare_compilation(command, output_dir));
   printf("aardwolf: %s\n", command);
-  execute(command);
+  TRY_AND_LOG(execute(command), "compilation failed");
 
   // Run the tests.
-  prepare_running(command, output_dir);
+  TRY(prepare_running(command, output_dir));
   printf("aardwolf: %s\n", command);
-  execute(command);
+  TRY_AND_LOG(execute(command), "running failed");
 
   free(command);
 
