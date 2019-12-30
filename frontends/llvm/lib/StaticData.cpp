@@ -4,8 +4,12 @@
 #include <cstdlib>
 
 #include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "Statement.h"
 #include "StatementDetection.h"
 #include "StatementRepository.h"
 
@@ -22,16 +26,7 @@ using namespace aardwolf;
 #define META_ARG 0x61
 #define META_RET 0x62
 
-std::string getFilepath(llvm::DebugLoc Loc) {
-  if (Loc->getScope()->getDirectory() == "") {
-    return Loc->getScope()->getFilename().str();
-  } else {
-    return (Loc->getScope()->getDirectory() + "/" +
-            Loc->getScope()->getFilename())
-        .str();
-  }
-}
-
+// TODO: Is there an idiomatic C++ way how to do these writeBytes functions?
 void writeBytes(llvm::raw_ostream &Stream, uint8_t value) {
   Stream.write((const char *)&value, sizeof(uint8_t));
 }
@@ -54,24 +49,27 @@ void exportFunctionName(llvm::raw_ostream &Stream, llvm::Function &F) {
   writeBytes(Stream, F.getName().str());
 }
 
-void exportValue(StatementRepository &Repo, llvm::raw_ostream &Stream,
-                 Value *Value) {
-  switch (Value->Type) {
-  case ValueType::Scalar:
+void exportAccess(StatementRepository &Repo, llvm::raw_ostream &Stream,
+                  const Access *Access) {
+  switch (Access->getType()) {
+  case AccessType::Scalar:
     writeBytes(Stream, (uint8_t)TOKEN_VALUE_SCALAR);
-    writeBytes(Stream, Repo.getValueId(Value->Base));
+    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
     break;
 
-  case ValueType::Struct:
+  case AccessType::Structural:
     writeBytes(Stream, (uint8_t)TOKEN_VALUE_STRUCT);
-    writeBytes(Stream, Repo.getValueId(Value->Base));
-    exportValue(Repo, Stream, Value->Accessor.get());
+    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
+    exportAccess(Repo, Stream, &Access->getAccessor());
     break;
 
-  case ValueType::Pointer:
+  case AccessType::ArrayLike:
     writeBytes(Stream, (uint8_t)TOKEN_VALUE_POINTER);
-    writeBytes(Stream, Repo.getValueId(Value->Base));
-    exportValue(Repo, Stream, Value->Accessor.get());
+    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
+    writeBytes(Stream, (uint32_t)Access->getIndexVars().size());
+    for (auto Var : Access->getIndexVars()) {
+      exportAccess(Repo, Stream, &Var);
+    }
     break;
 
   default:
@@ -109,7 +107,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   // Defs.
   if (Stmt.Out != nullptr) {
     writeBytes(Stream, (uint8_t)1);
-    exportValue(Repo, Stream, Stmt.Out.get());
+    exportAccess(Repo, Stream, Stmt.Out.get());
   } else {
     writeBytes(Stream, (uint8_t)0);
   }
@@ -118,14 +116,15 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   writeBytes(Stream, (uint8_t)Stmt.In.size());
 
   for (auto Use : Stmt.In) {
-    exportValue(Repo, Stream, Use.get());
+    exportAccess(Repo, Stream, &Use);
   }
 
   // Location.
-  writeBytes(Stream, (uint8_t)3); // file, line, column
-  writeBytes(Stream, Repo.getFileId(getFilepath(Stmt.Loc)));
-  writeBytes(Stream, (uint32_t)Stmt.Loc.getLine());
-  writeBytes(Stream, (uint32_t)Stmt.Loc.getCol());
+  writeBytes(Stream, Repo.getFileId(Stmt.Loc.File));
+  writeBytes(Stream, (uint32_t)Stmt.Loc.Begin.Line);
+  writeBytes(Stream, (uint32_t)Stmt.Loc.Begin.Col);
+  writeBytes(Stream, (uint32_t)Stmt.Loc.End.Line);
+  writeBytes(Stream, (uint32_t)Stmt.Loc.End.Col);
 
   // Statement metadata
   writeBytes(Stream, getMetadata(Stmt));
@@ -141,7 +140,7 @@ void exportMetadata(StatementRepository &Repo, llvm::raw_ostream &Stream) {
   }
 }
 
-std::string filename(std::string Name) {
+std::string getFilename(std::string Name) {
   auto SepPos = Name.rfind('/');
 
   if (SepPos != std::string::npos) {
@@ -151,29 +150,30 @@ std::string filename(std::string Name) {
   }
 }
 
-bool StaticData::runOnModule(llvm::Module &M) {
-  char *DestRaw = std::getenv("AARDWOLF_DATA_DEST");
+StaticData::StaticData(std::string &DestDir) : DestDir(DestDir) {}
+
+llvm::PreservedAnalyses StaticData::run(llvm::Module &M,
+                                        llvm::ModuleAnalysisManager &MAM) {
   std::string Dest;
 
-  if (DestRaw != nullptr) {
-    Dest = DestRaw;
-    Dest += '/';
+  if (!DestDir.empty()) {
+    Dest = DestDir + '/';
   }
 
-  std::string Filename = (Dest + filename(M.getName().str()) + ".aard");
+  std::string Filename = (Dest + getFilename(M.getName().str()) + ".aard");
   std::error_code EC;
   llvm::raw_fd_ostream Stream(llvm::StringRef(Filename), EC);
 
   if (EC) {
     llvm::errs() << EC.message() << "\n";
-    return false;
+    return llvm::PreservedAnalyses::all();
   }
 
   // Header.
   Stream << "AARD/S1";
 
   std::vector<Statement *> Outgoing;
-  auto Repo = getAnalysis<StatementDetection>().Repo;
+  auto Repo = MAM.getResult<StatementDetection>(M);
 
   for (auto &F : M) {
     if (F.isDeclaration()) {
@@ -184,11 +184,11 @@ bool StaticData::runOnModule(llvm::Module &M) {
 
     for (auto &BB : F) {
       for (auto &I : BB) {
-        auto Stmt = Repo.StmtMap.find(&I);
+        auto Stmt = Repo.InstrStmtMap.find(&I);
 
-        if (Stmt != Repo.StmtMap.end()) {
+        if (Stmt != Repo.InstrStmtMap.end()) {
           for (auto Succ : Repo.InstrSucc[Stmt->first]) {
-            Outgoing.push_back(&Repo.StmtMap[Succ]);
+            Outgoing.push_back(&Repo.InstrStmtMap[Succ]);
           }
 
           exportStatement(Repo, Stream, Stmt->second, Outgoing);
@@ -200,14 +200,5 @@ bool StaticData::runOnModule(llvm::Module &M) {
 
   exportMetadata(Repo, Stream);
 
-  return false;
+  return llvm::PreservedAnalyses::all();
 }
-
-void StaticData::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<StatementDetection>();
-}
-
-char StaticData::ID = 0;
-static llvm::RegisterPass<StaticData> X("aard-static-data",
-                                        "Aardwolf Static Data Pass");

@@ -60,8 +60,7 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "valarray": "cpp",
-        "variant": "cpp",
-        "argtable3.h": "c"
+        "variant": "cpp"
     },
     "cSpell.words": [
         "AARD"

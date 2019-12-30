@@ -12,8 +12,8 @@ TOKEN_FUNCTION = TOKEN_EXTERNAL = b'\xfe'
 TOKEN_FILENAMES = b'\xfd'
 
 TOKEN_VALUE_SCALAR = b'\xe0'
-TOKEN_VALUE_STRUCT = b'\xe1'
-TOKEN_VALUE_POINTER = b'\xe2'
+TOKEN_VALUE_STRUCTURAL = b'\xe1'
+TOKEN_VALUE_ARRAY_LIKE = b'\xe2'
 
 META = 0x60
 META_ARG = 0x61
@@ -61,16 +61,19 @@ def read_cstr(f):
 def read_str(f):
     return f'"{read_cstr(f)}"'
 
-def read_value(f):
+def read_access(f):
     value_type = f.read(1)
-    assert value_type in [TOKEN_VALUE_SCALAR, TOKEN_VALUE_STRUCT, TOKEN_VALUE_POINTER], 'invalid value type'
+    assert value_type in [TOKEN_VALUE_SCALAR, TOKEN_VALUE_STRUCTURAL, TOKEN_VALUE_ARRAY_LIKE], 'invalid value type'
 
     if value_type == TOKEN_VALUE_SCALAR:
         return f'%{read_u64(f)}'
-    elif value_type == TOKEN_VALUE_STRUCT:
-        return f'%{read_u64(f)}.({read_value(f)})'
-    elif value_type == TOKEN_VALUE_POINTER:
-        return f'%{read_u64(f)}[{read_value(f)}]'
+    elif value_type == TOKEN_VALUE_STRUCTURAL:
+        return f'%{read_u64(f)}.{read_access(f)}'
+    elif value_type == TOKEN_VALUE_ARRAY_LIKE:
+        base = read_u64(f)
+        count = read_u32(f)
+        offset = ', '.join(sorted([read_access(f) for _ in range(count)]))
+        return f'%{base}[{offset}]'
 
 def read_metadata(f):
     raw_metadata = read_u8(f)
@@ -95,22 +98,15 @@ def get_static_handlers():
         stmt_id = read_stmt(f)
 
         n_succ = read_u8(f)
-        succ_ids = ', '.join([read_stmt(f) for _ in range(n_succ)])
+        succ_ids = ', '.join(sorted([read_stmt(f) for _ in range(n_succ)]))
 
         n_defs = read_u8(f)
-        defs = ', '.join([read_value(f) for _ in range(n_defs)])
+        defs = ', '.join(sorted([read_access(f) for _ in range(n_defs)]))
 
         n_uses = read_u8(f)
-        uses = ', '.join([read_value(f) for _ in range(n_uses)])
+        uses = ', '.join(sorted([read_access(f) for _ in range(n_uses)]))
 
-        n_loc = read_u8(f)
-        loc = [str(read_u32(f)) for _ in range(n_loc)]
-        loc[0] = f'@{loc[0]}'
-
-        if n_loc == 2:
-            loc.append('?')
-
-        loc = ', '.join(loc)
+        loc = f'@{read_u32(f)} {read_u32(f)}:{read_u32(f)}-{read_u32(f)}:{read_u32(f)}'
 
         metadata = read_metadata(f)
 

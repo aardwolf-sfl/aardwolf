@@ -16,11 +16,11 @@ namespace aardwolf {
 struct StatementRepository {
 public:
   // Mapping from llvm instruction to aardwolf statement.
-  std::map<llvm::Instruction *, Statement> StmtMap;
+  std::map<llvm::Instruction *, Statement> InstrStmtMap;
 
   // Mapping from function to list of aardwolf statements
   // (represented by internal llvm instructions).
-  std::map<llvm::Function *, std::vector<llvm::Instruction *>> FuncMap;
+  std::map<llvm::Function *, std::vector<llvm::Instruction *>> FuncInstrsMap;
 
   // All successors of each statement (represented by internal llvm
   // instruction).

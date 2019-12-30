@@ -1,7 +1,7 @@
 
 function: get_global
 
-#1 -> #2  ::  defs: %1 / uses: %1 [@1, 4, 11]
-#2 ->   ::  defs:  / uses: %1 [@1, 5, 5]  { ret }
+#1 -> #2  ::  defs: %1 / uses: %1 [@1 4:11-4:11]
+#2 ->   ::  defs:  / uses: %1 [@1 5:5-5:5]  { ret }
 
 @1 = tests/global.c

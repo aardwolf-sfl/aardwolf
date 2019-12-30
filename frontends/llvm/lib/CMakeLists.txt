@@ -1,3 +1,4 @@
-add_library(LLVMStatementDetection SHARED StatementDetection.cpp StatementRepository.cpp)
-add_library(LLVMStaticData SHARED StaticData.cpp)
-add_library(LLVMExecutionTrace SHARED ExecutionTrace.cpp)
+set(PLUGIN_NAME AardwolfLLVM)
+
+add_library(${PLUGIN_NAME} SHARED Registration.cpp StaticData.cpp DynamicData.cpp StatementDetection.cpp Statement.cpp StatementRepository.cpp)
+target_include_directories(${PLUGIN_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")

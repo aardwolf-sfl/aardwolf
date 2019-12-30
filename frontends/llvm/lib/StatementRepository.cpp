@@ -39,17 +39,19 @@ uint32_t StatementRepository::getFileId(const std::string Filepath) {
 
 void StatementRepository::registerStatement(llvm::Function *F,
                                             Statement &Stmt) {
+  InstrStmtMap.insert({ Stmt.Instr, Stmt });
+
   getStatementId(Stmt);
 
   for (auto I : Stmt.In) {
-    getValueId(I->Base);
+    getValueId(I.getValueOrBase());
   }
 
   if (Stmt.Out != nullptr) {
-    getValueId(Stmt.Out->Base);
+    getValueId(Stmt.Out->getValueOrBase());
   }
 
-  FuncMap[F].push_back(Stmt.Instr);
+  FuncInstrsMap[F].push_back(Stmt.Instr);
 }
 
 void StatementRepository::addSuccessor(llvm::Instruction *Stmt,

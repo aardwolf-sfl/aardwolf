@@ -1,23 +1,28 @@
 #include "StatementDetection.h"
 
 #include <queue>
-#include <set>
+#include <unordered_set>
 
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "Exceptions.h"
+#include "StatementRepository.h"
 
 using namespace aardwolf;
 
-std::shared_ptr<Value> getValue(const llvm::User *U);
-std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I);
+std::shared_ptr<Access> getValueAccess(const llvm::User *U);
+std::unordered_set<Access, AccessHasher> findInputs(const llvm::Instruction *I);
 
-const llvm::Value *getCompositeBase(const llvm::GetElementPtrInst *GEPI) {
+// Gets value that corresponds to the base "pointer" of a composite type (the
+// array or structure itself).
+const llvm::Value *findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
   if (auto I = llvm::dyn_cast<llvm::Instruction>(GEPI->getOperand(0))) {
-    // Found on first try (this applies for arrays).
+    // Found on first try (this is true for arrays).
     if (llvm::isa<llvm::AllocaInst>(I)) {
       return I;
     }
@@ -25,7 +30,7 @@ const llvm::Value *getCompositeBase(const llvm::GetElementPtrInst *GEPI) {
     // Find the alloca instruction transitively.
     auto Inputs = findInputs(I);
     if (Inputs.size() == 1) {
-      return Inputs.begin()->get()->Base;
+      return Inputs.begin()->getValueOrBase();
     }
 
     return nullptr;
@@ -34,41 +39,41 @@ const llvm::Value *getCompositeBase(const llvm::GetElementPtrInst *GEPI) {
   return nullptr;
 }
 
-std::shared_ptr<Value>
-getCompositeAccessor(const llvm::GetElementPtrInst *GEPI) {
+// Gets values that determine the access to the composite type (e.g., index,
+// field, etc.).
+std::vector<Access>
+findCompositeAccessors(const llvm::GetElementPtrInst *GEPI) {
   auto AU =
       llvm::dyn_cast<llvm::User>(GEPI->getOperand(GEPI->getNumOperands() - 1));
 
-  // Try if the accessor is value on its own.
-  auto A = getValue(AU);
+  // Try if the accessor is valid access on its own.
+  auto A = getValueAccess(AU);
 
   if (A == nullptr) {
     if (auto C = llvm::dyn_cast<llvm::Constant>(AU)) {
-      // Constant. For pointers accessors they are important.
-      return Value::Scalar(C);
+      // Constant. For accessors they are important.
+      return {Access::makeScalar(C)};
     } else if (auto I = llvm::dyn_cast<llvm::Instruction>(AU)) {
-      // Find the alloca instruction representing the variable.
+      // Find the alloca/method call instructions.
       auto Inputs = findInputs(I);
-      if (Inputs.size() == 1) {
-        return *Inputs.begin();
-      }
+      return std::vector<Access>(Inputs.begin(), Inputs.end());
     }
 
-    return nullptr;
+    return {};
   } else {
-    return A;
+    return {*A};
   }
 }
 
-std::shared_ptr<Value> getValue(const llvm::User *U) {
+std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
   if (U == nullptr) {
     return nullptr;
   } else if (llvm::isa<llvm::AllocaInst>(U)) {
     // Local variable.
-    return Value::Scalar(U);
+    return std::make_shared<Access>(Access::makeScalar(U));
   } else if (llvm::isa<llvm::CallInst>(U)) {
     // Result of a function call.
-    return Value::Scalar(U);
+    return std::make_shared<Access>(Access::makeScalar(U));
   } else if (auto GV = llvm::dyn_cast<llvm::GlobalVariable>(U)) {
     if (GV->isConstant()) {
       // If isConstant is true, then the value is immutable throughout the
@@ -77,26 +82,22 @@ std::shared_ptr<Value> getValue(const llvm::User *U) {
     }
 
     // Global variable.
-    return Value::Scalar(U);
+    return std::make_shared<Access>(Access::makeScalar(GV));
   } else if (auto GEPI = llvm::dyn_cast<llvm::GetElementPtrInst>(U)) {
-    auto B = getCompositeBase(GEPI);
-    auto A = getCompositeAccessor(GEPI);
+    auto B = findCompositeBase(GEPI);
+    auto A = findCompositeAccessors(GEPI);
 
-    if (B == nullptr || A == nullptr) {
+    if (B == nullptr || A.empty()) {
       llvm::errs() << "TODO: invalid state\n";
       return nullptr;
     }
 
-    // TODO: Implementation so far marks `i` and `i + 1` as identical values,
-    //       but they are obviously not.
-    //       This could lead to invalid assumptions during localization.
-
     // Struct pointer is special for us, all other are treated as general
     // pointers.
     if (GEPI->getSourceElementType()->isStructTy()) {
-      return Value::Struct(B, A);
+      return std::make_shared<Access>(Access::makeStructural(B, *A.begin()));
     } else {
-      return Value::Pointer(B, A);
+      return std::make_shared<Access>(Access::makeArrayLike(B, A));
     }
   } else {
     return nullptr;
@@ -108,8 +109,9 @@ std::shared_ptr<Value> getValue(const llvm::User *U) {
 //
 // If given instruction is StoreInst, the resulting set does not contain
 // the destination variable.
-std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I) {
-  std::set<std::shared_ptr<Value>> Result;
+std::unordered_set<Access, AccessHasher>
+findInputs(const llvm::Instruction *I) {
+  std::unordered_set<Access, AccessHasher> Result(16);
 
   // Use BFS-like search backwards in the control flow graph and search for
   // instructions that represent supported values (see Statement.h). While doing
@@ -122,9 +124,9 @@ std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I) {
     auto QU = Q.front();
     Q.pop();
 
-    auto V = getValue(QU);
+    auto V = getValueAccess(QU);
     if (QU != I && V != nullptr) {
-      Result.insert(V);
+      Result.insert(*V);
     } else if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(QU)) {
       // If the instruction is StoreInst, we must not to include the destination
       // variable.
@@ -146,10 +148,9 @@ std::set<std::shared_ptr<Value>> findInputs(const llvm::Instruction *I) {
 
 // Retrieves the instruction location in the original source code. If this data
 // is not available, it throws an UnknownLocation exception.
-const llvm::DebugLoc getDebugLoc(const llvm::Instruction *I) {
+const llvm::DebugLoc getInstrLoc(const llvm::Instruction *I) {
   if (auto Loc = I->getDebugLoc()) {
-    if (Loc->getScope() !=
-        nullptr /* && llvm::isa<llvm::DIScope>(Loc->getScope())*/) {
+    if (Loc->getScope() != nullptr) {
       return Loc;
     }
   } else if (llvm::isa<llvm::StoreInst>(I) &&
@@ -160,9 +161,7 @@ const llvm::DebugLoc getDebugLoc(const llvm::Instruction *I) {
     // NOTE: Can there be multiple debug uses?
     for (auto Dbg : llvm::FindDbgAddrUses(Alloca)) {
       auto Loc = Dbg->getDebugLoc();
-      // llvm::isa_and_nonnull is available since LLVM 9.0
-      if (Loc->getScope() !=
-          nullptr /* && llvm::isa<llvm::DIScope>(Loc->getScope())*/) {
+      if (Loc->getScope() != nullptr) {
         return Loc;
       }
     }
@@ -171,13 +170,36 @@ const llvm::DebugLoc getDebugLoc(const llvm::Instruction *I) {
   throw UnknownLocation();
 }
 
-Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
+const std::string getDebugLocFile(llvm::DebugLoc Loc) {
+  if (Loc->getScope()->getDirectory() == "") {
+    return Loc->getScope()->getFilename().str();
+  } else {
+    return (Loc->getScope()->getDirectory() + "/" +
+            Loc->getScope()->getFilename())
+        .str();
+  }
+}
+
+// Retrieves the location of the whole statement in the original source code.
+const Location getStmtLoc(const Statement &Stmt) {
+  auto InstrLoc = getInstrLoc(Stmt.Instr);
+  auto Line = InstrLoc.getLine();
+  auto Col = InstrLoc.getCol();
+  auto File = getDebugLocFile(InstrLoc);
+
+  // We might do some range computations, however, in any cases it will not be
+  // possible. About simple statement like `a = 0`, we only have information
+  // about location of equal symbol, nothing else.
+  return Location(File, LineCol(Line, Col), LineCol(Line, Col));
+}
+
+Statement runOnInstr(llvm::Instruction *I) {
   Statement Result;
 
   if (auto *RI = llvm::dyn_cast<llvm::ReturnInst>(I)) {
     Result.Instr = RI;
     Result.In = findInputs(RI);
-    Result.Loc = getDebugLoc(RI);
+    Result.Loc = getStmtLoc(Result);
     return Result;
   }
 
@@ -185,7 +207,7 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
     if (BI->isConditional()) {
       Result.Instr = BI;
       Result.In = findInputs(BI);
-      Result.Loc = getDebugLoc(BI);
+      Result.Loc = getStmtLoc(Result);
       return Result;
     }
   }
@@ -193,22 +215,22 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
   if (auto *SI = llvm::dyn_cast<llvm::SwitchInst>(I)) {
     Result.Instr = SI;
     Result.In = findInputs(SI);
-    Result.Loc = getDebugLoc(SI);
+    Result.Loc = getStmtLoc(Result);
     return Result;
   }
 
   if (auto *II = llvm::dyn_cast<llvm::InvokeInst>(I)) {
     Result.Instr = II;
     Result.In = findInputs(II);
-    Result.Loc = getDebugLoc(II);
+    Result.Loc = getStmtLoc(Result);
     return Result;
   }
 
   if (auto *SI = llvm::dyn_cast<llvm::StoreInst>(I)) {
     Result.Instr = SI;
     Result.In = findInputs(SI);
-    Result.Out = getValue(llvm::dyn_cast<llvm::User>(SI->getOperand(1)));
-    Result.Loc = getDebugLoc(SI);
+    Result.Out = getValueAccess(llvm::dyn_cast<llvm::User>(SI->getOperand(1)));
+    Result.Loc = getStmtLoc(Result);
     return Result;
   }
 
@@ -221,10 +243,10 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
     auto Inputs = findInputs(CI);
     Result.Instr = CI;
     Result.In = findInputs(CI);
-    Result.Loc = getDebugLoc(CI);
+    Result.Loc = getStmtLoc(Result);
 
     if (!CI->getType()->isVoidTy()) {
-      Result.Out = Value::Scalar(CI);
+      Result.Out = std::make_shared<Access>(Access::makeScalar(CI));
     }
 
     return Result;
@@ -233,7 +255,10 @@ Statement StatementDetection::runOnInstruction(llvm::Instruction *I) const {
   return Result;
 }
 
-bool StatementDetection::runOnModule(llvm::Module &M) {
+StatementRepository StatementDetection::run(llvm::Module &M,
+                                            llvm::ModuleAnalysisManager &) {
+  StatementRepository Repo;
+
   // First and last statements for each non-empty basic block.
   std::map<const llvm::BasicBlock *,
            std::pair<llvm::Instruction *, llvm::Instruction *>>
@@ -256,19 +281,19 @@ bool StatementDetection::runOnModule(llvm::Module &M) {
       for (auto &I : BB) {
         Statement Stmt;
         try {
-          Stmt = runOnInstruction(&I);
+          Stmt = runOnInstr(&I);
         } catch (UnknownLocation &) {
-          // TODO: There might be some special instructions with no debug info
-          //       (e.g., `store i32 0, i32* %1, align 4` in main function).
+          // This statement does not have a location. It can be an instruction
+          // that is not present in the source code and is added by the
+          // compiler.
           continue;
         }
 
         // If the instruction represents a valid statement.
         if (Stmt.Instr != nullptr) {
-          // Add the mapping from llvm instruction to the statement.
-          Repo.StmtMap.insert({Stmt.Instr, Stmt});
-          // For user-friendly identifiers to follow the order
-          // of occuring of the statement in the source code file.
+          // Register the statement at this point for user-friendly identifiers
+          // that follow the order of occurrence of the statement in the source
+          // code.
           Repo.registerStatement(&F, Stmt);
 
           if (First == nullptr) {
@@ -328,13 +353,7 @@ bool StatementDetection::runOnModule(llvm::Module &M) {
     }
   }
 
-  return false;
+  return Repo;
 }
 
-void StatementDetection::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-}
-
-char StatementDetection::ID = 0;
-static llvm::RegisterPass<StatementDetection>
-    X("aard-stmt-detection", "Aardwolf Statement Detection Pass");
+llvm::AnalysisKey StatementDetection::Key;

@@ -15,8 +15,8 @@ static FILE * __aardwolf_fd = NULL;
 FILE * __aardwolf_get_fd(void)
 {
     if (__aardwolf_fd == NULL) {
-        // Initialization.
-        char *destination = getenv("AARDWOLF_DATA_DEST");
+        char *dest_dir = getenv("AARDWOLF_DATA_DEST");
+
         // "execution-trace" is quite general name, we use exclamation mark
         // at the beginning as an attempt to prevent collisions with source
         // filenames.
@@ -24,21 +24,27 @@ FILE * __aardwolf_get_fd(void)
         char * filepath;
 
         // NOTE: sizeof(filename) includes null terminator as well.
-        if (destination == NULL) {
+        if (dest_dir == NULL) {
             filepath = (char*)malloc(sizeof(filename));
             strcpy(filepath, filename);
         } else {
-            size_t destination_length = strlen(destination) + 1;
+            size_t destination_length = strlen(dest_dir) + 1;
 
             filepath = (char*)malloc(destination_length + sizeof(filename));
             memset(filepath, 0, destination_length + sizeof(filename));
 
-            strcpy(filepath, destination);
+            strcpy(filepath, dest_dir);
             filepath[destination_length - 1] = '/';
             strcpy(filepath + destination_length, filename);
         }
 
         __aardwolf_fd = fopen(filepath, "w");
+
+        if (__aardwolf_fd == NULL) {
+            fprintf(stderr, "Aardwolf error: cannot open %s.\n", filepath);
+            free(filepath);
+            exit(1);
+        }
 
         // Print header.
         fputs("AARD/D", __aardwolf_fd);
