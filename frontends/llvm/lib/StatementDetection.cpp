@@ -21,7 +21,9 @@ std::unordered_set<Access, AccessHasher> findInputs(const llvm::Instruction *I);
 // Gets value that corresponds to the base "pointer" of a composite type (the
 // array or structure itself).
 const llvm::Value *findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
-  if (auto I = llvm::dyn_cast<llvm::Instruction>(GEPI->getOperand(0))) {
+  auto B = GEPI->getOperand(0);
+
+  if (auto I = llvm::dyn_cast<llvm::Instruction>(B)) {
     // Found on first try (this is true for arrays).
     if (llvm::isa<llvm::AllocaInst>(I)) {
       return I;
@@ -34,6 +36,8 @@ const llvm::Value *findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
     }
 
     return nullptr;
+  } else if (llvm::isa<llvm::GlobalVariable>(B)) {
+    return B;
   }
 
   return nullptr;
@@ -43,6 +47,8 @@ const llvm::Value *findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
 // field, etc.).
 std::vector<Access>
 findCompositeAccessors(const llvm::GetElementPtrInst *GEPI) {
+  std::vector<Access> Output;
+
   auto AU =
       llvm::dyn_cast<llvm::User>(GEPI->getOperand(GEPI->getNumOperands() - 1));
 
@@ -52,17 +58,18 @@ findCompositeAccessors(const llvm::GetElementPtrInst *GEPI) {
   if (A == nullptr) {
     if (auto C = llvm::dyn_cast<llvm::Constant>(AU)) {
       // Constant. For accessors they are important.
-      return {Access::makeScalar(C)};
+      Output.push_back(Access::makeScalar(C));
     } else if (auto I = llvm::dyn_cast<llvm::Instruction>(AU)) {
       // Find the alloca/method call instructions.
-      auto Inputs = findInputs(I);
-      return std::vector<Access>(Inputs.begin(), Inputs.end());
+      for (auto Input : findInputs(I)) {
+        Output.push_back(Input);
+      }
     }
-
-    return {};
   } else {
-    return {*A};
+    Output.push_back(*A);
   }
+
+  return Output;
 }
 
 std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
