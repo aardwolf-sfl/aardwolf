@@ -11,7 +11,12 @@ using namespace aardwolf;
 llvm::PassPluginLibraryInfo getAardwolfPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "aardwolf-statement-detection",
           LLVM_VERSION_STRING, [](llvm::PassBuilder &PB) {
-            std::string DestDir(std::getenv("AARDWOLF_DATA_DEST"));
+            std::string DestDir;
+            auto DestDirEnv = std::getenv("AARDWOLF_DATA_DEST");
+
+            if (DestDirEnv != nullptr) {
+              DestDir = DestDirEnv;
+            }
 
             PB.registerAnalysisRegistrationCallback(
                 [](llvm::ModuleAnalysisManager &MAM) {
@@ -20,7 +25,7 @@ llvm::PassPluginLibraryInfo getAardwolfPluginInfo() {
 
             PB.registerPipelineParsingCallback(
                 [&DestDir](llvm::StringRef Name, llvm::ModulePassManager &MPM,
-                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
+                           llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
                   if (Name == "aardwolf-static-data") {
                     MPM.addPass(StaticData(DestDir));
                     return true;
