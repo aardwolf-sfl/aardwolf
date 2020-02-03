@@ -11,52 +11,68 @@
 
 namespace aardwolf {
 
-enum AccessType { Scalar, Structural, ArrayLike };
+enum AccessType { Structural, ArrayLike };
 
 struct Access {
 private:
+  const llvm::Value *Value;
+
+  const std::shared_ptr<Access> Base;
+  const std::vector<Access> Accessors;
   const AccessType Type;
 
-  const llvm::Value *Base;
-  const std::vector<Access> Accessors;
+  Access(const llvm::Value *Value)
+      : Value(Value), Base(nullptr), Type(AccessType::Structural) {}
 
-  Access(const AccessType Type, const llvm::Value *Base);
-  Access(const AccessType Type, const llvm::Value *Base, Access Accessor);
-  Access(const AccessType Type, const llvm::Value *Base,
-         std::vector<Access> Accessors);
+  Access(const Access Base, const std::vector<Access> Accessors,
+         const AccessType Type)
+      : Value(nullptr), Base(std::make_shared<Access>(Base)),
+        Accessors(Accessors.begin(), Accessors.end()), Type(Type) {}
 
 public:
   static Access makeScalar(const llvm::Value *Value);
+  static Access makeStructural(Access Base, Access Field);
+  static Access makeArrayLike(Access Base, Access Index);
+  static Access makeArrayLike(Access Base, std::vector<Access> Index);
 
-  static Access makeStructural(const llvm::Value *Base, Access Accessor);
+  bool isScalar() const;
 
-  static Access makeArrayLike(const llvm::Value *Base, Access IndexVars);
-
-  static Access makeArrayLike(const llvm::Value *Base,
-                              std::vector<Access> IndexVars);
-
-  AccessType getType() const;
   const llvm::Value *getValue() const;
-  const llvm::Value *getBase() const;
+
+  const Access &getBase() const;
+  const std::vector<Access> &getAccessors() const;
+  const AccessType &getType() const;
+
   const llvm::Value *getValueOrBase() const;
-  const Access &getAccessor() const;
-  const std::vector<Access> &getIndexVars() const;
+
+  void print(llvm::raw_ostream &Stream) const;
 
   std::size_t hash() const {
-    auto h1 = std::hash<const AccessType>()(Type);
-    auto h2 = std::hash<const llvm::Value *>()(Base);
+    if (isScalar()) {
+      return std::hash<const llvm::Value *>()(Value);
+    } else {
+      auto h1 = std::hash<const AccessType>()(Type);
+      // auto h2 = std::hash<const Access *>()(Base.get());
+      auto h2 = Base->hash();
 
-    std::size_t h = h1 ^ (h2 << 1);
+      std::size_t h = h1 ^ (h2 << 1);
 
-    for (std::vector<Access>::size_type i = 0; i < Accessors.size(); i++) {
-      h = h ^ (Accessors[i].hash() << (i + 2));
+      for (std::vector<Access>::size_type i = 0; i < Accessors.size(); i++) {
+        h = h ^ (Accessors[i].hash() << (i + 2));
+      }
+
+      return h;
     }
-
-    return h;
   }
 
   friend bool operator==(const Access &lhs, const Access &rhs) {
-    return lhs.Type == rhs.Type && lhs.Base == rhs.Base;
+    if (lhs.isScalar() && rhs.isScalar()) {
+      return lhs.Value == rhs.Value;
+    } else if (!lhs.isScalar() && !rhs.isScalar()) {
+      return lhs.Type == rhs.Type && *lhs.Base == *rhs.Base;
+    } else {
+      return false;
+    }
   }
 
   friend bool operator!=(const Access &lhs, const Access &rhs) {

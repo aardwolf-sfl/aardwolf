@@ -68,12 +68,12 @@ def read_access(f):
     if value_type == TOKEN_VALUE_SCALAR:
         return f'%{read_u64(f)}'
     elif value_type == TOKEN_VALUE_STRUCTURAL:
-        return f'%{read_u64(f)}.{read_access(f)}'
+        return f'{read_access(f)}.{read_access(f)}'
     elif value_type == TOKEN_VALUE_ARRAY_LIKE:
-        base = read_u64(f)
+        base = read_access(f)
         count = read_u32(f)
-        offset = ', '.join(sorted([read_access(f) for _ in range(count)]))
-        return f'%{base}[{offset}]'
+        index = ', '.join(sorted([read_access(f) for _ in range(count)]))
+        return f'{base}[{index}]'
 
 def read_metadata(f):
     raw_metadata = read_u8(f)

@@ -20,24 +20,27 @@ std::unordered_set<Access, AccessHasher> findInputs(const llvm::Instruction *I);
 
 // Gets value that corresponds to the base "pointer" of a composite type (the
 // array or structure itself).
-const llvm::Value *findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
+const std::shared_ptr<Access>
+findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
   auto B = GEPI->getOperand(0);
 
-  if (auto I = llvm::dyn_cast<llvm::Instruction>(B)) {
+  if (auto GEPI2 = llvm::dyn_cast<llvm::GetElementPtrInst>(B)) {
+    return getValueAccess(GEPI2);
+  } else if (auto I = llvm::dyn_cast<llvm::Instruction>(B)) {
     // Found on first try (this is true for arrays).
     if (llvm::isa<llvm::AllocaInst>(I)) {
-      return I;
+      return std::make_shared<Access>(Access::makeScalar(I));
     }
 
     // Find the alloca instruction transitively.
     auto Inputs = findInputs(I);
     if (Inputs.size() == 1) {
-      return Inputs.begin()->getValueOrBase();
+      return std::make_shared<Access>(*Inputs.begin());
     }
 
     return nullptr;
   } else if (llvm::isa<llvm::GlobalVariable>(B)) {
-    return B;
+    return std::make_shared<Access>(Access::makeScalar(B));
   }
 
   return nullptr;
@@ -102,9 +105,9 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     // Struct pointer is special for us, all other are treated as general
     // pointers.
     if (GEPI->getSourceElementType()->isStructTy()) {
-      return std::make_shared<Access>(Access::makeStructural(B, *A.begin()));
+      return std::make_shared<Access>(Access::makeStructural(*B, *A.begin()));
     } else {
-      return std::make_shared<Access>(Access::makeArrayLike(B, A));
+      return std::make_shared<Access>(Access::makeArrayLike(*B, A));
     }
   } else {
     return nullptr;

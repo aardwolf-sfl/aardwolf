@@ -20,8 +20,8 @@ using namespace aardwolf;
 #define TOKEN_FILENAMES 0xfd
 
 #define TOKEN_VALUE_SCALAR 0xe0
-#define TOKEN_VALUE_STRUCT 0xe1
-#define TOKEN_VALUE_POINTER 0xe2
+#define TOKEN_VALUE_STRUCTURAL 0xe1
+#define TOKEN_VALUE_ARRAY_LIKE 0xe2
 
 #define META_ARG 0x61
 #define META_RET 0x62
@@ -51,29 +51,23 @@ void exportFunctionName(llvm::raw_ostream &Stream, llvm::Function &F) {
 
 void exportAccess(StatementRepository &Repo, llvm::raw_ostream &Stream,
                   const Access *Access) {
-  switch (Access->getType()) {
-  case AccessType::Scalar:
+  if (Access->isScalar()) {
     writeBytes(Stream, (uint8_t)TOKEN_VALUE_SCALAR);
-    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
-    break;
-
-  case AccessType::Structural:
-    writeBytes(Stream, (uint8_t)TOKEN_VALUE_STRUCT);
-    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
-    exportAccess(Repo, Stream, &Access->getAccessor());
-    break;
-
-  case AccessType::ArrayLike:
-    writeBytes(Stream, (uint8_t)TOKEN_VALUE_POINTER);
-    writeBytes(Stream, Repo.getValueId(Access->getValueOrBase()));
-    writeBytes(Stream, (uint32_t)Access->getIndexVars().size());
-    for (auto Var : Access->getIndexVars()) {
-      exportAccess(Repo, Stream, &Var);
+    writeBytes(Stream, Repo.getValueId(Access->getValue()));
+  } else {
+    if (Access->getType() == AccessType::Structural) {
+      writeBytes(Stream, (uint8_t)TOKEN_VALUE_STRUCTURAL);
+      // writeBytes(Stream, Repo.getValueId(Access->getBase()));
+      exportAccess(Repo, Stream, &Access->getBase());
+      exportAccess(Repo, Stream, &Access->getAccessors()[0]);
+    } else if (Access->getType() == AccessType::ArrayLike) {
+      writeBytes(Stream, (uint8_t)TOKEN_VALUE_ARRAY_LIKE);
+      exportAccess(Repo, Stream, &Access->getBase());
+      writeBytes(Stream, (uint32_t)Access->getAccessors().size());
+      for (auto Var : Access->getAccessors()) {
+        exportAccess(Repo, Stream, &Var);
+      }
     }
-    break;
-
-  default:
-    break;
   }
 }
 

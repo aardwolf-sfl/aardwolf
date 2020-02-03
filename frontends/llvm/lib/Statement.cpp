@@ -1,73 +1,79 @@
 #include "Statement.h"
 
+#include <cassert>
+
 using namespace aardwolf;
 
-Access::Access(const AccessType Type, const llvm::Value *Base)
-    : Type(Type), Base(Base) {}
+Access Access::makeScalar(const llvm::Value *Value) { return Access(Value); }
 
-Access::Access(const AccessType Type, const llvm::Value *Base, Access Accessor)
-    : Type(Type), Base(Base), Accessors({Accessor}) {}
-
-Access::Access(const AccessType Type, const llvm::Value *Base,
-               std::vector<Access> Accessors)
-    : Type(Type), Base(Base), Accessors(Accessors.begin(), Accessors.end()) {}
-
-Access Access::makeScalar(const llvm::Value *Value) {
-  return Access(AccessType::Scalar, Value);
+Access Access::makeStructural(Access Base, Access Field) {
+  std::vector<Access> Accessors;
+  Accessors.push_back(Field);
+  return Access(Base, Accessors, AccessType::Structural);
 }
 
-Access Access::makeStructural(const llvm::Value *Base, Access Accessor) {
-  return Access(AccessType::Structural, Base, Accessor);
+Access Access::makeArrayLike(Access Base, Access Index) {
+  std::vector<Access> Accessors;
+  Accessors.push_back(Index);
+  return Access(Base, Accessors, AccessType::ArrayLike);
 }
 
-Access Access::makeArrayLike(const llvm::Value *Base, Access Offset) {
-  return Access(AccessType::ArrayLike, Base, Offset);
+Access Access::makeArrayLike(Access Base, std::vector<Access> Index) {
+  return Access(Base, Index, AccessType::ArrayLike);
 }
 
-Access Access::makeArrayLike(const llvm::Value *Base,
-                             std::vector<Access> Offset) {
-  return Access(AccessType::ArrayLike, Base, Offset);
-}
-
-AccessType Access::getType() const { return Type; }
+bool Access::isScalar() const { return Value != nullptr; }
 
 const llvm::Value *Access::getValue() const {
-  if (Type == AccessType::Scalar) {
-    return Base;
-  } else {
-    throw "not a scalar access";
-  }
+  assert(isScalar() && "Access must be scalar to access the value");
+  return Value;
 }
 
-const llvm::Value *Access::getBase() const {
-  if (Type != AccessType::Scalar) {
-    return Base;
-  } else {
-    throw "not a structural or array-like access";
-  }
+const Access &Access::getBase() const {
+  assert(!isScalar() && "Access must not be scalar to access the base");
+  return *Base;
+}
+
+const std::vector<Access> &Access::getAccessors() const {
+  assert(!isScalar() && "Access must not be scalar to access the accessors");
+  return Accessors;
+}
+
+const AccessType &Access::getType() const {
+  assert(!isScalar() && "Access must not be scalar to access the access type");
+  return Type;
 }
 
 const llvm::Value *Access::getValueOrBase() const {
-  if (Type == AccessType::Scalar) {
-    return getValue();
+  if (isScalar()) {
+    return Value;
   } else {
-    return getBase();
+    return Base->getValueOrBase();
   }
 }
 
-const Access &Access::getAccessor() const {
-  if (Type == AccessType::Structural) {
-    return Accessors[0];
+void Access::print(llvm::raw_ostream &Stream) const {
+  if (isScalar()) {
+    Stream << "Scalar(";
+    Value->print(Stream);
+    Stream << ")";
   } else {
-    throw "not a structural access";
-  }
-}
-
-const std::vector<Access> &Access::getIndexVars() const {
-  if (Type == AccessType::ArrayLike) {
-    return Accessors;
-  } else {
-    throw "not an array-like access";
+    if (Type == AccessType::Structural) {
+      Stream << "Structural(";
+      Base->print(Stream);
+      Stream << " :: ";
+      Accessors[0].print(Stream);
+      Stream << ")";
+    } else if (Type == AccessType::ArrayLike) {
+      Stream << "Structural(";
+      Base->print(Stream);
+      Stream << " :: [";
+      for (auto A : Accessors) {
+        A.print(Stream);
+        Stream << "  ";
+      }
+      Stream << "])";
+    }
   }
 }
 

@@ -1,0 +1,11 @@
+
+function: bar
+
+#1 -> #2  ::  defs: %1 / uses:  [@1 11:13-11:13]  { arg }
+#2 ->   ::  defs:  / uses: %2[%1].%4 [@1 12:5-12:5]  { ret }
+
+function: quo
+
+#3 ->   ::  defs:  / uses: %3.%4.%4 [@1 17:5-17:5]  { ret }
+
+@1 = tests/accessors_test.c
