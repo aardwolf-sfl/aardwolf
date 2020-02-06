@@ -1,0 +1,20 @@
+output_dir: bin
+
+script:
+  - cd ${OUTPUT_DIR}
+  - rm -f *
+  - clang -g -c -emit-llvm ../src/*.c
+  - llvm-link -o ${TARGET_FILE}.bc *.bc
+  - ${FRONTEND} -d ${OUTPUT_DIR} ${TARGET_FILE}.bc
+  - clang -g -o ${EXEC_FILE} ../tests/test.c ${INSTR_FILE}.bc ${AARDWOLF_RUNTIME_LIB}
+  - export AARDWOLF_DATA_DEST=${OUTPUT_DIR} && ${EXEC_FILE} > ${RESULT_FILE}
+  - mv ${TARGET_FILE}.bc.aard ${ANALYSIS_FILE}
+
+plugins:
+  - sbfl: sbfl-dstar
+  - sbfl: sbfl-ochai
+    options:
+      metric: ochiai
+  - sbfl: sbfl-tarantula
+    options:
+      metric: tarantula

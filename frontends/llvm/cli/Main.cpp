@@ -25,7 +25,7 @@ static llvm::cl::opt<std::string> InputFilename{
     llvm::cl::cat{AardwolfCategory}};
 
 static llvm::cl::opt<std::string>
-    OutputDirectory("o", llvm::cl::desc("Override output directory"),
+    OutputDirectory("d", llvm::cl::desc("Override output directory"),
                     llvm::cl::value_desc("directory name"),
                     llvm::cl::init("aardwolf"),
                     llvm::cl::cat{AardwolfCategory});
@@ -79,7 +79,8 @@ int main(int Argc, char **Argv) {
 
   std::unique_ptr<llvm::ToolOutputFile> Out;
   std::error_code EC;
-  Out.reset(new llvm::ToolOutputFile(OutputDirectory + "/!instrumented.bc", EC,
+  // TODO: `aard.instr` should be overridable by command line option.
+  Out.reset(new llvm::ToolOutputFile(OutputDirectory + "/aard.instr.bc", EC,
                                      llvm::sys::fs::OF_None));
   if (EC) {
     llvm::errs() << "Error writing to output directory: " << EC.message()

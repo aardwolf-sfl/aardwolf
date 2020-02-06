@@ -1,0 +1,10 @@
+[package]
+name = "aardwolf"
+version = "0.1.0"
+authors = ["Petr Nevyhoštěný <petr.nevyhosteny@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+lazycell = "1.2"
+yaml-rust = "0.4.3"
+clap = "2.33"

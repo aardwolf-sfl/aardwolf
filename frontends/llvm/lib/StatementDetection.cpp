@@ -2,6 +2,7 @@
 
 #include <queue>
 #include <unordered_set>
+#include <cassert>
 
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -97,10 +98,7 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     auto B = findCompositeBase(GEPI);
     auto A = findCompositeAccessors(GEPI);
 
-    if (B == nullptr || A.empty()) {
-      llvm::errs() << "TODO: invalid state\n";
-      return nullptr;
-    }
+    assert(B != nullptr && !A.empty() && "Internal error.");
 
     // Struct pointer is special for us, all other are treated as general
     // pointers.

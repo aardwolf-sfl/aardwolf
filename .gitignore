@@ -1,9 +1,13 @@
 # General for C/C++ projects
 build
 
+# General for Rust projects
+target/
+
 # LLVM
 *.ll
 *.bc
 
 # Aardwolf
 *.aard
+aard.*

@@ -17,10 +17,7 @@ FILE * __aardwolf_get_fd(void)
     if (__aardwolf_fd == NULL) {
         char *dest_dir = getenv("AARDWOLF_DATA_DEST");
 
-        // "execution-trace" is quite general name, we use exclamation mark
-        // at the beginning as an attempt to prevent collisions with source
-        // filenames.
-        char filename[] = "!execution-trace.aard";
+        char filename[] = "aard.trace";
         char * filepath;
 
         // NOTE: sizeof(filename) includes null terminator as well.
