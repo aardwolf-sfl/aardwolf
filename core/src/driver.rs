@@ -69,7 +69,13 @@ impl DriverPaths {
             result_file: output_dir.join(RESULT_FILE),
             output_dir,
             work_dir: config_path.as_ref().to_path_buf(),
-            runtime_lib: args.runtime_path.as_ref().to_path_buf(),
+            runtime_lib: args
+                .runtime_path
+                .as_ref()
+                // FIXME: Handle canonicalization error.
+                .canonicalize()
+                .unwrap()
+                .to_path_buf(),
             frontend: args
                 .frontend_path
                 .as_ref()
