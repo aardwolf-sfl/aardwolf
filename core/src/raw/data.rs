@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -7,6 +8,32 @@ pub enum Access {
     Scalar(u64),
     Structural(Box<Access>, Box<Access>),
     ArrayLike(Box<Access>, Vec<Access>),
+}
+
+impl Access {
+    // TODO: Split this into two functions - one for uses, one for defs
+    // (they differ in case of non-scalar accesses).
+    pub fn get_scalars(&self) -> Vec<u64> {
+        let mut result = Vec::new();
+        self.get_scalars_rec(&mut result);
+        result
+    }
+
+    fn get_scalars_rec(&self, result: &mut Vec<u64>) {
+        match self {
+            Access::Scalar(scalar) => result.push(*scalar),
+            Access::Structural(obj, field) => {
+                obj.get_scalars_rec(result);
+                field.get_scalars_rec(result);
+            }
+            Access::ArrayLike(array, index) => {
+                array.get_scalars_rec(result);
+                for index_var in index {
+                    index_var.get_scalars_rec(result);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -30,6 +57,16 @@ impl Loc {
             col_begin,
             line_end,
             col_end,
+        }
+    }
+
+    pub const fn dummy() -> Self {
+        Loc {
+            file_id: 0,
+            line_begin: 0,
+            col_begin: 0,
+            line_end: 0,
+            col_end: 0,
         }
     }
 }
@@ -76,12 +113,31 @@ pub struct Data {
 }
 
 impl Statement {
+    pub const fn dummy(id: u64) -> Self {
+        Statement {
+            id,
+            succ: Vec::new(),
+            defs: Vec::new(),
+            uses: Vec::new(),
+            loc: Loc::dummy(),
+            metadata: 0,
+        }
+    }
+
     pub fn is_arg(&self) -> bool {
         self.is_meta(0x61)
     }
 
     pub fn is_ret(&self) -> bool {
         self.is_meta(0x62)
+    }
+
+    pub fn is_call(&self) -> bool {
+        self.is_meta(0x64)
+    }
+
+    pub fn is_predicate(&self) -> bool {
+        self.succ.len() > 1
     }
 
     pub fn has_meta(&self) -> bool {
@@ -190,6 +246,18 @@ impl Eq for Statement {}
 impl Hash for Statement {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
+    }
+}
+
+impl PartialOrd for Statement {
+    fn partial_cmp(&self, other: &Statement) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Statement {
+    fn cmp(&self, other: &Statement) -> Ordering {
+        self.id.cmp(&other.id)
     }
 }
 

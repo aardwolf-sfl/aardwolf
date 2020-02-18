@@ -94,3 +94,5 @@ bool Statement::isArg() const {
 }
 
 bool Statement::isRet() const { return llvm::isa<llvm::ReturnInst>(Instr); }
+
+bool Statement::isCall() const { return llvm::isa<llvm::CallBase>(Instr); }

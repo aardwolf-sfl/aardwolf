@@ -9,6 +9,7 @@ pub struct Api<'a> {
     tests: LazyCell<Tests<'a>>,
     def_use: LazyCell<DefUse<'a>>,
     spectra: LazyCell<Spectra<'a>>,
+    cfg: LazyCell<Cfg<'a>>,
 }
 
 impl<'a> Api<'a> {
@@ -22,6 +23,7 @@ impl<'a> Api<'a> {
             tests: LazyCell::new(),
             def_use: LazyCell::new(),
             spectra: LazyCell::new(),
+            cfg: LazyCell::new(),
         }
     }
 
@@ -65,5 +67,14 @@ impl<'a> Api<'a> {
         }
 
         self.spectra.borrow()
+    }
+
+    pub fn get_cfg(&'a self) -> Option<&'a Cfg<'a>> {
+        if !self.cfg.filled() {
+            // CFG::from_raw does not fail, we can call unwrap.
+            self.cfg.fill(self.make::<Cfg>().unwrap()).ok();
+        }
+
+        self.cfg.borrow()
     }
 }

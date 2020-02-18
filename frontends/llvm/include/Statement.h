@@ -119,6 +119,7 @@ struct Statement {
 
   bool isArg() const;
   bool isRet() const;
+  bool isCall() const;
 };
 
 } // namespace aardwolf

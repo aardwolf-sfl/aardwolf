@@ -40,7 +40,6 @@ impl Counters {
 }
 
 pub struct Sbfl {
-    rationale: Rationale,
     metric: fn(&Counters) -> f32,
 }
 
@@ -49,10 +48,6 @@ impl AardwolfPlugin for Sbfl {
     where
         Self: Sized,
     {
-        let mut rationale = Rationale::new();
-        rationale
-            .add_text("The element is executed more in failing tests and less in passing tests.");
-
         let metric = match opts.get("metric").and_then(|metric| metric.as_str()) {
             Some("dstar") => Counters::dstar,
             Some("ochiai") => Counters::ochiai,
@@ -61,13 +56,17 @@ impl AardwolfPlugin for Sbfl {
             Some(unknown) => return Err(format!("Unknown metric '{}'.", unknown)),
         };
 
-        Ok(Sbfl { rationale, metric })
+        Ok(Sbfl { metric })
     }
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
         let stmts = api.get_stmts().unwrap();
         let tests = api.get_tests().unwrap();
         let spectra = api.get_spectra().unwrap();
+
+        let mut rationale = Rationale::new();
+        rationale
+            .add_text("The element is executed more in failing tests and less in passing tests.");
 
         let mut counters = HashMap::new();
 
@@ -85,7 +84,7 @@ impl AardwolfPlugin for Sbfl {
                     }
                 }
 
-                LocalizationItem::new(stmt.loc, (self.metric)(stmt_counters), &self.rationale)
+                LocalizationItem::new(stmt.loc, (self.metric)(stmt_counters), rationale.clone())
                     .unwrap()
             })
             .collect::<Vec<_>>()

@@ -18,6 +18,7 @@ TOKEN_VALUE_ARRAY_LIKE = b'\xe2'
 META = 0x60
 META_ARG = 0x61
 META_RET = 0x62
+META_CALL = 0x64
 
 TOKEN_DATA_I32 = b'\x11'
 TOKEN_DATA_I64 = b'\x12'
@@ -86,6 +87,9 @@ def read_metadata(f):
 
         if (raw_metadata & ~META) == (META_RET & ~META):
             meta.append('ret')
+
+        if (raw_metadata & ~META) == (META_CALL & ~META):
+            meta.append('call')
 
         joined = ', '.join(meta)
         return f'  {{ {joined} }}'

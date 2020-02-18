@@ -25,6 +25,7 @@ using namespace aardwolf;
 
 #define META_ARG 0x61
 #define META_RET 0x62
+#define META_CALL 0x64
 
 // TODO: Is there an idiomatic C++ way how to do these writeBytes functions?
 void writeBytes(llvm::raw_ostream &Stream, uint8_t value) {
@@ -80,6 +81,10 @@ uint8_t getMetadata(Statement &Stmt) {
 
   if (Stmt.isRet()) {
     metadata |= META_RET;
+  }
+
+  if (Stmt.isCall()) {
+    metadata |= META_CALL;
   }
 
   return metadata;

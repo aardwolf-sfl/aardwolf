@@ -1,3 +1,4 @@
+mod cfg;
 mod def_use;
 mod spectra;
 mod stmts;
@@ -6,6 +7,7 @@ mod tests;
 use crate::api::Api;
 use crate::raw::data::Data;
 
+pub use cfg::{Cfg, ENTRY, EXIT};
 pub use def_use::DefUse;
 pub use spectra::Spectra;
 pub use stmts::Stmts;

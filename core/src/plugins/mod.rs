@@ -7,6 +7,7 @@ use yaml_rust::Yaml;
 use crate::api::Api;
 use crate::raw::data::{Loc, Statement, TestName};
 
+pub mod prob_graph;
 pub mod sbfl;
 
 pub struct IrrelevantItems<'a> {
@@ -35,11 +36,13 @@ impl<'a> IrrelevantItems<'a> {
     }
 }
 
+#[derive(Clone)]
 enum RationaleChunk {
     Text(String),
     Anchor(Loc),
 }
 
+#[derive(Clone)]
 pub struct Rationale(Vec<RationaleChunk>);
 
 impl Rationale {
@@ -47,12 +50,14 @@ impl Rationale {
         Rationale(Vec::new())
     }
 
-    pub fn add_text<T: Into<String>>(&mut self, text: T) {
+    pub fn add_text<T: Into<String>>(&mut self, text: T) -> &mut Self {
         self.0.push(RationaleChunk::Text(text.into()));
+        self
     }
 
-    pub fn add_anchor(&mut self, anchor: Loc) {
+    pub fn add_anchor(&mut self, anchor: Loc) -> &mut Self {
         self.0.push(RationaleChunk::Anchor(anchor));
+        self
     }
 
     pub fn is_empty(&self) -> bool {
@@ -94,7 +99,7 @@ impl fmt::Debug for Rationale {
 pub struct LocalizationItem<'a> {
     pub loc: Loc,
     pub score: f32,
-    pub rationale: &'a Rationale,
+    pub rationale: Rationale,
     pub links: Vec<&'a LocalizationItem<'a>>,
 }
 
@@ -108,7 +113,7 @@ impl<'a> LocalizationItem<'a> {
     pub fn new(
         loc: Loc,
         score: f32,
-        rationale: &'a Rationale,
+        rationale: Rationale,
     ) -> Result<Self, InvalidLocalizationItem> {
         // The check whether the score is finite is important for total order of items.
         match (score.is_finite(), rationale.is_empty()) {

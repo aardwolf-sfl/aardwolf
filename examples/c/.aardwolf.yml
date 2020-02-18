@@ -18,3 +18,4 @@ plugins:
   - sbfl: sbfl-tarantula
     options:
       metric: tarantula
+  - prob-graph

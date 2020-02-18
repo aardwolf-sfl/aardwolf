@@ -9,7 +9,7 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
-use crate::plugins::{sbfl::Sbfl, AardwolfPlugin};
+use crate::plugins::{prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin};
 use crate::raw::Data;
 
 // TARGET_FILE (program code, usually preprocessed)
@@ -137,6 +137,7 @@ impl Driver {
             };
             match plugin.id.as_str() {
                 "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts),
+                "prob-graph" => Self::run_loc::<ProbGraph>(name, &api, &plugin.opts),
                 _ => panic!("Unknown plugin"),
             }
         }
@@ -149,7 +150,9 @@ impl Driver {
     ) {
         let plugin = P::init(api, opts).unwrap();
         let mut results = plugin.run_loc(api);
-        results.sort_unstable_by(|lhs, rhs| rhs.cmp(lhs));
+
+        // Use stable sort to not break plugins which sort the results using another criterion.
+        results.sort_by(|lhs, rhs| rhs.cmp(lhs));
 
         println!("Results for: {}", name);
         for item in results.iter().take(10) {
