@@ -3,6 +3,19 @@ use lazycell::LazyCell;
 use crate::raw::data::Data;
 use crate::structures::*;
 
+#[derive(Debug)]
+pub enum EmptyDataReason {
+    Static,
+    Dynamic,
+    Tests,
+}
+
+#[derive(Debug)]
+pub enum InvalidData {
+    NoFailingTest,
+    Empty(EmptyDataReason),
+}
+
 pub struct Api<'a> {
     data: Data,
     stmts: LazyCell<Stmts<'a>>,
@@ -13,17 +26,29 @@ pub struct Api<'a> {
 }
 
 impl<'a> Api<'a> {
-    // TODO: Return Result and check these violations:
-    //         * There must be at least one failling test case.
-    //         * The data must not be empty.
-    pub(crate) fn new(data: Data) -> Self {
-        Api {
-            data,
-            stmts: LazyCell::new(),
-            tests: LazyCell::new(),
-            def_use: LazyCell::new(),
-            spectra: LazyCell::new(),
-            cfg: LazyCell::new(),
+    pub(crate) fn new(data: Data) -> Result<Self, InvalidData> {
+        if data.static_data.files.is_empty() || data.static_data.functions.is_empty() {
+            Err(InvalidData::Empty(EmptyDataReason::Static))
+        } else if data.dynamic_data.trace.is_empty() {
+            Err(InvalidData::Empty(EmptyDataReason::Dynamic))
+        } else if data.test_data.tests.is_empty() {
+            Err(InvalidData::Empty(EmptyDataReason::Tests))
+        } else if data
+            .test_data
+            .tests
+            .values()
+            .all(|status| status.is_passed())
+        {
+            Err(InvalidData::NoFailingTest)
+        } else {
+            Ok(Api {
+                data,
+                stmts: LazyCell::new(),
+                tests: LazyCell::new(),
+                def_use: LazyCell::new(),
+                spectra: LazyCell::new(),
+                cfg: LazyCell::new(),
+            })
         }
     }
 

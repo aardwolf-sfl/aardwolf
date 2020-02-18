@@ -128,7 +128,7 @@ impl Driver {
         Self::run_script(&config, &driver_paths).unwrap();
 
         let data = Driver::load_data(&driver_paths);
-        let api = Api::new(data);
+        let api = Api::new(data).unwrap();
 
         for plugin in config.plugins.iter() {
             let name = match &plugin.name {

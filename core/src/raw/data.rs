@@ -100,6 +100,16 @@ pub enum TestStatus {
     Passed,
 }
 
+impl TestStatus {
+    pub fn is_failed(&self) -> bool {
+        self == &TestStatus::Failed
+    }
+
+    pub fn is_passed(&self) -> bool {
+        self == &TestStatus::Passed
+    }
+}
+
 pub type TestName = String;
 
 pub struct TestData {
