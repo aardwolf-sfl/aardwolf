@@ -16,7 +16,7 @@ impl AardwolfPlugin for ProbGraph {
         Ok(ProbGraph)
     }
 
-    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
+    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();
         let ppdg = api.make::<ppdg::Ppdg>().unwrap();
@@ -128,9 +128,10 @@ impl AardwolfPlugin for ProbGraph {
                     }
 
                     rationale.add_text(".");
-                    LocalizationItem::new(stmt.loc, 1.0 - prob, rationale.clone()).unwrap()
+                    LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, rationale.clone()).unwrap()
                 } else {
-                    LocalizationItem::new(stmt.loc, 1.0 - prob, default_rationale.clone()).unwrap()
+                    LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, default_rationale.clone())
+                        .unwrap()
                 }
             })
             .collect()

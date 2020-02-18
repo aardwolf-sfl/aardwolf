@@ -94,13 +94,12 @@ impl fmt::Debug for Rationale {
     }
 }
 
-// TODO: Add root_stmt: &'a Statemen in which a fault localization should indicate a statement
-//       that should be mainly blamed in the code snippet in loc (which can be more than one statement).
-pub struct LocalizationItem<'a> {
+pub struct LocalizationItem<'a, 'b> {
     pub loc: Loc,
+    pub root_stmt: &'a Statement,
     pub score: f32,
     pub rationale: Rationale,
-    pub links: Vec<&'a LocalizationItem<'a>>,
+    pub links: Vec<&'b LocalizationItem<'a, 'b>>,
 }
 
 #[derive(Debug)]
@@ -109,9 +108,10 @@ pub enum InvalidLocalizationItem {
     EmptyRationale,
 }
 
-impl<'a> LocalizationItem<'a> {
+impl<'a, 'b> LocalizationItem<'a, 'b> {
     pub fn new(
         loc: Loc,
+        root_stmt: &'a Statement,
         score: f32,
         rationale: Rationale,
     ) -> Result<Self, InvalidLocalizationItem> {
@@ -121,6 +121,7 @@ impl<'a> LocalizationItem<'a> {
             (_, true) => Err(InvalidLocalizationItem::EmptyRationale),
             _ => Ok(LocalizationItem {
                 loc,
+                root_stmt,
                 score,
                 rationale,
                 links: Vec::new(),
@@ -128,27 +129,27 @@ impl<'a> LocalizationItem<'a> {
         }
     }
 
-    pub fn link(&'a mut self, other: &'a LocalizationItem<'a>) {
+    pub fn link(&'b mut self, other: &'a LocalizationItem<'a, 'b>) {
         self.links.push(other);
     }
 }
 
-impl<'a> PartialEq for LocalizationItem<'a> {
+impl<'a, 'b> PartialEq for LocalizationItem<'a, 'b> {
     fn eq(&self, other: &Self) -> bool {
         self.score == other.score
     }
 }
 
-impl<'a> Eq for LocalizationItem<'a> {}
+impl<'a, 'b> Eq for LocalizationItem<'a, 'b> {}
 
-impl<'a> Ord for LocalizationItem<'a> {
+impl<'a, 'b> Ord for LocalizationItem<'a, 'b> {
     fn cmp(&self, other: &Self) -> Ordering {
         // We check for finiteness of score in the constructor, therefore, we are safe here.
         self.score.partial_cmp(&other.score).unwrap()
     }
 }
 
-impl<'a> PartialOrd for LocalizationItem<'a> {
+impl<'a, 'b> PartialOrd for LocalizationItem<'a, 'b> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -167,12 +168,12 @@ pub trait AardwolfPlugin {
 
     // TODO: Return Iterator instead of allocated array. This will allow to implement a more efficient structure
     //       that lists only N most suspicious elements.
-    fn run_loc<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
+    fn run_loc<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         Vec::new()
     }
 
     // TODO: Determine real API of this method.
-    fn run_post<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
+    fn run_post<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         Vec::new()
     }
 }

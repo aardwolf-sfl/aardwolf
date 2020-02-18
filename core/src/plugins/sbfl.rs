@@ -59,7 +59,7 @@ impl AardwolfPlugin for Sbfl {
         Ok(Sbfl { metric })
     }
 
-    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
+    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();
         let spectra = api.get_spectra();
@@ -84,8 +84,13 @@ impl AardwolfPlugin for Sbfl {
                     }
                 }
 
-                LocalizationItem::new(stmt.loc, (self.metric)(stmt_counters), rationale.clone())
-                    .unwrap()
+                LocalizationItem::new(
+                    stmt.loc,
+                    stmt,
+                    (self.metric)(stmt_counters),
+                    rationale.clone(),
+                )
+                .unwrap()
             })
             .collect::<Vec<_>>()
     }
