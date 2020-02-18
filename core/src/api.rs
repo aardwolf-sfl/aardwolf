@@ -25,6 +25,16 @@ pub struct Api<'a> {
     cfg: LazyCell<Cfg<'a>>,
 }
 
+macro_rules! get_lazy_infallible {
+    ($api:expr, $prop:ident) => {{
+        if !($api).$prop.filled() {
+            ($api).$prop.fill($api.make().unwrap()).ok();
+        }
+
+        ($api).$prop.borrow().unwrap()
+    }};
+}
+
 impl<'a> Api<'a> {
     pub(crate) fn new(data: Data) -> Result<Self, InvalidData> {
         if data.static_data.files.is_empty() || data.static_data.functions.is_empty() {
@@ -56,50 +66,23 @@ impl<'a> Api<'a> {
         T::from_raw(&self.data, &self)
     }
 
-    pub fn get_stmts(&'a self) -> Option<&Stmts<'a>> {
-        // TODO: Use macros for all getters' bodies (get_lazy_infallible!).
-        if !self.stmts.filled() {
-            // Stmts::from_raw does not fail, we can call unwrap.
-            self.stmts.fill(self.make::<Stmts>().unwrap()).ok();
-        }
-
-        self.stmts.borrow()
+    pub fn get_stmts(&'a self) -> &Stmts<'a> {
+        get_lazy_infallible!(self, stmts)
     }
 
-    pub fn get_tests(&'a self) -> Option<&Tests<'a>> {
-        // TODO: Use macros for all getters' bodies (get_lazy_infallible!).
-        if !self.tests.filled() {
-            // Tests::from_raw does not fail, we can call unwrap.
-            self.tests.fill(self.make::<Tests>().unwrap()).ok();
-        }
-
-        self.tests.borrow()
+    pub fn get_tests(&'a self) -> &Tests<'a> {
+        get_lazy_infallible!(self, tests)
     }
 
-    pub fn get_def_use(&'a self) -> Option<&DefUse<'a>> {
-        if !self.def_use.filled() {
-            // DefUse::from_raw does not fail, we can call unwrap.
-            self.def_use.fill(self.make::<DefUse>().unwrap()).ok();
-        }
-
-        self.def_use.borrow()
+    pub fn get_def_use(&'a self) -> &DefUse<'a> {
+        get_lazy_infallible!(self, def_use)
     }
 
-    pub fn get_spectra(&'a self) -> Option<&'a Spectra<'a>> {
-        if !self.spectra.filled() {
-            // Spectra::from_raw does not fail, we can call unwrap.
-            self.spectra.fill(self.make::<Spectra>().unwrap()).ok();
-        }
-
-        self.spectra.borrow()
+    pub fn get_spectra(&'a self) -> &Spectra<'a> {
+        get_lazy_infallible!(self, spectra)
     }
 
-    pub fn get_cfg(&'a self) -> Option<&'a Cfg<'a>> {
-        if !self.cfg.filled() {
-            // CFG::from_raw does not fail, we can call unwrap.
-            self.cfg.fill(self.make::<Cfg>().unwrap()).ok();
-        }
-
-        self.cfg.borrow()
+    pub fn get_cfg(&'a self) -> &Cfg<'a> {
+        get_lazy_infallible!(self, cfg)
     }
 }

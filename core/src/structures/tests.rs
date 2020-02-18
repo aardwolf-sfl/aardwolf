@@ -34,7 +34,7 @@ impl<'a> Tests<'a> {
 
 impl<'a> FromRawData<'a> for Tests<'a> {
     fn from_raw(data: &'a Data, api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
-        let stmts = api.get_stmts().unwrap();
+        let stmts = api.get_stmts();
 
         let mut traces = HashMap::with_capacity(data.test_data.tests.len());
 

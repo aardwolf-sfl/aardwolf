@@ -17,8 +17,8 @@ impl AardwolfPlugin for ProbGraph {
     }
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
-        let stmts = api.get_stmts().unwrap();
-        let tests = api.get_tests().unwrap();
+        let stmts = api.get_stmts();
+        let tests = api.get_tests();
         let ppdg = api.make::<ppdg::Ppdg>().unwrap();
 
         let failing = tests
@@ -253,8 +253,8 @@ mod ppdg {
 
     impl<'a> FromRawData<'a> for Ppdg<'a> {
         fn from_raw(data: &'a Data, api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
-            let tests = api.get_tests().unwrap();
-            let stmts = api.get_stmts().unwrap();
+            let tests = api.get_tests();
+            let stmts = api.get_stmts();
 
             let mut occurence_counter = Counter::new();
             let mut state_counter = Counter::new();

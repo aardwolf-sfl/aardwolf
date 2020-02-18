@@ -60,9 +60,9 @@ impl AardwolfPlugin for Sbfl {
     }
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
-        let stmts = api.get_stmts().unwrap();
-        let tests = api.get_tests().unwrap();
-        let spectra = api.get_spectra().unwrap();
+        let stmts = api.get_stmts();
+        let tests = api.get_tests();
+        let spectra = api.get_spectra();
 
         let mut rationale = Rationale::new();
         rationale
