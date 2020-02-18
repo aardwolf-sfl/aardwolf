@@ -231,7 +231,7 @@ mod ppdg {
         pub fn get_data_state(&self, stmt: &'a Statement) -> State<'a> {
             let mut state = BTreeSet::new();
 
-            for var in stmt.uses.iter().flat_map(|access| access.get_scalars()) {
+            for var in stmt.uses.iter().flat_map(|access| access.get_scalars_for_use()) {
                 if let Some(def) = self.data_context.get(&var) {
                     state.insert((var, *def));
                 }
@@ -244,7 +244,7 @@ mod ppdg {
             // TODO: A data structure that tries to model data dependencies of pointers should be used.
             //       At least on a level, when a pointer is sent to a function and the function modifies it (or its child),
             //       then it should be added as a definition of the function call.
-            for var in stmt.defs.iter().flat_map(|access| access.get_scalars()) {
+            for var in stmt.defs.iter().flat_map(|access| access.get_scalars_for_def()) {
                 self.data_context.insert(var, stmt);
             }
         }

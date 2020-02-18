@@ -11,25 +11,53 @@ pub enum Access {
 }
 
 impl Access {
-    // TODO: Split this into two functions - one for uses, one for defs
-    // (they differ in case of non-scalar accesses).
-    pub fn get_scalars(&self) -> Vec<u64> {
+    pub fn get_scalars_for_def(&self) -> Vec<u64> {
         let mut result = Vec::new();
-        self.get_scalars_rec(&mut result);
+
+        match self {
+            Access::Scalar(scalar) => result.push(*scalar),
+            access => access.get_scalars_for_def_rec(&mut result),
+        }
+
         result
     }
 
-    fn get_scalars_rec(&self, result: &mut Vec<u64>) {
+    pub fn get_scalars_for_def_rec(&self, result: &mut Vec<u64>) {
         match self {
             Access::Scalar(scalar) => result.push(*scalar),
             Access::Structural(obj, field) => {
-                obj.get_scalars_rec(result);
-                field.get_scalars_rec(result);
+                obj.get_scalars_for_use_rec(result);
+
+                match field.as_ref() {
+                    // Fields of a structure are not considered to be defined (the containing structure is).
+                    Access::Scalar(_) => {}
+                    field => field.get_scalars_for_use_rec(result),
+                }
+            }
+            Access::ArrayLike(array, _) => {
+                array.get_scalars_for_use_rec(result);
+                // Variables in the index to the array are not defined by the statement.
+            }
+        }
+    }
+
+    pub fn get_scalars_for_use(&self) -> Vec<u64> {
+        let mut result = Vec::new();
+        self.get_scalars_for_use_rec(&mut result);
+        result
+    }
+
+    fn get_scalars_for_use_rec(&self, result: &mut Vec<u64>) {
+        match self {
+            Access::Scalar(scalar) => result.push(*scalar),
+            Access::Structural(obj, field) => {
+                obj.get_scalars_for_use_rec(result);
+                field.get_scalars_for_use_rec(result);
             }
             Access::ArrayLike(array, index) => {
-                array.get_scalars_rec(result);
+                array.get_scalars_for_use_rec(result);
                 for index_var in index {
-                    index_var.get_scalars_rec(result);
+                    index_var.get_scalars_for_use_rec(result);
                 }
             }
         }
