@@ -39,12 +39,12 @@ impl Counters {
     }
 }
 
-pub struct SBFL {
+pub struct Sbfl {
     rationale: Rationale,
     metric: fn(&Counters) -> f32,
 }
 
-impl AardwolfPlugin for SBFL {
+impl AardwolfPlugin for Sbfl {
     fn init<'a>(_api: &'a Api<'a>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
@@ -61,7 +61,7 @@ impl AardwolfPlugin for SBFL {
             Some(unknown) => return Err(format!("Unknown metric '{}'.", unknown)),
         };
 
-        Ok(SBFL { rationale, metric })
+        Ok(Sbfl { rationale, metric })
     }
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {

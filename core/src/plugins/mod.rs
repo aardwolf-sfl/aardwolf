@@ -89,6 +89,8 @@ impl fmt::Debug for Rationale {
     }
 }
 
+// TODO: Add root_stmt: &'a Statemen in which a fault localization should indicate a statement
+//       that should be mainly blamed in the code snippet in loc (which can be more than one statement).
 pub struct LocalizationItem<'a> {
     pub loc: Loc,
     pub score: f32,
@@ -158,10 +160,13 @@ pub trait AardwolfPlugin {
         IrrelevantItems::new()
     }
 
+    // TODO: Return Iterator instead of allocated array. This will allow to implement a more efficient structure
+    //       that lists only N most suspicious elements.
     fn run_loc<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
         Vec::new()
     }
 
+    // TODO: Determine real API of this method.
     fn run_post<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'b>> {
         Vec::new()
     }

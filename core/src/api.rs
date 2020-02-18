@@ -12,6 +12,9 @@ pub struct Api<'a> {
 }
 
 impl<'a> Api<'a> {
+    // TODO: Return Result and check these violations:
+    //         * There must be at least one failling test case.
+    //         * The data must not be empty.
     pub(crate) fn new(data: Data) -> Self {
         Api {
             data,

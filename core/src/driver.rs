@@ -9,7 +9,7 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
-use crate::plugins::{sbfl::SBFL, AardwolfPlugin};
+use crate::plugins::{sbfl::Sbfl, AardwolfPlugin};
 use crate::raw::Data;
 
 // TARGET_FILE (program code, usually preprocessed)
@@ -136,7 +136,7 @@ impl Driver {
                 None => &plugin.id,
             };
             match plugin.id.as_str() {
-                "sbfl" => Self::run_loc::<SBFL>(name, &api, &plugin.opts),
+                "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts),
                 _ => panic!("Unknown plugin"),
             }
         }
