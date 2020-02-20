@@ -167,7 +167,7 @@ pub trait AardwolfPlugin {
     }
 
     // TODO: Return Iterator instead of allocated array. This will allow to implement a more efficient structure
-    //       that lists only N most suspicious elements.
+    //       that lists only N most suspicious elements. (NOTE: lifetime issues might be an obstacle).
     fn run_loc<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         Vec::new()
     }

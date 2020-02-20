@@ -7,7 +7,7 @@ mod tests;
 use crate::api::Api;
 use crate::raw::data::Data;
 
-pub use cfg::{Cfg, ENTRY, EXIT};
+pub use cfg::{Cfgs, Cfg, ENTRY, EXIT};
 pub use def_use::DefUse;
 pub use spectra::Spectra;
 pub use stmts::Stmts;

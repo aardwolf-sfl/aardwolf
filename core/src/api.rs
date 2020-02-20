@@ -22,7 +22,7 @@ pub struct Api<'a> {
     tests: LazyCell<Tests<'a>>,
     def_use: LazyCell<DefUse<'a>>,
     spectra: LazyCell<Spectra<'a>>,
-    cfg: LazyCell<Cfg<'a>>,
+    cfgs: LazyCell<Cfgs<'a>>,
 }
 
 macro_rules! get_lazy_infallible {
@@ -57,7 +57,7 @@ impl<'a> Api<'a> {
                 tests: LazyCell::new(),
                 def_use: LazyCell::new(),
                 spectra: LazyCell::new(),
-                cfg: LazyCell::new(),
+                cfgs: LazyCell::new(),
             })
         }
     }
@@ -82,7 +82,7 @@ impl<'a> Api<'a> {
         get_lazy_infallible!(self, spectra)
     }
 
-    pub fn get_cfg(&'a self) -> &Cfg<'a> {
-        get_lazy_infallible!(self, cfg)
+    pub fn get_cfgs(&'a self) -> &Cfgs<'a> {
+        get_lazy_infallible!(self, cfgs)
     }
 }

@@ -11,15 +11,17 @@ use crate::structures::{FromRawData, FromRawDataError};
 pub const ENTRY: &'static Statement = &Statement::dummy(std::u64::MAX - 1);
 pub const EXIT: &'static Statement = &Statement::dummy(std::u64::MAX);
 
-pub struct Cfg<'a>(HashMap<&'a str, DiGraph<&'a Statement, ()>>);
+pub type Cfg<'a> = DiGraph<&'a Statement, ()>;
 
-impl<'a> Cfg<'a> {
+pub struct Cfgs<'a>(HashMap<&'a str, DiGraph<&'a Statement, ()>>);
+
+impl<'a> Cfgs<'a> {
     pub fn get(&'a self, func: &str) -> Option<&'a DiGraph<&'a Statement, ()>> {
         self.0.get(func)
     }
 }
 
-impl<'a> FromRawData<'a> for Cfg<'a> {
+impl<'a> FromRawData<'a> for Cfgs<'a> {
     fn from_raw(data: &'a Data, _api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
 
@@ -57,6 +59,6 @@ impl<'a> FromRawData<'a> for Cfg<'a> {
             result.insert(func_name.as_str(), graph);
         }
 
-        Ok(Cfg(result))
+        Ok(Cfgs(result))
     }
 }
