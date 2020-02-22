@@ -124,6 +124,8 @@ fn create_dependency_network<'a>(pdg: &pdg::Pdg<'a>) -> ModelGraph<'a> {
         |_, edge| EdgeType::from(*edge),
     );
 
+    let mut remove = Vec::new();
+
     for index in dn.node_indices() {
         // Split two-state (predicate and data) nodes.
         let has_predicate_state = dn
@@ -143,15 +145,27 @@ fn create_dependency_network<'a>(pdg: &pdg::Pdg<'a>) -> ModelGraph<'a> {
 
             // This also handles self-loops correctly.
             for (edge_index, source) in incoming {
-                dn.update_target(edge_index, data_index);
+                // TODO: Use in-place endpoint modifications when it is implemented in petgraph.
+                //       Tracking issue: https://github.com/petgraph/petgraph/issues/333
+                // dn.update_target(edge_index, data_index);
+                remove.push(edge_index);
+                dn.add_edge(source, data_index, dn[edge_index]);
             }
 
             dn.add_edge(data_index, index, EdgeType::StateSplit);
         } else if let Some(edge_index) = dn.find_edge(index, index) {
             // Remove self-loops of nodes which were not handled during node splitting.
             let self_loop_node = dn.add_node(dn[index].to_self_loop());
-            dn.update_source(edge_index, self_loop_node);
+            // TODO: Use in-place endpoint modifications when it is implemented in petgraph.
+            //       Tracking issue: https://github.com/petgraph/petgraph/issues/333
+            // dn.update_source(edge_index, self_loop_node);
+            remove.push(edge_index);
+            dn.add_edge(self_loop_node, index, dn[edge_index]);
         }
+    }
+
+    for edge_index in remove {
+        dn.remove_edge(edge_index);
     }
 
     dn
