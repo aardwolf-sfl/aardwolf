@@ -14,10 +14,10 @@ function: fib
 
 function: main
 
-#11 -> #12  ::  defs:  / uses:  [@2 8:5-8:5]
-#12 -> #13  ::  defs: %6 / uses:  [@2 9:13-9:13]
+#11 -> #12  ::  defs:  / uses:  [@2 8:5-8:5]  { call }
+#12 -> #13  ::  defs: %6 / uses:  [@2 9:13-9:13]  { call }
 #13 -> #14  ::  defs: %7 / uses: %6 [@2 9:9-9:9]
-#14 -> #15  ::  defs: %8 / uses: %7 [@2 10:5-10:5]
+#14 -> #15  ::  defs: %8 / uses: %7 [@2 10:5-10:5]  { call }
 #15 ->   ::  defs:  / uses:  [@2 11:5-11:5]  { ret }
 
 @1 = tests/fib.c

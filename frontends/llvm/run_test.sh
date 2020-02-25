@@ -11,7 +11,7 @@ do
 
     if [ -f $expected ]; then
         clang -g -c -emit-llvm -o $bitcode $source
-        $LLVM_FRONTEND_PATH/aardwolf_llvm --disable-instrumentation -o tests $bitcode
+        $LLVM_FRONTEND_PATH/aardwolf_llvm --disable-instrumentation -d tests $bitcode
         python $VIEW_TOOL_PATH/view.py $aardwold_data | sed 's,'$(pwd)/',,g' > $TEMP_FILE
         diff --brief $expected $TEMP_FILE  # filename
         diff $expected $TEMP_FILE  # diff
