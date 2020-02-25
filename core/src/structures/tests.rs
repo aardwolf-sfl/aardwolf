@@ -59,6 +59,7 @@ impl<'a> FromRawData<'a> for Tests<'a> {
 
                     test = Some(new_test);
                 }
+                TraceItem::Data(_) => {} // Ignore
             }
         }
 

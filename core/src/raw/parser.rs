@@ -14,6 +14,18 @@ const TOKEN_VALUE_SCALAR: u8 = 0xe0;
 const TOKEN_VALUE_STRUCTURAL: u8 = 0xe1;
 const TOKEN_VALUE_ARRAY_LIKE: u8 = 0xe2;
 
+const TOKEN_DATA_UNSUPPORTED: u8 = 0x10;
+const TOKEN_DATA_I8: u8 = 0x11;
+const TOKEN_DATA_I16: u8 = 0x12;
+const TOKEN_DATA_I32: u8 = 0x13;
+const TOKEN_DATA_I64: u8 = 0x14;
+const TOKEN_DATA_U8: u8 = 0x15;
+const TOKEN_DATA_U16: u8 = 0x16;
+const TOKEN_DATA_U32: u8 = 0x17;
+const TOKEN_DATA_U64: u8 = 0x18;
+const TOKEN_DATA_F32: u8 = 0x19;
+const TOKEN_DATA_F64: u8 = 0x20;
+
 pub enum ParseError {
     UnexpectedByte,
     UnexpectedEof,
@@ -121,6 +133,17 @@ impl<'a, R: BufRead> DataParser<'a, R> {
             match token {
                 TOKEN_STATEMENT => trace.push(TraceItem::Statement(self.parse_u64()?)),
                 TOKEN_EXTERNAL => trace.push(TraceItem::External(self.parse_cstr()?)),
+                TOKEN_DATA_UNSUPPORTED => trace.push(TraceItem::Data(VariableData::Unsupported)),
+                TOKEN_DATA_I8 => trace.push(TraceItem::Data(VariableData::I8(self.parse_i8()?))),
+                TOKEN_DATA_I16 => trace.push(TraceItem::Data(VariableData::I16(self.parse_i16()?))),
+                TOKEN_DATA_I32 => trace.push(TraceItem::Data(VariableData::I32(self.parse_i32()?))),
+                TOKEN_DATA_I64 => trace.push(TraceItem::Data(VariableData::I64(self.parse_i64()?))),
+                TOKEN_DATA_U8 => trace.push(TraceItem::Data(VariableData::U8(self.parse_u8()?))),
+                TOKEN_DATA_U16 => trace.push(TraceItem::Data(VariableData::U16(self.parse_u16()?))),
+                TOKEN_DATA_U32 => trace.push(TraceItem::Data(VariableData::U32(self.parse_u32()?))),
+                TOKEN_DATA_U64 => trace.push(TraceItem::Data(VariableData::U64(self.parse_u64()?))),
+                TOKEN_DATA_F32 => trace.push(TraceItem::Data(VariableData::F32(self.parse_f32()?))),
+                TOKEN_DATA_F64 => trace.push(TraceItem::Data(VariableData::F64(self.parse_f64()?))),
                 _ => return Err(ParseError::UnexpectedByte),
             }
         }
@@ -228,10 +251,40 @@ impl<'a, R: BufRead> DataParser<'a, R> {
         }
     }
 
+    fn parse_i8(&mut self) -> Result<i8, ParseError> {
+        let mut buf = [0; 1];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(i8::from_ne_bytes(buf))
+    }
+
+    fn parse_i16(&mut self) -> Result<i16, ParseError> {
+        let mut buf = [0; 2];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(i16::from_ne_bytes(buf))
+    }
+
+    fn parse_i32(&mut self) -> Result<i32, ParseError> {
+        let mut buf = [0; 4];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(i32::from_ne_bytes(buf))
+    }
+
+    fn parse_i64(&mut self) -> Result<i64, ParseError> {
+        let mut buf = [0; 8];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(i64::from_ne_bytes(buf))
+    }
+
     fn parse_u8(&mut self) -> Result<u8, ParseError> {
         let mut buf = [0; 1];
         self.source.read_exact(&mut buf).map_err(ParseError::from)?;
         Ok(u8::from_ne_bytes(buf))
+    }
+
+    fn parse_u16(&mut self) -> Result<u16, ParseError> {
+        let mut buf = [0; 2];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(u16::from_ne_bytes(buf))
     }
 
     fn parse_u32(&mut self) -> Result<u32, ParseError> {
@@ -244,6 +297,18 @@ impl<'a, R: BufRead> DataParser<'a, R> {
         let mut buf = [0; 8];
         self.source.read_exact(&mut buf).map_err(ParseError::from)?;
         Ok(u64::from_ne_bytes(buf))
+    }
+
+    fn parse_f32(&mut self) -> Result<f32, ParseError> {
+        let mut buf = [0; 4];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(f32::from_ne_bytes(buf))
+    }
+
+    fn parse_f64(&mut self) -> Result<f64, ParseError> {
+        let mut buf = [0; 8];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(f64::from_ne_bytes(buf))
     }
 
     fn parse_cstr(&mut self) -> Result<String, ParseError> {

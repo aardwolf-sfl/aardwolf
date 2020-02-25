@@ -1,8 +1,8 @@
 #include "StatementDetection.h"
 
+#include <cassert>
 #include <queue>
 #include <unordered_set>
-#include <cassert>
 
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -107,6 +107,11 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     } else {
       return std::make_shared<Access>(Access::makeArrayLike(*B, A));
     }
+  } else if (auto LI = llvm::dyn_cast<llvm::LoadInst>(U)) {
+    // Dereferencing a pointer.
+    // If dyn_cast returns nullptr, it is handled as the first if in this
+    // function.
+    return getValueAccess(llvm::dyn_cast<llvm::User>(LI->getOperand(0)));
   } else {
     return nullptr;
   }

@@ -76,6 +76,21 @@ void aardwolf_write_external(const char *external)
     fflush(fd);
 }
 
+void aardwolf_write_data_unsupported()
+{
+    __aardwolf_write_data(TOKEN_DATA_UNSUPPORTED, NULL, 0);
+}
+
+void aardwolf_write_data_i8(int8_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_I8, &value, sizeof(int8_t));
+}
+
+void aardwolf_write_data_i16(int16_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_I16, &value, sizeof(int16_t));
+}
+
 void aardwolf_write_data_i32(int32_t value)
 {
     __aardwolf_write_data(TOKEN_DATA_I32, &value, sizeof(int32_t));
@@ -84,6 +99,26 @@ void aardwolf_write_data_i32(int32_t value)
 void aardwolf_write_data_i64(int64_t value)
 {
     __aardwolf_write_data(TOKEN_DATA_I64, &value, sizeof(int64_t));
+}
+
+void aardwolf_write_data_u8(uint8_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_U8, &value, sizeof(uint8_t));
+}
+
+void aardwolf_write_data_u16(uint16_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_U16, &value, sizeof(uint16_t));
+}
+
+void aardwolf_write_data_u32(uint32_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_U32, &value, sizeof(uint32_t));
+}
+
+void aardwolf_write_data_u64(uint64_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_U64, &value, sizeof(uint64_t));
 }
 
 void aardwolf_write_data_f32(float value)

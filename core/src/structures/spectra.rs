@@ -37,6 +37,7 @@ impl<'a> FromRawData<'a> for Spectra<'a> {
                 TraceItem::Statement(stmt) => {
                     stmts.insert(*stmt);
                 }
+                TraceItem::Data(_) => {} // Ignore
             }
         }
 

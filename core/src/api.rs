@@ -23,6 +23,23 @@ pub struct Api<'a> {
     def_use: LazyCell<DefUse<'a>>,
     spectra: LazyCell<Spectra<'a>>,
     cfgs: LazyCell<Cfgs<'a>>,
+    vars: LazyCell<Vars<'a>>,
+}
+
+macro_rules! get_lazy_fallible {
+    ($api:expr, $prop:ident) => {{
+        if !($api).$prop.filled() {
+            match $api.make() {
+                Ok(prop) => {
+                    ($api).$prop.fill(prop).ok();
+                }
+                // TODO: Save the error to api in order to warn the user.
+                Err(_) => return None,
+            }
+        }
+
+        ($api).$prop.borrow()
+    }};
 }
 
 macro_rules! get_lazy_infallible {
@@ -58,6 +75,7 @@ impl<'a> Api<'a> {
                 def_use: LazyCell::new(),
                 spectra: LazyCell::new(),
                 cfgs: LazyCell::new(),
+                vars: LazyCell::new(),
             })
         }
     }
@@ -84,5 +102,9 @@ impl<'a> Api<'a> {
 
     pub fn get_cfgs(&'a self) -> &Cfgs<'a> {
         get_lazy_infallible!(self, cfgs)
+    }
+
+    pub fn get_vars(&'a self) -> Option<&Vars<'a>> {
+        get_lazy_fallible!(self, vars)
     }
 }

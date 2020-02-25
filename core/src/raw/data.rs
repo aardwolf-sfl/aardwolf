@@ -113,9 +113,25 @@ pub struct StaticData {
     pub files: HashMap<u32, String>,
 }
 
+#[derive(Clone, Copy)]
+pub enum VariableData {
+    Unsupported,
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+}
+
 pub enum TraceItem {
     Statement(u64),
     External(String),
+    Data(VariableData),
 }
 
 pub struct DynamicData {
@@ -333,11 +349,30 @@ impl fmt::Debug for StaticData {
     }
 }
 
+impl fmt::Debug for VariableData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VariableData::Unsupported => write!(f, "unsupported"),
+            VariableData::I8(value) => write!(f, "{}: i8", value),
+            VariableData::I16(value) => write!(f, "{}: i16", value),
+            VariableData::I32(value) => write!(f, "{}: i32", value),
+            VariableData::I64(value) => write!(f, "{}: i64", value),
+            VariableData::U8(value) => write!(f, "{}: u8", value),
+            VariableData::U16(value) => write!(f, "{}: u16", value),
+            VariableData::U32(value) => write!(f, "{}: u32", value),
+            VariableData::U64(value) => write!(f, "{}: u64", value),
+            VariableData::F32(value) => write!(f, "{}: f32", value),
+            VariableData::F64(value) => write!(f, "{}: f64", value),
+        }
+    }
+}
+
 impl fmt::Debug for TraceItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TraceItem::Statement(id) => write!(f, "statement: #{}", id),
             TraceItem::External(external) => write!(f, "external: \"{}\"", external),
+            TraceItem::Data(data) => write!(f, "data: {:?}", data),
         }
     }
 }

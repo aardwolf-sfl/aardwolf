@@ -20,17 +20,33 @@ META_ARG = 0x61
 META_RET = 0x62
 META_CALL = 0x64
 
-TOKEN_DATA_I32 = b'\x11'
-TOKEN_DATA_I64 = b'\x12'
-TOKEN_DATA_F32 = b'\x15'
-TOKEN_DATA_F64 = b'\x16'
+TOKEN_DATA_UNSUPPORTED = b'\x10'
+TOKEN_DATA_I8 = b'\x11'
+TOKEN_DATA_I16 = b'\x12'
+TOKEN_DATA_I32 = b'\x13'
+TOKEN_DATA_I64 = b'\x14'
+TOKEN_DATA_U8 = b'\x15'
+TOKEN_DATA_U16 = b'\x16'
+TOKEN_DATA_U32 = b'\x17'
+TOKEN_DATA_U64 = b'\x18'
+TOKEN_DATA_F32 = b'\x19'
+TOKEN_DATA_F64 = b'\x20'
 
 def read_stmt(f):
     id = struct.unpack('Q', f.read(8))[0]
     return f'#{id}'
 
+def read_i8(f):
+    return struct.unpack('b', f.read(1))[0]
+
 def read_u8(f):
     return struct.unpack('B', f.read(1))[0]
+
+def read_i16(f):
+    return struct.unpack('h', f.read(2))[0]
+
+def read_u16(f):
+    return struct.unpack('H', f.read(2))[0]
 
 def read_i32(f):
     return struct.unpack('i', f.read(4))[0]
@@ -138,8 +154,15 @@ def get_dynamic_handlers():
     return {
         TOKEN_STATEMENT: _prepend('statement', read_stmt),
         TOKEN_EXTERNAL: _prepend('external', read_str),
+        TOKEN_DATA_UNSUPPORTED: lambda f: 'unsupported data type',
+        TOKEN_DATA_I8: _prepend('i8', read_i8),
+        TOKEN_DATA_I16: _prepend('i16', read_i16),
         TOKEN_DATA_I32: _prepend('i32', read_i32),
         TOKEN_DATA_I64: _prepend('i64', read_i64),
+        TOKEN_DATA_U8: _prepend('u8', read_u8),
+        TOKEN_DATA_U16: _prepend('u16', read_u16),
+        TOKEN_DATA_U32: _prepend('u32', read_u32),
+        TOKEN_DATA_U64: _prepend('u64', read_u64),
         TOKEN_DATA_F32: _prepend('f32', read_f32),
         TOKEN_DATA_F64: _prepend('f64', read_f64),
     }

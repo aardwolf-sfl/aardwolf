@@ -3,15 +3,17 @@ mod def_use;
 mod spectra;
 mod stmts;
 mod tests;
+mod vars;
 
 use crate::api::Api;
 use crate::raw::data::Data;
 
-pub use cfg::{Cfgs, Cfg, ENTRY, EXIT};
+pub use cfg::{Cfg, Cfgs, ENTRY, EXIT};
 pub use def_use::DefUse;
 pub use spectra::Spectra;
 pub use stmts::Stmts;
 pub use tests::Tests;
+pub use vars::{VarItem, Vars};
 
 #[derive(Debug)]
 pub enum FromRawDataError {
