@@ -119,11 +119,10 @@ impl<'a, N: Hash + Eq + Copy> StackFrame<'a, N> {
     }
 
     pub fn get_state(&self, node: &N) -> NodeState<'a> {
-        if self.current_states.contains_key(node) {
-            self.current_states[node].clone()
-        } else {
-            NodeState::NotExecuted
-        }
+        self.current_states
+            .get(node)
+            .cloned()
+            .unwrap_or(NodeState::NotExecuted)
     }
 
     pub fn get_data_state(&self, stmt: &'a Statement) -> NodeState<'a> {

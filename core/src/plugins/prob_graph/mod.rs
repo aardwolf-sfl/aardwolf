@@ -116,7 +116,7 @@ impl ProbGraph {
 
         let mut default_rationale = Rationale::new();
         default_rationale.add_text(
-            "The statement enters to an unusual state given the state of its parents control flow.",
+            "The statement enters to an unusual state given the state of its control and data dependencies.",
         );
 
         let mut results = probs.into_iter().collect::<Vec<_>>();
