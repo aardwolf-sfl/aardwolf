@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum Access {
@@ -113,7 +114,75 @@ pub struct StaticData {
     pub files: HashMap<u32, String>,
 }
 
-#[derive(Clone, Copy)]
+// We understand why implementing Eq and Hash for floating point numbers is problematic in general,
+// but for our purposes, it should be fine.
+macro_rules! impl_fp_wrapper {
+    ($name:ident, $typ:ty) => {
+        #[derive(Clone, Copy)]
+        pub struct $name($typ);
+
+        impl $name {
+            pub fn new(value: $typ) -> Self {
+                $name(value)
+            }
+        }
+
+        impl From<$typ> for $name {
+            fn from(value: $typ) -> Self {
+                $name::new(value)
+            }
+        }
+
+        impl Into<f64> for $name {
+            fn into(self) -> f64 {
+                self.0 as f64
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                if self.0.is_finite() && other.0.is_finite() {
+                    self.0 == other.0
+                } else {
+                    self.0.classify() == other.0.classify()
+                }
+            }
+        }
+
+        impl Eq for $name {}
+
+        impl Hash for $name {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.0.to_ne_bytes().hash(state)
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{:?}", self.0)
+            }
+        }
+
+        impl Deref for $name {
+            type Target = $typ;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+    };
+}
+
+impl_fp_wrapper!(F32, f32);
+impl_fp_wrapper!(F64, f64);
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub enum VariableData {
     Unsupported,
     I8(i8),
@@ -124,8 +193,154 @@ pub enum VariableData {
     U16(u16),
     U32(u32),
     U64(u64),
-    F32(f32),
-    F64(f64),
+    F32(F32),
+    F64(F64),
+}
+
+impl VariableData {
+    pub fn get_type(&self) -> VariableDataType {
+        match self {
+            VariableData::Unsupported => VariableDataType::Unsupported,
+            VariableData::I8(_) => VariableDataType::I8,
+            VariableData::I16(_) => VariableDataType::I16,
+            VariableData::I32(_) => VariableDataType::I32,
+            VariableData::I64(_) => VariableDataType::I64,
+            VariableData::U8(_) => VariableDataType::U8,
+            VariableData::U16(_) => VariableDataType::U16,
+            VariableData::U32(_) => VariableDataType::U32,
+            VariableData::U64(_) => VariableDataType::U64,
+            VariableData::F32(_) => VariableDataType::F32,
+            VariableData::F64(_) => VariableDataType::F64,
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        match self {
+            VariableData::Unsupported => false,
+            VariableData::I8(x) => *x == 0,
+            VariableData::I16(x) => *x == 0,
+            VariableData::I32(x) => *x == 0,
+            VariableData::I64(x) => *x == 0,
+            VariableData::U8(x) => *x == 0,
+            VariableData::U16(x) => *x == 0,
+            VariableData::U32(x) => *x == 0,
+            VariableData::U64(x) => *x == 0,
+            VariableData::F32(x) => **x == 0.0,
+            VariableData::F64(x) => **x == 0.0,
+        }
+    }
+
+    pub fn as_signed(&self) -> Option<i64> {
+        match self {
+            VariableData::I8(x) => Some(*x as i64),
+            VariableData::I16(x) => Some(*x as i64),
+            VariableData::I32(x) => Some(*x as i64),
+            VariableData::I64(x) => Some(*x as i64),
+            _ => None,
+        }
+    }
+
+    pub fn as_unsigned(&self) -> Option<u64> {
+        match self {
+            VariableData::U8(x) => Some(*x as u64),
+            VariableData::U16(x) => Some(*x as u64),
+            VariableData::U32(x) => Some(*x as u64),
+            VariableData::U64(x) => Some(*x as u64),
+            _ => None,
+        }
+    }
+
+    pub fn as_floating(&self) -> Option<f64> {
+        match self {
+            VariableData::F32(x) => Some(**x as f64),
+            VariableData::F64(x) => Some(**x as f64),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for VariableData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VariableData::Unsupported => write!(f, "?"),
+            VariableData::I8(x) => write!(f, "{}", x),
+            VariableData::I16(x) => write!(f, "{}", x),
+            VariableData::I32(x) => write!(f, "{}", x),
+            VariableData::I64(x) => write!(f, "{}", x),
+            VariableData::U8(x) => write!(f, "{}", x),
+            VariableData::U16(x) => write!(f, "{}", x),
+            VariableData::U32(x) => write!(f, "{}", x),
+            VariableData::U64(x) => write!(f, "{}", x),
+            VariableData::F32(x) => write!(f, "{}", x),
+            VariableData::F64(x) => write!(f, "{}", x),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum VariableDataType {
+    Unsupported,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
+}
+
+impl VariableDataType {
+    pub fn is_signed(&self) -> bool {
+        match self {
+            VariableDataType::I8
+            | VariableDataType::I16
+            | VariableDataType::I32
+            | VariableDataType::I64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        match self {
+            VariableDataType::U8
+            | VariableDataType::U16
+            | VariableDataType::U32
+            | VariableDataType::U64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_floating(&self) -> bool {
+        match self {
+            VariableDataType::F32 | VariableDataType::F64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        self.is_signed() || self.is_unsigned() || self.is_floating()
+    }
+}
+
+impl fmt::Display for VariableDataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VariableDataType::Unsupported => write!(f, "?"),
+            VariableDataType::I8 => write!(f, "8-bit signed integer"),
+            VariableDataType::I16 => write!(f, "16-bit signed integer"),
+            VariableDataType::I32 => write!(f, "32-bit signed integer"),
+            VariableDataType::I64 => write!(f, "64-bit signed integer"),
+            VariableDataType::U8 => write!(f, "8-bit unsigned integer"),
+            VariableDataType::U16 => write!(f, "16-bit unsigned integer"),
+            VariableDataType::U32 => write!(f, "32-bit unsigned integer"),
+            VariableDataType::U64 => write!(f, "64-bit unsigned integer"),
+            VariableDataType::F32 => write!(f, "float"),
+            VariableDataType::F64 => write!(f, "double"),
+        }
+    }
 }
 
 pub enum TraceItem {
@@ -210,11 +425,15 @@ impl fmt::Debug for Access {
             Access::Scalar(id) => write!(f, "%{}", id),
             Access::Structural(base, field) => write!(f, "{:?}.{:?}", base, field),
             Access::ArrayLike(base, index) => {
-                write!(f, "{:?}[{:?}", base, index[0])?;
-                for item in index.iter().skip(1) {
-                    write!(f, ", {:?}", item)?;
+                if index.is_empty() {
+                    write!(f, "{:?}[]", base)
+                } else {
+                    write!(f, "{:?}[{:?}", base, index[0])?;
+                    for item in index.iter().skip(1) {
+                        write!(f, ", {:?}", item)?;
+                    }
+                    write!(f, "]")
                 }
-                write!(f, "]")
             }
         }
     }

@@ -9,7 +9,7 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
-use crate::plugins::{prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin};
+use crate::plugins::{invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin};
 use crate::raw::Data;
 
 // TARGET_FILE (program code, usually preprocessed)
@@ -138,6 +138,7 @@ impl Driver {
             match plugin.id.as_str() {
                 "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts),
                 "prob-graph" => Self::run_loc::<ProbGraph>(name, &api, &plugin.opts),
+                "invariants" => Self::run_loc::<Invariants>(name, &api, &plugin.opts),
                 _ => panic!("Unknown plugin"),
             }
         }

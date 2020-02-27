@@ -108,10 +108,21 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
       return std::make_shared<Access>(Access::makeArrayLike(*B, A));
     }
   } else if (auto LI = llvm::dyn_cast<llvm::LoadInst>(U)) {
-    // Dereferencing a pointer.
-    // If dyn_cast returns nullptr, it is handled as the first if in this
-    // function.
-    return getValueAccess(llvm::dyn_cast<llvm::User>(LI->getOperand(0)));
+    if (LI->getType()->isPointerTy()) {
+      // Dereferencing a pointer. Treat it like array[0] because we do not have
+      // any other information.
+      auto B = getValueAccess(llvm::dyn_cast<llvm::User>(LI->getOperand(0)));
+      if (B == nullptr) {
+        return nullptr;
+      } else {
+        // If we treat it as array[0], zero is a constant which would not be
+        // included in index variables, so we pass an empty vector.
+        std::vector<Access> Empty;
+        return std::make_shared<Access>(Access::makeArrayLike(*B, Empty));
+      }
+    } else {
+      return nullptr;
+    }
   } else {
     return nullptr;
   }

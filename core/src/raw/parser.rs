@@ -142,8 +142,12 @@ impl<'a, R: BufRead> DataParser<'a, R> {
                 TOKEN_DATA_U16 => trace.push(TraceItem::Data(VariableData::U16(self.parse_u16()?))),
                 TOKEN_DATA_U32 => trace.push(TraceItem::Data(VariableData::U32(self.parse_u32()?))),
                 TOKEN_DATA_U64 => trace.push(TraceItem::Data(VariableData::U64(self.parse_u64()?))),
-                TOKEN_DATA_F32 => trace.push(TraceItem::Data(VariableData::F32(self.parse_f32()?))),
-                TOKEN_DATA_F64 => trace.push(TraceItem::Data(VariableData::F64(self.parse_f64()?))),
+                TOKEN_DATA_F32 => {
+                    trace.push(TraceItem::Data(VariableData::F32(self.parse_f32()?.into())))
+                }
+                TOKEN_DATA_F64 => {
+                    trace.push(TraceItem::Data(VariableData::F64(self.parse_f64()?.into())))
+                }
                 _ => return Err(ParseError::UnexpectedByte),
             }
         }

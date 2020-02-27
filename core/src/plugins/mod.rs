@@ -7,6 +7,7 @@ use yaml_rust::Yaml;
 use crate::api::Api;
 use crate::raw::data::{Loc, Statement, TestName};
 
+pub mod invariants;
 pub mod prob_graph;
 pub mod sbfl;
 

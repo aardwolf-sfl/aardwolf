@@ -2,7 +2,7 @@ use std::collections::hash_map::{HashMap, Iter, Keys};
 use std::mem;
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TestName, TraceItem, VariableData};
+use crate::raw::data::{Access, Data, Statement, TestName, TraceItem, VariableData};
 use crate::structures::{FromRawData, FromRawDataError};
 
 #[derive(Debug)]
@@ -11,6 +11,12 @@ pub struct VarItem<'a> {
     pub defs: Vec<VariableData>,
     // TODO:
     // pub uses: Vec<VariableData>,
+}
+
+impl<'a> VarItem<'a> {
+    pub fn zip(&self) -> impl Iterator<Item = (&Access, &VariableData)> {
+        self.stmt.defs.iter().zip(self.defs.iter())
+    }
 }
 
 pub struct Vars<'a> {
