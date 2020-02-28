@@ -136,9 +136,9 @@ impl Driver {
                 None => &plugin.id,
             };
             match plugin.id.as_str() {
-                "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts),
-                "prob-graph" => Self::run_loc::<ProbGraph>(name, &api, &plugin.opts),
-                "invariants" => Self::run_loc::<Invariants>(name, &api, &plugin.opts),
+                "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts, &config),
+                "prob-graph" => Self::run_loc::<ProbGraph>(name, &api, &plugin.opts, &config),
+                "invariants" => Self::run_loc::<Invariants>(name, &api, &plugin.opts, &config),
                 _ => panic!("Unknown plugin"),
             }
         }
@@ -148,6 +148,7 @@ impl Driver {
         name: &'a str,
         api: &'a Api<'a>,
         opts: &'a HashMap<String, Yaml>,
+        config: &'a Config,
     ) {
         let plugin = P::init(api, opts).unwrap();
         let mut results = plugin.run_loc(api);
@@ -156,7 +157,7 @@ impl Driver {
         results.sort_by(|lhs, rhs| rhs.cmp(lhs));
 
         println!("Results for: {}", name);
-        for item in results.iter().take(10) {
+        for item in results.iter().take(config.n_results) {
             println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
         }
         println!();

@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use yaml_rust::{ScanError, Yaml, YamlLoader};
 
+pub const DEFAULT_N_RESULTS: usize = 10;
+
 #[derive(Debug)]
 pub struct Plugin {
     pub id: String,
@@ -42,6 +44,7 @@ impl Plugin {
 pub struct Config {
     pub script: Vec<String>,
     pub output_dir: PathBuf,
+    pub n_results: usize,
     pub plugins: Vec<Plugin>,
 }
 
@@ -73,6 +76,7 @@ impl Config {
 
         let mut script = Vec::new();
         let mut output_dir = PathBuf::new();
+        let mut n_results = DEFAULT_N_RESULTS;
         let mut plugins = Vec::new();
 
         for (key, value) in config {
@@ -97,6 +101,12 @@ impl Config {
                         .as_str()
                         .ok_or(LoadConfigError::Invalid("Invalid format".to_string()))?
                         .into();
+                }
+                "n_results" => {
+                    n_results = value
+                        .as_i64()
+                        .ok_or(LoadConfigError::Invalid("Invalid format".to_string()))?
+                        as usize;
                 }
                 "plugins" => {
                     for plugin in value
@@ -174,6 +184,7 @@ impl Config {
         Ok(Config {
             script,
             output_dir,
+            n_results,
             plugins,
         })
     }
