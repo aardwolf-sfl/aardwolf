@@ -1,0 +1,15 @@
+diff --git a/examples/c/src/maintenance.c b/examples/c/src/maintenance.c
+index a645878..be2a225 100644
+--- a/examples/c/src/maintenance.c
++++ b/examples/c/src/maintenance.c
+@@ -103,9 +103,7 @@ bool_t entity_should_process(struct entity *self)
+     }
+ 
+     tasks_vector_foreach(task, &self->tasks, {
+-        if (task->priority == 0) {
+-            return true;
+-        } else if (task->priority < self->priority_threshold) {
++        if (task->priority < self->priority_threshold) {
+             counter++;
+         }
+     });
