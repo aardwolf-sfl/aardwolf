@@ -114,146 +114,162 @@ pub struct StaticData {
     pub files: HashMap<u32, String>,
 }
 
+#[derive(Clone, Copy, PartialOrd)]
+pub struct FpWrapper(f64);
+
+impl From<f32> for FpWrapper {
+    fn from(value: f32) -> Self {
+        FpWrapper(value as f64)
+    }
+}
+
+impl From<f64> for FpWrapper {
+    fn from(value: f64) -> Self {
+        FpWrapper(value)
+    }
+}
+
+impl PartialEq for FpWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.is_finite() && other.0.is_finite() {
+            self.0 == other.0
+        } else {
+            self.0.classify() == other.0.classify()
+        }
+    }
+}
+
 // We understand why implementing Eq and Hash for floating point numbers is problematic in general,
 // but for our purposes, it should be fine.
-macro_rules! impl_fp_wrapper {
-    ($name:ident, $typ:ty) => {
-        #[derive(Clone, Copy)]
-        pub struct $name($typ);
+impl Eq for FpWrapper {}
 
-        impl $name {
-            pub fn new(value: $typ) -> Self {
-                $name(value)
-            }
-        }
+impl Hash for FpWrapper {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_ne_bytes().hash(state)
+    }
+}
 
-        impl From<$typ> for $name {
-            fn from(value: $typ) -> Self {
-                $name::new(value)
-            }
-        }
+impl fmt::Display for FpWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
-        impl Into<f64> for $name {
-            fn into(self) -> f64 {
-                self.0 as f64
-            }
-        }
+impl fmt::Debug for FpWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
 
-        impl PartialEq for $name {
-            fn eq(&self, other: &Self) -> bool {
-                if self.0.is_finite() && other.0.is_finite() {
-                    self.0 == other.0
-                } else {
-                    self.0.classify() == other.0.classify()
-                }
-            }
-        }
+impl Deref for FpWrapper {
+    type Target = f64;
 
-        impl Eq for $name {}
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
-        impl Hash for $name {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                self.0.to_ne_bytes().hash(state)
-            }
-        }
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DataHolder<T> {
+    pub value: T,
+    pub width: u8,
+}
 
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
+impl<T> DataHolder<T> {
+    pub fn new(value: T, width: u8) -> Self {
+        DataHolder { value, width }
+    }
+}
 
-        impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{:?}", self.0)
-            }
-        }
+impl<T> Deref for DataHolder<T> {
+    type Target = T;
 
-        impl Deref for $name {
-            type Target = $typ;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
 
-            fn deref(&self) -> &Self::Target {
-                &self.0
+macro_rules! impl_data_holder_for {
+    ($orig:ty, $holder:ty, $width:expr) => {
+        impl From<$orig> for DataHolder<$holder> {
+            fn from(value: $orig) -> Self {
+                DataHolder::new(value.into(), $width)
             }
         }
     };
 }
 
-impl_fp_wrapper!(F32, f32);
-impl_fp_wrapper!(F64, f64);
+impl_data_holder_for!(i8, i64, 8);
+impl_data_holder_for!(i16, i64, 16);
+impl_data_holder_for!(i32, i64, 32);
+impl_data_holder_for!(i64, i64, 64);
+impl_data_holder_for!(u8, u64, 8);
+impl_data_holder_for!(u16, u64, 16);
+impl_data_holder_for!(u32, u64, 32);
+impl_data_holder_for!(u64, u64, 64);
+impl_data_holder_for!(f32, FpWrapper, 32);
+impl_data_holder_for!(f64, FpWrapper, 64);
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub enum VariableData {
     Unsupported,
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    F32(F32),
-    F64(F64),
+    Signed(DataHolder<i64>),
+    Unsigned(DataHolder<u64>),
+    Floating(DataHolder<FpWrapper>),
 }
 
 impl VariableData {
+    pub fn unsupported() -> Self {
+        VariableData::Unsupported
+    }
+
+    pub fn signed<T: Into<DataHolder<i64>>>(value: T) -> Self {
+        VariableData::Signed(value.into())
+    }
+
+    pub fn unsigned<T: Into<DataHolder<u64>>>(value: T) -> Self {
+        VariableData::Unsigned(value.into())
+    }
+
+    pub fn floating<T: Into<DataHolder<FpWrapper>>>(value: T) -> Self {
+        VariableData::Floating(value.into())
+    }
+
     pub fn get_type(&self) -> VariableDataType {
         match self {
             VariableData::Unsupported => VariableDataType::Unsupported,
-            VariableData::I8(_) => VariableDataType::I8,
-            VariableData::I16(_) => VariableDataType::I16,
-            VariableData::I32(_) => VariableDataType::I32,
-            VariableData::I64(_) => VariableDataType::I64,
-            VariableData::U8(_) => VariableDataType::U8,
-            VariableData::U16(_) => VariableDataType::U16,
-            VariableData::U32(_) => VariableDataType::U32,
-            VariableData::U64(_) => VariableDataType::U64,
-            VariableData::F32(_) => VariableDataType::F32,
-            VariableData::F64(_) => VariableDataType::F64,
+            VariableData::Signed(value) => VariableDataType::Signed(value.width),
+            VariableData::Unsigned(value) => VariableDataType::Unsigned(value.width),
+            VariableData::Floating(value) => VariableDataType::Floating(value.width),
         }
     }
 
     pub fn is_zero(&self) -> bool {
         match self {
             VariableData::Unsupported => false,
-            VariableData::I8(x) => *x == 0,
-            VariableData::I16(x) => *x == 0,
-            VariableData::I32(x) => *x == 0,
-            VariableData::I64(x) => *x == 0,
-            VariableData::U8(x) => *x == 0,
-            VariableData::U16(x) => *x == 0,
-            VariableData::U32(x) => *x == 0,
-            VariableData::U64(x) => *x == 0,
-            VariableData::F32(x) => **x == 0.0,
-            VariableData::F64(x) => **x == 0.0,
+            VariableData::Signed(value) => **value == 0,
+            VariableData::Unsigned(value) => **value == 0,
+            VariableData::Floating(value) => ***value == 0.0,
         }
     }
 
     pub fn as_signed(&self) -> Option<i64> {
         match self {
-            VariableData::I8(x) => Some(*x as i64),
-            VariableData::I16(x) => Some(*x as i64),
-            VariableData::I32(x) => Some(*x as i64),
-            VariableData::I64(x) => Some(*x as i64),
+            VariableData::Signed(value) => Some(**value),
             _ => None,
         }
     }
 
     pub fn as_unsigned(&self) -> Option<u64> {
         match self {
-            VariableData::U8(x) => Some(*x as u64),
-            VariableData::U16(x) => Some(*x as u64),
-            VariableData::U32(x) => Some(*x as u64),
-            VariableData::U64(x) => Some(*x as u64),
+            VariableData::Unsigned(value) => Some(**value),
             _ => None,
         }
     }
 
     pub fn as_floating(&self) -> Option<f64> {
         match self {
-            VariableData::F32(x) => Some(**x as f64),
-            VariableData::F64(x) => Some(**x as f64),
+            VariableData::Floating(value) => Some(***value),
             _ => None,
         }
     }
@@ -263,16 +279,9 @@ impl fmt::Display for VariableData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VariableData::Unsupported => write!(f, "?"),
-            VariableData::I8(x) => write!(f, "{}", x),
-            VariableData::I16(x) => write!(f, "{}", x),
-            VariableData::I32(x) => write!(f, "{}", x),
-            VariableData::I64(x) => write!(f, "{}", x),
-            VariableData::U8(x) => write!(f, "{}", x),
-            VariableData::U16(x) => write!(f, "{}", x),
-            VariableData::U32(x) => write!(f, "{}", x),
-            VariableData::U64(x) => write!(f, "{}", x),
-            VariableData::F32(x) => write!(f, "{}", x),
-            VariableData::F64(x) => write!(f, "{}", x),
+            VariableData::Signed(value) => write!(f, "{}", **value),
+            VariableData::Unsigned(value) => write!(f, "{}", **value),
+            VariableData::Floating(value) => write!(f, "{}", ***value),
         }
     }
 }
@@ -280,42 +289,29 @@ impl fmt::Display for VariableData {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum VariableDataType {
     Unsupported,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    F32,
-    F64,
+    Signed(u8),
+    Unsigned(u8),
+    Floating(u8),
 }
 
 impl VariableDataType {
     pub fn is_signed(&self) -> bool {
         match self {
-            VariableDataType::I8
-            | VariableDataType::I16
-            | VariableDataType::I32
-            | VariableDataType::I64 => true,
+            VariableDataType::Signed(_) => true,
             _ => false,
         }
     }
 
     pub fn is_unsigned(&self) -> bool {
         match self {
-            VariableDataType::U8
-            | VariableDataType::U16
-            | VariableDataType::U32
-            | VariableDataType::U64 => true,
+            VariableDataType::Unsigned(_) => true,
             _ => false,
         }
     }
 
     pub fn is_floating(&self) -> bool {
         match self {
-            VariableDataType::F32 | VariableDataType::F64 => true,
+            VariableDataType::Floating(_) => true,
             _ => false,
         }
     }
@@ -329,16 +325,11 @@ impl fmt::Display for VariableDataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VariableDataType::Unsupported => write!(f, "?"),
-            VariableDataType::I8 => write!(f, "8-bit signed integer"),
-            VariableDataType::I16 => write!(f, "16-bit signed integer"),
-            VariableDataType::I32 => write!(f, "32-bit signed integer"),
-            VariableDataType::I64 => write!(f, "64-bit signed integer"),
-            VariableDataType::U8 => write!(f, "8-bit unsigned integer"),
-            VariableDataType::U16 => write!(f, "16-bit unsigned integer"),
-            VariableDataType::U32 => write!(f, "32-bit unsigned integer"),
-            VariableDataType::U64 => write!(f, "64-bit unsigned integer"),
-            VariableDataType::F32 => write!(f, "float"),
-            VariableDataType::F64 => write!(f, "double"),
+            VariableDataType::Signed(width) => write!(f, "{}-bit signed integer", width),
+            VariableDataType::Unsigned(width) => write!(f, "{}-bit unsigned integer", width),
+            VariableDataType::Floating(32) => write!(f, "float"),
+            VariableDataType::Floating(64) => write!(f, "double"),
+            VariableDataType::Floating(width) => write!(f, "{}-bit floating point", width),
         }
     }
 }
@@ -572,16 +563,9 @@ impl fmt::Debug for VariableData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VariableData::Unsupported => write!(f, "unsupported"),
-            VariableData::I8(value) => write!(f, "{}: i8", value),
-            VariableData::I16(value) => write!(f, "{}: i16", value),
-            VariableData::I32(value) => write!(f, "{}: i32", value),
-            VariableData::I64(value) => write!(f, "{}: i64", value),
-            VariableData::U8(value) => write!(f, "{}: u8", value),
-            VariableData::U16(value) => write!(f, "{}: u16", value),
-            VariableData::U32(value) => write!(f, "{}: u32", value),
-            VariableData::U64(value) => write!(f, "{}: u64", value),
-            VariableData::F32(value) => write!(f, "{}: f32", value),
-            VariableData::F64(value) => write!(f, "{}: f64", value),
+            VariableData::Signed(value) => write!(f, "{}: i{}", **value, value.width),
+            VariableData::Unsigned(value) => write!(f, "{}: u{}", **value, value.width),
+            VariableData::Floating(value) => write!(f, "{}: f{}", **value, value.width),
         }
     }
 }

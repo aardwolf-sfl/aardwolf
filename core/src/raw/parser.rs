@@ -134,19 +134,35 @@ impl<'a, R: BufRead> DataParser<'a, R> {
                 TOKEN_STATEMENT => trace.push(TraceItem::Statement(self.parse_u64()?)),
                 TOKEN_EXTERNAL => trace.push(TraceItem::External(self.parse_cstr()?)),
                 TOKEN_DATA_UNSUPPORTED => trace.push(TraceItem::Data(VariableData::Unsupported)),
-                TOKEN_DATA_I8 => trace.push(TraceItem::Data(VariableData::I8(self.parse_i8()?))),
-                TOKEN_DATA_I16 => trace.push(TraceItem::Data(VariableData::I16(self.parse_i16()?))),
-                TOKEN_DATA_I32 => trace.push(TraceItem::Data(VariableData::I32(self.parse_i32()?))),
-                TOKEN_DATA_I64 => trace.push(TraceItem::Data(VariableData::I64(self.parse_i64()?))),
-                TOKEN_DATA_U8 => trace.push(TraceItem::Data(VariableData::U8(self.parse_u8()?))),
-                TOKEN_DATA_U16 => trace.push(TraceItem::Data(VariableData::U16(self.parse_u16()?))),
-                TOKEN_DATA_U32 => trace.push(TraceItem::Data(VariableData::U32(self.parse_u32()?))),
-                TOKEN_DATA_U64 => trace.push(TraceItem::Data(VariableData::U64(self.parse_u64()?))),
+                TOKEN_DATA_I8 => {
+                    trace.push(TraceItem::Data(VariableData::signed(self.parse_i8()?)))
+                }
+                TOKEN_DATA_I16 => {
+                    trace.push(TraceItem::Data(VariableData::signed(self.parse_i16()?)))
+                }
+                TOKEN_DATA_I32 => {
+                    trace.push(TraceItem::Data(VariableData::signed(self.parse_i32()?)))
+                }
+                TOKEN_DATA_I64 => {
+                    trace.push(TraceItem::Data(VariableData::signed(self.parse_i64()?)))
+                }
+                TOKEN_DATA_U8 => {
+                    trace.push(TraceItem::Data(VariableData::unsigned(self.parse_u8()?)))
+                }
+                TOKEN_DATA_U16 => {
+                    trace.push(TraceItem::Data(VariableData::unsigned(self.parse_u16()?)))
+                }
+                TOKEN_DATA_U32 => {
+                    trace.push(TraceItem::Data(VariableData::unsigned(self.parse_u32()?)))
+                }
+                TOKEN_DATA_U64 => {
+                    trace.push(TraceItem::Data(VariableData::unsigned(self.parse_u64()?)))
+                }
                 TOKEN_DATA_F32 => {
-                    trace.push(TraceItem::Data(VariableData::F32(self.parse_f32()?.into())))
+                    trace.push(TraceItem::Data(VariableData::floating(self.parse_f32()?)))
                 }
                 TOKEN_DATA_F64 => {
-                    trace.push(TraceItem::Data(VariableData::F64(self.parse_f64()?.into())))
+                    trace.push(TraceItem::Data(VariableData::floating(self.parse_f64()?)))
                 }
                 _ => return Err(ParseError::UnexpectedByte),
             }
