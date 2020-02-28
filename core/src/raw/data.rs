@@ -189,6 +189,12 @@ impl<T> Deref for DataHolder<T> {
     }
 }
 
+impl<T: PartialOrd> PartialOrd for DataHolder<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.value.partial_cmp(&other.value)
+    }
+}
+
 macro_rules! impl_data_holder_for {
     ($orig:ty, $holder:ty, $width:expr) => {
         impl From<$orig> for DataHolder<$holder> {
@@ -253,6 +259,20 @@ impl VariableData {
         }
     }
 
+    pub fn is_unsupported(&self) -> bool {
+        match self {
+            VariableData::Unsupported => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_exceptional_value(&self) -> bool {
+        match self {
+            VariableData::Floating(value) => !(***value).is_finite(),
+            _ => false,
+        }
+    }
+
     pub fn as_signed(&self) -> Option<i64> {
         match self {
             VariableData::Signed(value) => Some(**value),
@@ -282,6 +302,18 @@ impl fmt::Display for VariableData {
             VariableData::Signed(value) => write!(f, "{}", **value),
             VariableData::Unsigned(value) => write!(f, "{}", **value),
             VariableData::Floating(value) => write!(f, "{}", ***value),
+        }
+    }
+}
+
+impl PartialOrd for VariableData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (VariableData::Unsupported, VariableData::Unsupported) => Some(Ordering::Equal),
+            (VariableData::Signed(lhs), VariableData::Signed(rhs)) => lhs.partial_cmp(rhs),
+            (VariableData::Unsigned(lhs), VariableData::Unsigned(rhs)) => lhs.partial_cmp(rhs),
+            (VariableData::Floating(lhs), VariableData::Floating(rhs)) => lhs.partial_cmp(rhs),
+            _ => None,
         }
     }
 }
