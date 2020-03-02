@@ -12,7 +12,6 @@ use self::models::*;
 use self::trace::*;
 use crate::api::Api;
 use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
-use crate::raw::data::TestStatus;
 
 enum ModelType {
     Dependence,
@@ -58,7 +57,7 @@ impl ProbGraph {
         let mut ppdg = Ppdg::new();
 
         // Learn PPDG on passing tests.
-        for test in tests.iter_names().filter(|name| tests.is_passed(name)) {
+        for test in tests.iter_passed() {
             let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap(), api);
 
             for item in trace {
@@ -89,15 +88,9 @@ impl ProbGraph {
     ) -> Vec<LocalizationItem<'a, 'b>> {
         let tests = api.get_tests();
 
-        let failing = tests
-            .iter_statuses()
-            .find(|(_, status)| **status == TestStatus::Failed)
-            .map(|(name, _)| name)
-            .unwrap();
-
         let mut probs = HashMap::new();
 
-        let trace: Trace<_, M> = Trace::new(tests.iter_stmts(failing).unwrap(), api);
+        let trace: Trace<_, M> = Trace::new(tests.iter_stmts(tests.get_failed()).unwrap(), api);
 
         for (index, item) in trace.enumerate() {
             let prob = ppdg.get_prob(&item);

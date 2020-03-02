@@ -6,7 +6,6 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
-use crate::raw::data::TestStatus;
 
 use detector::Stats;
 
@@ -36,7 +35,7 @@ impl AardwolfPlugin for Invariants {
 
         let mut stats = Stats::new();
 
-        for test in tests.iter_names().filter(|name| tests.is_passed(name)) {
+        for test in tests.iter_passed() {
             for item in vars.iter_vars(test).unwrap() {
                 for (access, data) in item.zip() {
                     stats.learn(access, data, test);
@@ -44,15 +43,9 @@ impl AardwolfPlugin for Invariants {
             }
         }
 
-        let failing = tests
-            .iter_statuses()
-            .find(|(_, status)| **status == TestStatus::Failed)
-            .map(|(name, _)| name)
-            .unwrap();
-
         let mut results = Vec::new();
 
-        for item in vars.iter_vars(failing).unwrap() {
+        for item in vars.iter_vars(tests.get_failed()).unwrap() {
             for (access, data) in item.zip() {
                 let violations = stats.check(data, access);
 

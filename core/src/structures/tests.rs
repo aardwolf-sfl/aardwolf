@@ -30,6 +30,24 @@ impl<'a> Tests<'a> {
             false
         }
     }
+
+    pub fn iter_passed(&self) -> impl Iterator<Item = &TestName> {
+        self.iter_statuses()
+            .filter(|(_, status)| **status == TestStatus::Passed)
+            .map(|(name, _)| name)
+    }
+
+    pub fn iter_failed(&self) -> impl Iterator<Item = &TestName> {
+        self.iter_statuses()
+            .filter(|(_, status)| **status == TestStatus::Failed)
+            .map(|(name, _)| name)
+    }
+
+    pub fn get_failed(&self) -> &TestName {
+        // Aardwolf performs validation whether there is at least one failed test.
+        // We can therefore unwrap the first value of the iterator.
+        self.iter_failed().next().unwrap()
+    }
 }
 
 impl<'a> FromRawData<'a> for Tests<'a> {
