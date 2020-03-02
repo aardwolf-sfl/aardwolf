@@ -11,7 +11,7 @@ use yaml_rust::Yaml;
 use self::models::*;
 use self::trace::*;
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
+use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError};
 
 enum ModelType {
     Dependence,
@@ -39,19 +39,25 @@ impl AardwolfPlugin for ProbGraph {
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
         match self.model {
-            ModelType::Dependence => {
-                let ppdg = self.learn_ppdg::<DependencyNetwork>(api);
-                self.process_failing::<DependencyNetwork>(&ppdg, api)
-            }
-            ModelType::Bayesian => {
-                let ppdg = self.learn_ppdg::<BayesianNetwork>(api);
-                self.process_failing::<BayesianNetwork>(&ppdg, api)
-            }
+            ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api),
+            ModelType::Bayesian => self.run_loc_typed::<BayesianNetwork>(api),
         }
     }
 }
 
 impl ProbGraph {
+    pub fn run_loc_typed<'a, 'b, M: Model<'a>>(
+        &self,
+        api: &'a Api<'a>,
+    ) -> Vec<LocalizationItem<'a, 'b>> {
+        let tests = api.get_tests();
+
+        let ppdg = self.learn_ppdg::<M>(api);
+        let trace: Trace<_, M> = Trace::new(tests.iter_stmts(tests.get_failed()).unwrap(), api);
+
+        M::run_loc(trace, &ppdg, api)
+    }
+
     pub fn learn_ppdg<'a, M: Model<'a>>(&self, api: &'a Api<'a>) -> Ppdg<'a> {
         let tests = api.get_tests();
         let mut ppdg = Ppdg::new();
@@ -79,50 +85,6 @@ impl ProbGraph {
         }
 
         ppdg
-    }
-
-    pub fn process_failing<'a, 'b, M: Model<'a>>(
-        &self,
-        ppdg: &Ppdg<'a>,
-        api: &'a Api<'a>,
-    ) -> Vec<LocalizationItem<'a, 'b>> {
-        let tests = api.get_tests();
-
-        let mut probs = HashMap::new();
-
-        let trace: Trace<_, M> = Trace::new(tests.iter_stmts(tests.get_failed()).unwrap(), api);
-
-        for (index, item) in trace.enumerate() {
-            let prob = ppdg.get_prob(&item);
-
-            let lowest_prob = probs
-                .get(item.node.stmt)
-                .map(|(prob, _)| *prob)
-                .unwrap_or(std::f32::MAX);
-
-            if prob < lowest_prob {
-                probs.insert(item.node.stmt, (prob, index));
-            }
-        }
-
-        let mut default_rationale = Rationale::new();
-        default_rationale.add_text(
-            "The statement enters to an unusual state given the state of its control and data dependencies.",
-        );
-
-        let mut results = probs.into_iter().collect::<Vec<_>>();
-
-        // Sort the results by index. If there are some ties in score,
-        // this will prioritizes statements that occur earlier.
-        results.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
-
-        results
-            .into_iter()
-            .map(|(stmt, (prob, _))| {
-                LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, default_rationale.clone())
-                    .unwrap()
-            })
-            .collect()
     }
 }
 

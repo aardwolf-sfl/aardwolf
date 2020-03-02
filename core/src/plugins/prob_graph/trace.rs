@@ -203,9 +203,6 @@ impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Iterator for Trace<'a,
             return self.next_items.pop_front();
         }
 
-        // FIXME: Everywhere we clone values from or to self.parent,
-        //        we could probably just take the value of leaving the option empty?
-
         let stmt = self.trace.next()?;
         let func = self.api.get_stmts().find_fn(stmt).unwrap();
 

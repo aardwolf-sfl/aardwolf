@@ -1,8 +1,13 @@
+use std::collections::HashMap;
+
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
 use super::pdg;
+use crate::api::Api;
+use crate::plugins::prob_graph::{trace::Trace, Ppdg};
+use crate::plugins::{LocalizationItem, Rationale};
 use crate::raw::data::Statement;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -79,6 +84,13 @@ impl<'a> Node<'a> {
 pub trait Model<'a> {
     fn get_graph(&self) -> &ModelGraph<'a>;
     fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self;
+    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+        trace: Trace<'a, I, Self>,
+        ppdg: &Ppdg,
+        api: &'a Api<'a>,
+    ) -> Vec<LocalizationItem<'a, 'b>>
+    where
+        Self: Sized;
 }
 
 pub type ModelGraph<'a> = DiGraph<Node<'a>, EdgeType>;
@@ -93,6 +105,49 @@ impl<'a> Model<'a> for DependencyNetwork<'a> {
     fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self {
         DependencyNetwork(create_dependency_network(pdg))
     }
+
+    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+        trace: Trace<'a, I, Self>,
+        ppdg: &Ppdg,
+        _api: &'a Api<'a>,
+    ) -> Vec<LocalizationItem<'a, 'b>>
+    where
+        Self: Sized,
+    {
+        let mut probs = HashMap::new();
+
+        for (index, item) in trace.enumerate() {
+            let prob = ppdg.get_prob(&item);
+
+            let lowest_prob = probs
+                .get(item.node.stmt)
+                .map(|(prob, _)| *prob)
+                .unwrap_or(std::f32::MAX);
+
+            if prob < lowest_prob {
+                probs.insert(item.node.stmt, (prob, index));
+            }
+        }
+
+        let mut default_rationale = Rationale::new();
+        default_rationale.add_text(
+            "The statement enters to an unusual state given the state of its control and data dependencies.",
+        );
+
+        let mut results = probs.into_iter().collect::<Vec<_>>();
+
+        // Sort the results by index. If there are some ties in score,
+        // this will prioritizes statements that occur earlier.
+        results.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
+
+        results
+            .into_iter()
+            .map(|(stmt, (prob, _))| {
+                LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, default_rationale.clone())
+                    .unwrap()
+            })
+            .collect()
+    }
 }
 
 pub struct BayesianNetwork<'a>(ModelGraph<'a>);
@@ -104,6 +159,18 @@ impl<'a> Model<'a> for BayesianNetwork<'a> {
 
     fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self {
         BayesianNetwork(create_bayesian_network(pdg))
+    }
+
+    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+        _trace: Trace<'a, I, Self>,
+        _ppdg: &Ppdg,
+        _api: &'a Api<'a>,
+    ) -> Vec<LocalizationItem<'a, 'b>>
+    where
+        Self: Sized,
+    {
+        // TODO
+        Vec::new()
     }
 }
 
