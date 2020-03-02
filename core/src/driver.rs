@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, BufReader, Write};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
@@ -108,7 +108,7 @@ impl<P: AsRef<Path>> DriverArgs<P> {
         }
     }
 
-    pub fn with_frontend_path(mut self, frontend_path: Option<P>) -> Self {
+    pub fn with_frontend_path(self, frontend_path: Option<P>) -> Self {
         Self {
             frontend_path,
             ..self

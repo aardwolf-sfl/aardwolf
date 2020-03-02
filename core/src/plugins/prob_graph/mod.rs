@@ -13,7 +13,6 @@ use self::trace::*;
 use crate::api::Api;
 use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
 use crate::raw::data::TestStatus;
-use crate::structures::{FromRawData, FromRawDataError};
 
 enum ModelType {
     Dependence,
@@ -88,13 +87,12 @@ impl ProbGraph {
         ppdg: &Ppdg<'a>,
         api: &'a Api<'a>,
     ) -> Vec<LocalizationItem<'a, 'b>> {
-        let stmts = api.get_stmts();
         let tests = api.get_tests();
 
         let failing = tests
             .iter_statuses()
-            .find(|(name, status)| **status == TestStatus::Failed)
-            .map(|(name, status)| name)
+            .find(|(_, status)| **status == TestStatus::Failed)
+            .map(|(name, _)| name)
             .unwrap();
 
         let mut probs = HashMap::new();
@@ -135,7 +133,7 @@ impl ProbGraph {
     }
 }
 
-type Counter<T: Hash + Eq> = HashMap<T, usize>;
+type Counter<T> = HashMap<T, usize>;
 
 trait CounterExt<T> {
     fn inc(&mut self, value: T);

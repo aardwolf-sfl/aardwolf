@@ -2,11 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
-use petgraph::visit::EdgeRef;
-use petgraph::Direction;
 
 use super::graph_ext::DominatorsExt;
-use crate::raw::data::{Access, Statement};
+use crate::raw::data::Statement;
 use crate::structures::{Cfg, EXIT};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -106,7 +104,7 @@ impl<'a, Ix: IndexType> NodeData<'a, Ix> {
             .flat_map(|access| access.get_scalars_for_def());
 
         for var in vars {
-            let mut defs = self.data_ctx.entry(var).or_insert(HashSet::new());
+            let defs = self.data_ctx.entry(var).or_insert(HashSet::new());
             defs.clear();
             defs.insert(self.index);
         }
@@ -118,10 +116,6 @@ impl<'a, Ix: IndexType> NodeData<'a, Ix> {
 
     pub fn as_stmt(&self) -> &'a Statement {
         self.stmt
-    }
-
-    pub fn as_index(&self) -> NodeIndex<Ix> {
-        self.index
     }
 }
 
@@ -343,7 +337,7 @@ pub mod tests {
 
         let mut expected = DiGraph::new();
 
-        let entry = expected.add_node(ENTRY);
+        let _ = expected.add_node(ENTRY);
         let n1 = expected.add_node(factory.get(1));
         let n2 = expected.add_node(factory.get(2));
         let n3 = expected.add_node(factory.get(3));
@@ -353,7 +347,7 @@ pub mod tests {
         let n7 = expected.add_node(factory.get(7));
         let n8 = expected.add_node(factory.get(8));
         let n10 = expected.add_node(factory.get(10));
-        let exit = expected.add_node(EXIT);
+        let _ = expected.add_node(EXIT);
 
         expected.add_edge(n1, n4, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);

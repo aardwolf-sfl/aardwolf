@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::Peekable;
 
-use petgraph::graph::{DefaultIx, DiGraph, NodeIndex};
+use petgraph::graph::{DefaultIx, NodeIndex};
 use petgraph::Direction;
 
 use super::models::{Model, Node, NodeType};
@@ -261,7 +261,7 @@ impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Iterator for Trace<'a,
                 }
             };
 
-            let mut parents = model
+            let parents = model
                 .neighbors_directed(index, Direction::Incoming)
                 .map(|parent| (model[parent], stack_frame.get_state(&parent)))
                 .collect::<StateConf<'a>>();

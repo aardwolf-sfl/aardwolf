@@ -1,4 +1,4 @@
-use std::collections::hash_map::{HashMap, Iter, Keys};
+use std::collections::hash_map::HashMap;
 use std::mem;
 
 use crate::api::Api;

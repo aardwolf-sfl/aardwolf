@@ -1,6 +1,4 @@
-use std::collections::{HashMap, HashSet};
-
-use petgraph::graph::{DiGraph, IndexType, NodeIndex};
+use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
@@ -187,7 +185,6 @@ mod tests {
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
-    use crate::raw::data::Statement;
     use crate::structures::{ENTRY, EXIT};
 
     #[test]
@@ -203,7 +200,7 @@ mod tests {
 
         let mut expected = DiGraph::new();
 
-        let entry = expected.add_node(Node::new(ENTRY, NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(ENTRY, NodeType::NonPredicate));
         let n1 = expected.add_node(Node::new(factory.get(1), NodeType::NonPredicate));
         let n2 = expected.add_node(Node::new(factory.get(2), NodeType::NonPredicate));
         let n3 = expected.add_node(Node::new(factory.get(3), NodeType::NonPredicate));
@@ -216,7 +213,7 @@ mod tests {
         let n8 = expected.add_node(Node::new(factory.get(8), NodeType::NonPredicate));
         let n8_loop = expected.add_node(Node::new(factory.get(8), NodeType::SelfLoop));
         let n10 = expected.add_node(Node::new(factory.get(10), NodeType::NonPredicate));
-        let exit = expected.add_node(Node::new(EXIT, NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(EXIT, NodeType::NonPredicate));
 
         expected.add_edge(n1, n4_data, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);

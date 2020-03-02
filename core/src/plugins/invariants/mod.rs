@@ -1,15 +1,12 @@
 mod detector;
 
-use std::cmp;
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::collections::HashMap;
 
 use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
-use crate::raw::data::{Access, TestName, TestStatus, VariableData, VariableDataType};
+use crate::raw::data::TestStatus;
 
 use detector::Stats;
 
@@ -26,7 +23,7 @@ macro_rules! required {
 pub struct Invariants;
 
 impl AardwolfPlugin for Invariants {
-    fn init<'a>(_api: &'a Api<'a>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'a>(_api: &'a Api<'a>, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -34,7 +31,6 @@ impl AardwolfPlugin for Invariants {
     }
 
     fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
-        let stmts = api.get_stmts();
         let tests = api.get_tests();
         let vars = required!(api.get_vars());
 
@@ -50,8 +46,8 @@ impl AardwolfPlugin for Invariants {
 
         let failing = tests
             .iter_statuses()
-            .find(|(name, status)| **status == TestStatus::Failed)
-            .map(|(name, status)| name)
+            .find(|(_, status)| **status == TestStatus::Failed)
+            .map(|(name, _)| name)
             .unwrap();
 
         let mut results = Vec::new();

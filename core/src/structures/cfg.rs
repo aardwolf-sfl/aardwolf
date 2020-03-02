@@ -1,11 +1,10 @@
-use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
+use std::collections::HashMap;
 
 use petgraph::graph::DiGraph;
 use petgraph::Direction;
 
 use crate::api::Api;
-use crate::raw::data::{Access, Data, Statement};
+use crate::raw::data::{Data, Statement};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub const ENTRY: &'static Statement = &Statement::dummy(std::u64::MAX - 1);

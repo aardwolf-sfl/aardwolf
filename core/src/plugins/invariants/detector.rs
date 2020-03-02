@@ -81,7 +81,7 @@ impl<'a> InvariantInfo<'a> {
                 data.get_type()
             ),
             // TODO: Make better description based on the actual type.
-            Invariant::NonExceptionalValue(value) => {
+            Invariant::NonExceptionalValue(_) => {
                 format!("expected to have a normal value, but is {}", data)
             }
         }
@@ -426,14 +426,6 @@ impl<'a> NoneAccessState<'a> {
         NoneAccessState {
             typ: Some(typ),
             reasons: HashSet::new(),
-            in_tests,
-        }
-    }
-
-    pub fn with_reason(reason: NoInvariantReason, in_tests: HashSet<&'a TestName>) -> Self {
-        NoneAccessState {
-            typ: None,
-            reasons: vec![reason].into_iter().collect(),
             in_tests,
         }
     }
