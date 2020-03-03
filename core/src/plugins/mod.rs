@@ -46,6 +46,7 @@ impl<'data> IrrelevantItems<'data> {
 pub struct Results<'data, 'out> {
     items: Vec<LocalizationItem<'data, 'out>>,
     n_results: usize,
+    max_score: f32,
 }
 
 impl<'data, 'out> Results<'data, 'out> {
@@ -53,10 +54,15 @@ impl<'data, 'out> Results<'data, 'out> {
         Results {
             items: Vec::with_capacity(n_results),
             n_results,
+            max_score: 0.0,
         }
     }
 
     pub fn add(&mut self, item: LocalizationItem<'data, 'out>) {
+        if item.score > self.max_score {
+            self.max_score = item.score;
+        }
+
         // TODO: Manage a sorted vector of size n_results with best results encountered so far.
         self.items.push(item);
     }
@@ -64,6 +70,13 @@ impl<'data, 'out> Results<'data, 'out> {
     pub fn into_vec(mut self) -> Vec<LocalizationItem<'data, 'out>> {
         // Use stable sort to not break plugins which sort the results using another criterion.
         self.items.sort_by(|lhs, rhs| rhs.cmp(lhs));
+
+        // Normalize
+        let max_score = self.max_score;
+
+        self.items
+            .iter_mut()
+            .for_each(|item| item.normalize(max_score));
 
         self.items
             .into_iter()
@@ -184,6 +197,10 @@ impl<'data, 'out> LocalizationItem<'data, 'out> {
 
     pub fn link(&'out mut self, other: &'data LocalizationItem<'data, 'out>) {
         self.links.push(other);
+    }
+
+    pub fn normalize(&mut self, max_score: f32) {
+        self.score = self.score / max_score;
     }
 }
 
