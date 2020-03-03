@@ -7,7 +7,7 @@ use petgraph::Direction;
 use super::pdg;
 use crate::api::Api;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
-use crate::plugins::{LocalizationItem, Rationale};
+use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
 use crate::raw::data::Statement;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -84,11 +84,12 @@ impl<'a> Node<'a> {
 pub trait Model<'a> {
     fn get_graph(&self) -> &ModelGraph<'a>;
     fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self;
-    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
         trace: Trace<'a, I, Self>,
         ppdg: &Ppdg,
         api: &'a Api<'a>,
-    ) -> Vec<LocalizationItem<'a, 'b>>
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError>
     where
         Self: Sized;
 }
@@ -106,11 +107,12 @@ impl<'a> Model<'a> for DependencyNetwork<'a> {
         DependencyNetwork(create_dependency_network(pdg))
     }
 
-    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
         trace: Trace<'a, I, Self>,
         ppdg: &Ppdg,
         _api: &'a Api<'a>,
-    ) -> Vec<LocalizationItem<'a, 'b>>
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError>
     where
         Self: Sized,
     {
@@ -134,19 +136,20 @@ impl<'a> Model<'a> for DependencyNetwork<'a> {
             "The statement enters to an unusual state given the state of its control and data dependencies.",
         );
 
-        let mut results = probs.into_iter().collect::<Vec<_>>();
+        let mut probs = probs.into_iter().collect::<Vec<_>>();
 
-        // Sort the results by index. If there are some ties in score,
+        // Sort the probs by index. If there are some ties in score,
         // this will prioritizes statements that occur earlier.
-        results.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
+        probs.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
 
-        results
-            .into_iter()
-            .map(|(stmt, (prob, _))| {
+        for (stmt, (prob, _)) in probs {
+            results.add(
                 LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, default_rationale.clone())
-                    .unwrap()
-            })
-            .collect()
+                    .unwrap(),
+            );
+        }
+
+        Ok(())
     }
 }
 
@@ -161,16 +164,18 @@ impl<'a> Model<'a> for BayesianNetwork<'a> {
         BayesianNetwork(create_bayesian_network(pdg))
     }
 
-    fn run_loc<'b, I: Iterator<Item = &'a Statement>>(
+    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
         _trace: Trace<'a, I, Self>,
         _ppdg: &Ppdg,
         _api: &'a Api<'a>,
-    ) -> Vec<LocalizationItem<'a, 'b>>
+        _results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError>
     where
         Self: Sized,
     {
         // TODO
-        Vec::new()
+
+        Ok(())
     }
 }
 

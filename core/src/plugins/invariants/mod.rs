@@ -5,16 +5,18 @@ use std::collections::HashMap;
 use yaml_rust::Yaml;
 
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
+use crate::plugins::{
+    AardwolfPlugin, LocalizationItem, MissingApi, PluginError, PluginInitError, Rationale, Results,
+};
 
 use detector::Stats;
 
 // TODO: This should perhaps globally available macro.
 macro_rules! required {
-    ($structure:expr) => {
+    ($structure:expr, $name:expr) => {
         match $structure {
             Some(structure) => structure,
-            None => return Vec::new(),
+            None => return Err(PluginError::MissingApi($name)),
         }
     };
 }
@@ -29,9 +31,13 @@ impl AardwolfPlugin for Invariants {
         Ok(Invariants)
     }
 
-    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
+    fn run_loc<'a, 'b, 'c>(
+        &'b self,
+        api: &'a Api<'a>,
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
         let tests = api.get_tests();
-        let vars = required!(api.get_vars());
+        let vars = required!(api.get_vars(), MissingApi::Vars);
 
         let mut stats = Stats::new();
 
@@ -42,8 +48,6 @@ impl AardwolfPlugin for Invariants {
                 }
             }
         }
-
-        let mut results = Vec::new();
 
         for item in vars.iter_vars(tests.get_failed()).unwrap() {
             for (access, data) in item.zip() {
@@ -85,7 +89,7 @@ impl AardwolfPlugin for Invariants {
                         .add_text(" The violations are: ")
                         .add_text(explanation);
 
-                    results.push(
+                    results.add(
                         LocalizationItem::new(item.stmt.loc, item.stmt, confidence, rationale)
                             .unwrap(),
                     );
@@ -93,6 +97,6 @@ impl AardwolfPlugin for Invariants {
             }
         }
 
-        results
+        Ok(())
     }
 }

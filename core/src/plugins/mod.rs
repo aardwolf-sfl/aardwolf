@@ -12,29 +12,81 @@ pub mod prob_graph;
 pub mod sbfl;
 
 pub struct IrrelevantItems<'a> {
+    // Store relevant items and remove them if they are marked as irrelevant.
     pub stmts: HashSet<u64>,
     pub tests: HashSet<&'a TestName>,
 }
 
 impl<'a> IrrelevantItems<'a> {
-    pub fn new() -> Self {
+    pub fn new(api: &'a Api<'a>) -> Self {
+        // By default, all items are relevant.
         IrrelevantItems {
-            stmts: HashSet::new(),
-            tests: HashSet::new(),
+            stmts: api.get_stmts().iter_ids().copied().collect(),
+            tests: api.get_tests().iter_names().collect(),
         }
     }
 
     pub fn mark_stmt(&mut self, stmt: &Statement) {
-        self.stmts.insert(stmt.id);
+        self.stmts.remove(&stmt.id);
     }
 
-    pub fn mark_test(&mut self, test: &'a TestName) {
-        self.tests.insert(test);
+    pub fn mark_test(&mut self, test: &TestName) {
+        self.tests.remove(test);
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.stmts.is_empty() && self.tests.is_empty()
+    pub fn is_stmt_relevant(&self, stmt: &Statement) -> bool {
+        self.stmts.contains(&stmt.id)
     }
+
+    pub fn is_test_relevant(&self, test: &TestName) -> bool {
+        self.tests.contains(test)
+    }
+}
+
+pub struct Results<'a, 'b> {
+    items: Vec<LocalizationItem<'a, 'b>>,
+    n_results: usize,
+}
+
+impl<'a, 'b> Results<'a, 'b> {
+    pub fn new(n_results: usize) -> Self {
+        Results {
+            items: Vec::with_capacity(n_results),
+            n_results,
+        }
+    }
+
+    pub fn add(&mut self, item: LocalizationItem<'a, 'b>) {
+        // TODO: Manage a sorted vector of size n_results with best results encountered so far.
+        self.items.push(item);
+    }
+
+    pub fn into_vec(mut self) -> Vec<LocalizationItem<'a, 'b>> {
+        // Use stable sort to not break plugins which sort the results using another criterion.
+        self.items.sort_by(|lhs, rhs| rhs.cmp(lhs));
+
+        self.items
+            .into_iter()
+            // TODO: Will not be necessary when the optimization mentioned in `add` method is implemented.
+            .take(self.n_results)
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+pub enum MissingApi {
+    Cfg,
+    DefUse,
+    Spectra,
+    Stmts,
+    Tests,
+    Vars,
+}
+
+#[derive(Debug)]
+pub enum PluginError {
+    Inner(String),
+    MissingApi(MissingApi),
 }
 
 #[derive(Clone)]
@@ -163,18 +215,24 @@ pub trait AardwolfPlugin {
     where
         Self: Sized;
 
-    fn run_pre<'a, 'b>(&'b self, _api: &'a Api<'a>) -> IrrelevantItems<'b> {
-        IrrelevantItems::new()
+    fn run_pre<'a, 'b>(&'b self, _api: &'a mut Api<'a>) -> Result<(), PluginError> {
+        Ok(())
     }
 
-    // TODO: Return Iterator instead of allocated array. This will allow to implement a more efficient structure
-    //       that lists only N most suspicious elements. (NOTE: lifetime issues might be an obstacle).
-    fn run_loc<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
-        Vec::new()
+    fn run_loc<'a, 'b, 'c>(
+        &'b self,
+        _api: &'a Api<'a>,
+        _results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
+        Ok(())
     }
 
-    // TODO: Determine real API of this method.
-    fn run_post<'a, 'b>(&'b self, _api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
-        Vec::new()
+    fn run_post<'a, 'b>(
+        &'b self,
+        _api: &'a Api<'a>,
+        _base: HashMap<&'a str, &'b Results<'a, 'b>>,
+        _results: &'b mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
+        Ok(())
     }
 }

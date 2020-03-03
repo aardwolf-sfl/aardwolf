@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use yaml_rust::Yaml;
 
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError, Rationale};
+use crate::plugins::{
+    AardwolfPlugin, LocalizationItem, PluginError, PluginInitError, Rationale, Results,
+};
 
 pub const SAFE_DENOMINATOR: f32 = 0.5;
 
@@ -59,7 +61,11 @@ impl AardwolfPlugin for Sbfl {
         Ok(Sbfl { metric })
     }
 
-    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
+    fn run_loc<'a, 'b, 'c>(
+        &'b self,
+        api: &'a Api<'a>,
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();
         let spectra = api.get_spectra();
@@ -70,28 +76,29 @@ impl AardwolfPlugin for Sbfl {
 
         let mut counters = HashMap::new();
 
-        stmts
-            .iter_stmts()
-            .map(|stmt| {
-                let stmt_counters = counters.entry(stmt).or_insert(Counters::new());
+        for stmt in stmts.iter_stmts() {
+            let stmt_counters = counters.entry(stmt).or_insert(Counters::new());
 
-                for test in tests.iter_names() {
-                    match (spectra.is_executed_in(test, stmt), tests.is_passed(test)) {
-                        (false, false) => stmt_counters.nnf += 1.0,
-                        (false, true) => stmt_counters.nnp += 1.0,
-                        (true, false) => stmt_counters.nef += 1.0,
-                        (true, true) => stmt_counters.nep += 1.0,
-                    }
+            for test in tests.iter_names() {
+                match (spectra.is_executed_in(test, stmt), tests.is_passed(test)) {
+                    (false, false) => stmt_counters.nnf += 1.0,
+                    (false, true) => stmt_counters.nnp += 1.0,
+                    (true, false) => stmt_counters.nef += 1.0,
+                    (true, true) => stmt_counters.nep += 1.0,
                 }
+            }
 
+            results.add(
                 LocalizationItem::new(
                     stmt.loc,
                     stmt,
                     (self.metric)(stmt_counters),
                     rationale.clone(),
                 )
-                .unwrap()
-            })
-            .collect::<Vec<_>>()
+                .unwrap(),
+            );
+        }
+
+        Ok(())
     }
 }

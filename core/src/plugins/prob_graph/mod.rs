@@ -11,7 +11,7 @@ use yaml_rust::Yaml;
 use self::models::*;
 use self::trace::*;
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginInitError};
+use crate::plugins::{AardwolfPlugin, PluginError, PluginInitError, Results};
 
 enum ModelType {
     Dependence,
@@ -37,25 +37,30 @@ impl AardwolfPlugin for ProbGraph {
         Ok(ProbGraph { model })
     }
 
-    fn run_loc<'a, 'b>(&'b self, api: &'a Api<'a>) -> Vec<LocalizationItem<'a, 'b>> {
+    fn run_loc<'a, 'b, 'c>(
+        &'b self,
+        api: &'a Api<'a>,
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
         match self.model {
-            ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api),
-            ModelType::Bayesian => self.run_loc_typed::<BayesianNetwork>(api),
+            ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),
+            ModelType::Bayesian => self.run_loc_typed::<BayesianNetwork>(api, results),
         }
     }
 }
 
 impl ProbGraph {
-    pub fn run_loc_typed<'a, 'b, M: Model<'a>>(
-        &self,
+    pub fn run_loc_typed<'a, 'b, 'c, M: Model<'a>>(
+        &'b self,
         api: &'a Api<'a>,
-    ) -> Vec<LocalizationItem<'a, 'b>> {
+        results: &'c mut Results<'a, 'b>,
+    ) -> Result<(), PluginError> {
         let tests = api.get_tests();
 
         let ppdg = self.learn_ppdg::<M>(api);
         let trace: Trace<_, M> = Trace::new(tests.iter_stmts(tests.get_failed()).unwrap(), api);
 
-        M::run_loc(trace, &ppdg, api)
+        M::run_loc(trace, &ppdg, api, results)
     }
 
     pub fn learn_ppdg<'a, M: Model<'a>>(&self, api: &'a Api<'a>) -> Ppdg<'a> {

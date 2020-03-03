@@ -9,7 +9,9 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
-use crate::plugins::{invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin};
+use crate::plugins::{
+    invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin, Results,
+};
 use crate::raw::Data;
 
 // TARGET_FILE (program code, usually preprocessed)
@@ -151,13 +153,11 @@ impl Driver {
         config: &'a Config,
     ) {
         let plugin = P::init(api, opts).unwrap();
-        let mut results = plugin.run_loc(api);
-
-        // Use stable sort to not break plugins which sort the results using another criterion.
-        results.sort_by(|lhs, rhs| rhs.cmp(lhs));
+        let mut results = Results::new(config.n_results);
+        plugin.run_loc(api, &mut results).expect("plugin error");
 
         println!("Results for: {}", name);
-        for item in results.iter().take(config.n_results) {
+        for item in results.into_vec() {
             println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
         }
         println!();
