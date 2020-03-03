@@ -49,13 +49,13 @@ impl EdgeType {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Node<'a> {
-    pub stmt: &'a Statement,
+pub struct Node<'data> {
+    pub stmt: &'data Statement,
     pub typ: NodeType,
 }
 
-impl<'a> Node<'a> {
-    pub fn new(stmt: &'a Statement, typ: NodeType) -> Self {
+impl<'data> Node<'data> {
+    pub fn new(stmt: &'data Statement, typ: NodeType) -> Self {
         Node { stmt, typ }
     }
 
@@ -81,37 +81,37 @@ impl<'a> Node<'a> {
     }
 }
 
-pub trait Model<'a> {
-    fn get_graph(&self) -> &ModelGraph<'a>;
-    fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self;
-    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
-        trace: Trace<'a, I, Self>,
+pub trait Model<'data> {
+    fn get_graph(&self) -> &ModelGraph<'data>;
+    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self;
+    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+        trace: Trace<'data, I, Self>,
         ppdg: &Ppdg,
-        api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+        api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError>
     where
         Self: Sized;
 }
 
-pub type ModelGraph<'a> = DiGraph<Node<'a>, EdgeType>;
+pub type ModelGraph<'data> = DiGraph<Node<'data>, EdgeType>;
 
-pub struct DependencyNetwork<'a>(ModelGraph<'a>);
+pub struct DependencyNetwork<'data>(ModelGraph<'data>);
 
-impl<'a> Model<'a> for DependencyNetwork<'a> {
-    fn get_graph(&self) -> &ModelGraph<'a> {
+impl<'data> Model<'data> for DependencyNetwork<'data> {
+    fn get_graph(&self) -> &ModelGraph<'data> {
         &self.0
     }
 
-    fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self {
+    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self {
         DependencyNetwork(create_dependency_network(pdg))
     }
 
-    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
-        trace: Trace<'a, I, Self>,
+    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+        trace: Trace<'data, I, Self>,
         ppdg: &Ppdg,
-        _api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+        _api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError>
     where
         Self: Sized,
@@ -153,22 +153,22 @@ impl<'a> Model<'a> for DependencyNetwork<'a> {
     }
 }
 
-pub struct BayesianNetwork<'a>(ModelGraph<'a>);
+pub struct BayesianNetwork<'data>(ModelGraph<'data>);
 
-impl<'a> Model<'a> for BayesianNetwork<'a> {
-    fn get_graph(&self) -> &ModelGraph<'a> {
+impl<'data> Model<'data> for BayesianNetwork<'data> {
+    fn get_graph(&self) -> &ModelGraph<'data> {
         &self.0
     }
 
-    fn from_pdg(pdg: &pdg::Pdg<'a>) -> Self {
+    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self {
         BayesianNetwork(create_bayesian_network(pdg))
     }
 
-    fn run_loc<'b, 'c, I: Iterator<Item = &'a Statement>>(
-        _trace: Trace<'a, I, Self>,
+    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+        _trace: Trace<'data, I, Self>,
         _ppdg: &Ppdg,
-        _api: &'a Api<'a>,
-        _results: &'c mut Results<'a, 'b>,
+        _api: &'data Api<'data>,
+        _results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError>
     where
         Self: Sized,
@@ -179,7 +179,7 @@ impl<'a> Model<'a> for BayesianNetwork<'a> {
     }
 }
 
-fn create_dependency_network<'a>(pdg: &pdg::Pdg<'a>) -> ModelGraph<'a> {
+fn create_dependency_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data> {
     let mut dn = pdg.map(
         |_, node| {
             Node::new(
@@ -241,7 +241,7 @@ fn create_dependency_network<'a>(pdg: &pdg::Pdg<'a>) -> ModelGraph<'a> {
     dn
 }
 
-pub fn create_bayesian_network<'a>(pdg: &pdg::Pdg<'a>) -> ModelGraph<'a> {
+pub fn create_bayesian_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data> {
     let dn = create_dependency_network(pdg);
 
     // TODO: Transform to Bayesian network.

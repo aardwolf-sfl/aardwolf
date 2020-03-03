@@ -5,12 +5,12 @@ use crate::api::Api;
 use crate::raw::data::{Data, Statement, TestData, TestName, TestStatus, TraceItem};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Tests<'a> {
-    raw: &'a TestData,
-    traces: HashMap<&'a TestName, Vec<&'a Statement>>,
+pub struct Tests<'data> {
+    raw: &'data TestData,
+    traces: HashMap<&'data TestName, Vec<&'data Statement>>,
 }
 
-impl<'a> Tests<'a> {
+impl<'data> Tests<'data> {
     pub fn iter_names(&self) -> Keys<TestName, TestStatus> {
         self.raw.tests.keys()
     }
@@ -19,7 +19,7 @@ impl<'a> Tests<'a> {
         self.raw.tests.iter()
     }
 
-    pub fn iter_stmts(&'a self, test: &'a TestName) -> Option<impl Iterator<Item = &'a Statement>> {
+    pub fn iter_stmts(&'data self, test: &'data TestName) -> Option<impl Iterator<Item = &'data Statement>> {
         self.traces.get(test).map(|stmts| stmts.iter().copied())
     }
 
@@ -50,8 +50,8 @@ impl<'a> Tests<'a> {
     }
 }
 
-impl<'a> FromRawData<'a> for Tests<'a> {
-    fn from_raw(data: &'a Data, api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for Tests<'data> {
+    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
         let mut traces = HashMap::with_capacity(data.test_data.tests.len());

@@ -7,25 +7,25 @@ use crate::api::Api;
 use crate::raw::data::{Data, Statement, StaticData, TraceItem};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Stmts<'a> {
-    mapping: HashMap<u64, &'a Statement>,
-    raw: &'a StaticData,
+pub struct Stmts<'data> {
+    mapping: HashMap<u64, &'data Statement>,
+    raw: &'data StaticData,
 }
 
-impl<'a> Stmts<'a> {
-    pub fn iter_ids(&self) -> Keys<u64, &'a Statement> {
+impl<'data> Stmts<'data> {
+    pub fn iter_ids(&self) -> Keys<u64, &'data Statement> {
         self.mapping.keys()
     }
 
-    pub fn iter_stmts(&self) -> Values<u64, &'a Statement> {
+    pub fn iter_stmts(&self) -> Values<u64, &'data Statement> {
         self.mapping.values()
     }
 
-    pub fn get(&self, id: &u64) -> Option<&'a Statement> {
+    pub fn get(&self, id: &u64) -> Option<&'data Statement> {
         self.mapping.get(id).map(|stmt| *stmt)
     }
 
-    pub fn find_fn(&self, stmt: &Statement) -> Option<&'a String> {
+    pub fn find_fn(&self, stmt: &Statement) -> Option<&'data String> {
         for (name, stmts) in self.raw.functions.iter() {
             if stmts.contains_key(&stmt.id) {
                 return Some(name);
@@ -36,8 +36,8 @@ impl<'a> Stmts<'a> {
     }
 }
 
-impl<'a> FromRawData<'a> for Stmts<'a> {
-    fn from_raw(data: &'a Data, _api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for Stmts<'data> {
+    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
 

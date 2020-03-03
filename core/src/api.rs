@@ -16,14 +16,14 @@ pub enum InvalidData {
     Empty(EmptyDataReason),
 }
 
-pub struct Api<'a> {
+pub struct Api<'data> {
     data: Data,
-    stmts: LazyCell<Stmts<'a>>,
-    tests: LazyCell<Tests<'a>>,
-    def_use: LazyCell<DefUse<'a>>,
-    spectra: LazyCell<Spectra<'a>>,
-    cfgs: LazyCell<Cfgs<'a>>,
-    vars: LazyCell<Vars<'a>>,
+    stmts: LazyCell<Stmts<'data>>,
+    tests: LazyCell<Tests<'data>>,
+    def_use: LazyCell<DefUse<'data>>,
+    spectra: LazyCell<Spectra<'data>>,
+    cfgs: LazyCell<Cfgs<'data>>,
+    vars: LazyCell<Vars<'data>>,
 }
 
 macro_rules! get_lazy_fallible {
@@ -52,7 +52,7 @@ macro_rules! get_lazy_infallible {
     }};
 }
 
-impl<'a> Api<'a> {
+impl<'data> Api<'data> {
     pub(crate) fn new(data: Data) -> Result<Self, InvalidData> {
         if data.static_data.files.is_empty() || data.static_data.functions.is_empty() {
             Err(InvalidData::Empty(EmptyDataReason::Static))
@@ -80,31 +80,31 @@ impl<'a> Api<'a> {
         }
     }
 
-    pub fn make<T: FromRawData<'a>>(&'a self) -> Result<T, FromRawDataError> {
+    pub fn make<T: FromRawData<'data>>(&'data self) -> Result<T, FromRawDataError> {
         T::from_raw(&self.data, &self)
     }
 
-    pub fn get_stmts(&'a self) -> &Stmts<'a> {
+    pub fn get_stmts(&'data self) -> &Stmts<'data> {
         get_lazy_infallible!(self, stmts)
     }
 
-    pub fn get_tests(&'a self) -> &Tests<'a> {
+    pub fn get_tests(&'data self) -> &Tests<'data> {
         get_lazy_infallible!(self, tests)
     }
 
-    pub fn get_def_use(&'a self) -> &DefUse<'a> {
+    pub fn get_def_use(&'data self) -> &DefUse<'data> {
         get_lazy_infallible!(self, def_use)
     }
 
-    pub fn get_spectra(&'a self) -> &Spectra<'a> {
+    pub fn get_spectra(&'data self) -> &Spectra<'data> {
         get_lazy_infallible!(self, spectra)
     }
 
-    pub fn get_cfgs(&'a self) -> &Cfgs<'a> {
+    pub fn get_cfgs(&'data self) -> &Cfgs<'data> {
         get_lazy_infallible!(self, cfgs)
     }
 
-    pub fn get_vars(&'a self) -> Option<&Vars<'a>> {
+    pub fn get_vars(&'data self) -> Option<&Vars<'data>> {
         get_lazy_fallible!(self, vars)
     }
 }

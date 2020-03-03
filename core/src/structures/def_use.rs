@@ -5,25 +5,25 @@ use crate::api::Api;
 use crate::raw::data::{Access, Data, Statement};
 use crate::structures::{FromRawData, FromRawDataError};
 
-struct DefUseItem<'a> {
-    defs: HashSet<&'a Access>,
-    uses: HashSet<&'a Access>,
+struct DefUseItem<'data> {
+    defs: HashSet<&'data Access>,
+    uses: HashSet<&'data Access>,
 }
 
-pub struct DefUse<'a>(HashMap<u64, DefUseItem<'a>>);
+pub struct DefUse<'data>(HashMap<u64, DefUseItem<'data>>);
 
-impl<'a> DefUse<'a> {
-    pub fn get_defs(&'a self, stmt: &Statement) -> Option<&'a HashSet<&'a Access>> {
+impl<'data> DefUse<'data> {
+    pub fn get_defs(&'data self, stmt: &Statement) -> Option<&'data HashSet<&'data Access>> {
         self.0.get(&stmt.id).map(|item| &item.defs)
     }
 
-    pub fn get_uses(&'a self, stmt: &Statement) -> Option<&'a HashSet<&'a Access>> {
+    pub fn get_uses(&'data self, stmt: &Statement) -> Option<&'data HashSet<&'data Access>> {
         self.0.get(&stmt.id).map(|item| &item.uses)
     }
 }
 
-impl<'a> FromRawData<'a> for DefUse<'a> {
-    fn from_raw(data: &'a Data, _api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for DefUse<'data> {
+    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
 
         for (_, func_body) in data.static_data.functions.iter() {

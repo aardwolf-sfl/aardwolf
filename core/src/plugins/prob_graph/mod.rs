@@ -23,7 +23,7 @@ pub struct ProbGraph {
 }
 
 impl AardwolfPlugin for ProbGraph {
-    fn init<'a>(_api: &'a Api<'a>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -37,10 +37,10 @@ impl AardwolfPlugin for ProbGraph {
         Ok(ProbGraph { model })
     }
 
-    fn run_loc<'a, 'b, 'c>(
-        &'b self,
-        api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+    fn run_loc<'data, 'out, 'param>(
+        &'out self,
+        api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         match self.model {
             ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),
@@ -50,10 +50,10 @@ impl AardwolfPlugin for ProbGraph {
 }
 
 impl ProbGraph {
-    pub fn run_loc_typed<'a, 'b, 'c, M: Model<'a>>(
-        &'b self,
-        api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+    pub fn run_loc_typed<'data, 'out, 'param, M: Model<'data>>(
+        &'out self,
+        api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
 
@@ -63,7 +63,7 @@ impl ProbGraph {
         M::run_loc(trace, &ppdg, api, results)
     }
 
-    pub fn learn_ppdg<'a, M: Model<'a>>(&self, api: &'a Api<'a>) -> Ppdg<'a> {
+    pub fn learn_ppdg<'data, M: Model<'data>>(&self, api: &'data Api<'data>) -> Ppdg<'data> {
         let tests = api.get_tests();
         let mut ppdg = Ppdg::new();
 
@@ -119,12 +119,12 @@ impl<T: Hash + Eq> CounterExt<T> for Counter<T> {
     }
 }
 
-pub struct Ppdg<'a> {
-    occurrence_counter: Counter<Node<'a>>,
-    state_conf_counter: Counter<StateConf<'a>>,
+pub struct Ppdg<'data> {
+    occurrence_counter: Counter<Node<'data>>,
+    state_conf_counter: Counter<StateConf<'data>>,
 }
 
-impl<'a> Ppdg<'a> {
+impl<'data> Ppdg<'data> {
     pub fn new() -> Self {
         Ppdg {
             occurrence_counter: Counter::new(),
@@ -132,15 +132,15 @@ impl<'a> Ppdg<'a> {
         }
     }
 
-    pub fn inc_occurrence(&mut self, node: Node<'a>) {
+    pub fn inc_occurrence(&mut self, node: Node<'data>) {
         self.occurrence_counter.inc(node);
     }
 
-    pub fn inc_state_conf(&mut self, conf: StateConf<'a>) {
+    pub fn inc_state_conf(&mut self, conf: StateConf<'data>) {
         self.state_conf_counter.inc(conf);
     }
 
-    pub fn get_prob(&self, item: &TraceItem<'a>) -> f32 {
+    pub fn get_prob(&self, item: &TraceItem<'data>) -> f32 {
         let (nom, denom) = if let Some(parents_state_conf) = &item.parents_state_conf {
             let mut joint = parents_state_conf.clone();
             joint.insert((item.node.clone(), item.node_state.clone()));

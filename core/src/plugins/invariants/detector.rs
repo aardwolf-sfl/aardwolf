@@ -5,12 +5,12 @@ use std::ops::Deref;
 
 use crate::raw::data::{Access, TestName, VariableData, VariableDataType};
 
-pub struct Stats<'a> {
-    samples: HashSet<&'a TestName>,
-    data: HashMap<AccessView<'a>, AccessState<'a>>,
+pub struct Stats<'data> {
+    samples: HashSet<&'data TestName>,
+    data: HashMap<AccessView<'data>, AccessState<'data>>,
 }
 
-impl<'a> Stats<'a> {
+impl<'data> Stats<'data> {
     pub fn new() -> Self {
         Stats {
             samples: HashSet::new(),
@@ -18,14 +18,14 @@ impl<'a> Stats<'a> {
         }
     }
 
-    pub fn learn(&mut self, access: &'a Access, data: &'a VariableData, test: &'a TestName) {
+    pub fn learn(&mut self, access: &'data Access, data: &'data VariableData, test: &'data TestName) {
         self.samples.insert(test);
 
         let view = AccessView::new(access);
         self.data.entry(view).or_default().learn(data, test);
     }
 
-    pub fn check(&self, data: &'a VariableData, access: &'a Access) -> Vec<InvariantInfo<'a>> {
+    pub fn check(&self, data: &'data VariableData, access: &'data Access) -> Vec<InvariantInfo<'data>> {
         let view = AccessView::new(access);
 
         if let Some(state) = self.data.get(&view) {
@@ -36,22 +36,22 @@ impl<'a> Stats<'a> {
     }
 }
 
-pub enum Invariant<'a> {
-    Constant(&'a VariableData),
-    Range(Option<&'a VariableData>, Option<&'a VariableData>),
+pub enum Invariant<'data> {
+    Constant(&'data VariableData),
+    Range(Option<&'data VariableData>, Option<&'data VariableData>),
     TypeStable(VariableDataType),
     // NaN, +Inf, -Inf, NULL
     NonExceptionalValue(VariableDataType),
 }
 
-pub struct InvariantInfo<'a> {
-    pub inv: Invariant<'a>,
-    pub access: &'a Access,
+pub struct InvariantInfo<'data> {
+    pub inv: Invariant<'data>,
+    pub access: &'data Access,
     pub confidence: f32,
 }
 
-impl<'a> InvariantInfo<'a> {
-    pub fn new(inv: Invariant<'a>, access: &'a Access, confidence: f32) -> Self {
+impl<'data> InvariantInfo<'data> {
+    pub fn new(inv: Invariant<'data>, access: &'data Access, confidence: f32) -> Self {
         InvariantInfo {
             inv,
             access,
@@ -59,7 +59,7 @@ impl<'a> InvariantInfo<'a> {
         }
     }
 
-    pub fn explain(&self, data: &'a VariableData) -> String {
+    pub fn explain(&self, data: &'data VariableData) -> String {
         match &self.inv {
             Invariant::Constant(cst) => {
                 format!("expected to be constantly {}, but is {}", cst, data)
@@ -89,10 +89,10 @@ impl<'a> InvariantInfo<'a> {
 }
 
 #[derive(Debug)]
-struct AccessView<'a>(&'a Access);
+struct AccessView<'data>(&'data Access);
 
-impl<'a> AccessView<'a> {
-    pub fn new(access: &'a Access) -> Self {
+impl<'data> AccessView<'data> {
+    pub fn new(access: &'data Access) -> Self {
         AccessView(access)
     }
 
@@ -123,21 +123,21 @@ impl<'a> AccessView<'a> {
     }
 }
 
-impl<'a> Hash for AccessView<'a> {
+impl<'data> Hash for AccessView<'data> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.view_hash(state, self.0);
     }
 }
 
-impl<'a> PartialEq for AccessView<'a> {
+impl<'data> PartialEq for AccessView<'data> {
     fn eq(&self, other: &Self) -> bool {
         self.view_eq(self.0, other.0)
     }
 }
 
-impl<'a> Eq for AccessView<'a> {}
+impl<'data> Eq for AccessView<'data> {}
 
-impl<'a> AsRef<Access> for AccessView<'a> {
+impl<'data> AsRef<Access> for AccessView<'data> {
     fn as_ref(&self) -> &Access {
         &self.0
     }
@@ -152,8 +152,8 @@ impl<T: PartialOrd + PartialEq + Eq> Ord for UnsafeOrd<T> {
     }
 }
 
-impl<'a> UnsafeOrd<&'a VariableData> {
-    pub fn wrap(value: &'a VariableData) -> Option<Self> {
+impl<'data> UnsafeOrd<&'data VariableData> {
+    pub fn wrap(value: &'data VariableData) -> Option<Self> {
         match value {
             VariableData::Floating(value) if !(***value).is_finite() => None,
             other => Some(UnsafeOrd(other)),
@@ -169,21 +169,21 @@ impl<T: PartialOrd + PartialEq + Eq> Deref for UnsafeOrd<T> {
     }
 }
 
-enum AccessState<'a> {
+enum AccessState<'data> {
     Empty,
-    SingleValue(SingleValueAccessState<'a>),
-    Range(RangeAccessState<'a>),
-    None(NoneAccessState<'a>),
+    SingleValue(SingleValueAccessState<'data>),
+    Range(RangeAccessState<'data>),
+    None(NoneAccessState<'data>),
 }
 
-impl<'a> Default for AccessState<'a> {
+impl<'data> Default for AccessState<'data> {
     fn default() -> Self {
         AccessState::Empty
     }
 }
 
-impl<'a> AccessState<'a> {
-    pub fn new(data: &'a VariableData, test: &'a TestName) -> Self {
+impl<'data> AccessState<'data> {
+    pub fn new(data: &'data VariableData, test: &'data TestName) -> Self {
         if data.is_unsupported() {
             AccessState::None(NoneAccessState::typed(
                 VariableDataType::Unsupported,
@@ -200,7 +200,7 @@ impl<'a> AccessState<'a> {
         }
     }
 
-    pub fn learn(&mut self, data: &'a VariableData, test: &'a TestName) {
+    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
         // TODO: When creating "none" state, put there all happened violations
         // (ie., both type changed and exceptional value if they happened), not just one.
         match self {
@@ -251,10 +251,10 @@ impl<'a> AccessState<'a> {
 
     pub fn check(
         &self,
-        data: &'a VariableData,
-        access: &'a Access,
-        stats: &Stats<'a>,
-    ) -> Vec<InvariantInfo<'a>> {
+        data: &'data VariableData,
+        access: &'data Access,
+        stats: &Stats<'data>,
+    ) -> Vec<InvariantInfo<'data>> {
         match self {
             AccessState::Empty => Vec::new(),
             AccessState::SingleValue(single_value) => single_value.check(data, access, stats),
@@ -264,14 +264,14 @@ impl<'a> AccessState<'a> {
     }
 }
 
-struct SingleValueAccessState<'a> {
-    data: &'a VariableData,
+struct SingleValueAccessState<'data> {
+    data: &'data VariableData,
     count: usize,
-    in_tests: HashSet<&'a TestName>,
+    in_tests: HashSet<&'data TestName>,
 }
 
-impl<'a> SingleValueAccessState<'a> {
-    pub fn new(data: &'a VariableData, test: &'a TestName) -> Self {
+impl<'data> SingleValueAccessState<'data> {
+    pub fn new(data: &'data VariableData, test: &'data TestName) -> Self {
         SingleValueAccessState {
             data,
             count: 1,
@@ -279,17 +279,17 @@ impl<'a> SingleValueAccessState<'a> {
         }
     }
 
-    pub fn learn(&mut self, test: &'a TestName) {
+    pub fn learn(&mut self, test: &'data TestName) {
         self.count += 1;
         self.in_tests.insert(test);
     }
 
     pub fn check(
         &self,
-        data: &'a VariableData,
-        access: &'a Access,
-        stats: &Stats<'a>,
-    ) -> Vec<InvariantInfo<'a>> {
+        data: &'data VariableData,
+        access: &'data Access,
+        stats: &Stats<'data>,
+    ) -> Vec<InvariantInfo<'data>> {
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 
@@ -320,16 +320,16 @@ impl<'a> SingleValueAccessState<'a> {
     }
 }
 
-struct RangeAccessState<'a> {
-    data: BTreeMap<UnsafeOrd<&'a VariableData>, usize>,
+struct RangeAccessState<'data> {
+    data: BTreeMap<UnsafeOrd<&'data VariableData>, usize>,
     typ: VariableDataType,
-    in_tests: HashSet<&'a TestName>,
+    in_tests: HashSet<&'data TestName>,
 }
 
-impl<'a> RangeAccessState<'a> {
+impl<'data> RangeAccessState<'data> {
     pub fn new(
-        mut values: impl Iterator<Item = (&'a VariableData, usize)>,
-        in_tests: HashSet<&'a TestName>,
+        mut values: impl Iterator<Item = (&'data VariableData, usize)>,
+        in_tests: HashSet<&'data TestName>,
     ) -> Option<Self> {
         let mut data = BTreeMap::new();
 
@@ -358,7 +358,7 @@ impl<'a> RangeAccessState<'a> {
         }
     }
 
-    pub fn learn(&mut self, data: &'a VariableData, test: &'a TestName) {
+    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
         self.in_tests.insert(test);
 
         if data.get_type() == self.typ {
@@ -370,10 +370,10 @@ impl<'a> RangeAccessState<'a> {
 
     pub fn check(
         &self,
-        data: &'a VariableData,
-        access: &'a Access,
-        stats: &Stats<'a>,
-    ) -> Vec<InvariantInfo<'a>> {
+        data: &'data VariableData,
+        access: &'data Access,
+        stats: &Stats<'data>,
+    ) -> Vec<InvariantInfo<'data>> {
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 
@@ -415,14 +415,14 @@ enum NoInvariantReason {
     ExceptionalValue,
 }
 
-struct NoneAccessState<'a> {
+struct NoneAccessState<'data> {
     typ: Option<VariableDataType>,
     reasons: HashSet<NoInvariantReason>,
-    in_tests: HashSet<&'a TestName>,
+    in_tests: HashSet<&'data TestName>,
 }
 
-impl<'a> NoneAccessState<'a> {
-    pub fn typed(typ: VariableDataType, in_tests: HashSet<&'a TestName>) -> Self {
+impl<'data> NoneAccessState<'data> {
+    pub fn typed(typ: VariableDataType, in_tests: HashSet<&'data TestName>) -> Self {
         NoneAccessState {
             typ: Some(typ),
             reasons: HashSet::new(),
@@ -433,7 +433,7 @@ impl<'a> NoneAccessState<'a> {
     pub fn typed_with_reason(
         typ: VariableDataType,
         reason: NoInvariantReason,
-        in_tests: HashSet<&'a TestName>,
+        in_tests: HashSet<&'data TestName>,
     ) -> Self {
         NoneAccessState {
             typ: Some(typ),
@@ -442,7 +442,7 @@ impl<'a> NoneAccessState<'a> {
         }
     }
 
-    pub fn type_changed(in_tests: HashSet<&'a TestName>) -> Self {
+    pub fn type_changed(in_tests: HashSet<&'data TestName>) -> Self {
         NoneAccessState {
             typ: None,
             reasons: HashSet::new(),
@@ -450,7 +450,7 @@ impl<'a> NoneAccessState<'a> {
         }
     }
 
-    pub fn learn(&mut self, data: &'a VariableData, test: &'a TestName) {
+    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
         self.in_tests.insert(test);
 
         if let Some(typ) = self.typ {
@@ -466,10 +466,10 @@ impl<'a> NoneAccessState<'a> {
 
     pub fn check(
         &self,
-        data: &'a VariableData,
-        access: &'a Access,
-        stats: &Stats<'a>,
-    ) -> Vec<InvariantInfo<'a>> {
+        data: &'data VariableData,
+        access: &'data Access,
+        stats: &Stats<'data>,
+    ) -> Vec<InvariantInfo<'data>> {
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 

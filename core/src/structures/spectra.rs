@@ -4,11 +4,11 @@ use crate::api::Api;
 use crate::raw::data::{Data, Statement, TestName, TraceItem};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Spectra<'a> {
-    spectra: HashMap<&'a TestName, HashSet<u64>>,
+pub struct Spectra<'data> {
+    spectra: HashMap<&'data TestName, HashSet<u64>>,
 }
 
-impl<'a> Spectra<'a> {
+impl<'data> Spectra<'data> {
     pub fn is_executed_in(&self, test: &TestName, stmt: &Statement) -> bool {
         if let Some(stmts) = self.spectra.get(test) {
             stmts.contains(&stmt.id)
@@ -18,8 +18,8 @@ impl<'a> Spectra<'a> {
     }
 }
 
-impl<'a> FromRawData<'a> for Spectra<'a> {
-    fn from_raw(data: &'a Data, _api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for Spectra<'data> {
+    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut spectra = HashMap::new();
         let mut stmts = HashSet::new();
         let mut test_case = None;

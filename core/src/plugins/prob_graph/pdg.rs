@@ -22,15 +22,15 @@ pub enum EdgeType {
 
 type DataContext<T> = HashMap<u64, HashSet<T>>;
 
-struct NodeData<'a, Ix> {
-    stmt: &'a Statement,
+struct NodeData<'data, Ix> {
+    stmt: &'data Statement,
     index: NodeIndex<Ix>,
     data_ctx: DataContext<NodeIndex<Ix>>,
     deps: HashSet<(u64, NodeIndex<Ix>)>,
 }
 
-impl<'a, Ix: IndexType> NodeData<'a, Ix> {
-    pub fn new(stmt: &'a Statement, index: NodeIndex<Ix>) -> Self {
+impl<'data, Ix: IndexType> NodeData<'data, Ix> {
+    pub fn new(stmt: &'data Statement, index: NodeIndex<Ix>) -> Self {
         NodeData {
             stmt,
             index,
@@ -114,14 +114,14 @@ impl<'a, Ix: IndexType> NodeData<'a, Ix> {
         self.deps.iter()
     }
 
-    pub fn as_stmt(&self) -> &'a Statement {
+    pub fn as_stmt(&self) -> &'data Statement {
         self.stmt
     }
 }
 
-pub type Pdg<'a> = DiGraph<&'a Statement, EdgeType>;
+pub type Pdg<'data> = DiGraph<&'data Statement, EdgeType>;
 
-pub fn create_pdg<'a>(cfg: &Cfg<'a>) -> Pdg<'a> {
+pub fn create_pdg<'data>(cfg: &Cfg<'data>) -> Pdg<'data> {
     let mut pdg = cfg.map(
         |index, stmt| NodeData::new(stmt, index),
         |_, _| EdgeTypePriv::ControlFlow,
@@ -143,9 +143,9 @@ pub fn create_pdg<'a>(cfg: &Cfg<'a>) -> Pdg<'a> {
     )
 }
 
-fn compute_control_deps<'a, Ix: IndexType, E>(
-    pdg: &mut DiGraph<NodeData<'a, Ix>, EdgeTypePriv, Ix>,
-    cfg: &DiGraph<&'a Statement, E, Ix>,
+fn compute_control_deps<'data, Ix: IndexType, E>(
+    pdg: &mut DiGraph<NodeData<'data, Ix>, EdgeTypePriv, Ix>,
+    cfg: &DiGraph<&'data Statement, E, Ix>,
 ) {
     // Reverse control flow edges so we compute post-dominance instead of dominance using the standard algorithm.
     pdg.reverse();
@@ -172,9 +172,9 @@ fn compute_control_deps<'a, Ix: IndexType, E>(
     pdg.reverse();
 }
 
-fn compute_data_deps<'a, Ix: IndexType, E>(
-    pdg: &mut DiGraph<NodeData<'a, Ix>, EdgeTypePriv, Ix>,
-    cfg: &DiGraph<&'a Statement, E, Ix>,
+fn compute_data_deps<'data, Ix: IndexType, E>(
+    pdg: &mut DiGraph<NodeData<'data, Ix>, EdgeTypePriv, Ix>,
+    cfg: &DiGraph<&'data Statement, E, Ix>,
 ) {
     let mut queue = cfg.node_indices().collect::<Vec<_>>();
 

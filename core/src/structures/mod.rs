@@ -25,8 +25,8 @@ pub enum FromRawDataError {
 // must use only registered high-level data structures. Data structure registration is
 // separate call in plugin interface. This design pattern should enforce clean separation
 // of concerns.
-pub trait FromRawData<'a> {
-    fn from_raw(data: &'a Data, api: &'a Api<'a>) -> Result<Self, FromRawDataError>
+pub trait FromRawData<'data> {
+    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError>
     where
         Self: Sized;
 }

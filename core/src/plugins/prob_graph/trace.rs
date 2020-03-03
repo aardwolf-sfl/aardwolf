@@ -12,14 +12,14 @@ use crate::raw::data::Statement;
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
-type DataContext<'a> = BTreeSet<(u64, &'a Statement)>;
+type DataContext<'data> = BTreeSet<(u64, &'data Statement)>;
 
-pub trait DataContextExt<'a> {
-    fn diff(&self, other: &Self) -> Vec<(u64, &'a Statement, &'a Statement)>;
+pub trait DataContextExt<'data> {
+    fn diff(&self, other: &Self) -> Vec<(u64, &'data Statement, &'data Statement)>;
 }
 
-impl<'a> DataContextExt<'a> for DataContext<'a> {
-    fn diff(&self, other: &Self) -> Vec<(u64, &'a Statement, &'a Statement)> {
+impl<'data> DataContextExt<'data> for DataContext<'data> {
+    fn diff(&self, other: &Self) -> Vec<(u64, &'data Statement, &'data Statement)> {
         let mut result = Vec::new();
         for (var, self_def) in self {
             if let Some((_, other_def)) = other
@@ -34,18 +34,18 @@ impl<'a> DataContextExt<'a> for DataContext<'a> {
 }
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone)]
-pub enum NodeState<'a> {
+pub enum NodeState<'data> {
     // Immediate successor on the path where the program flow went from the branching.
-    Predicate(&'a Statement),
+    Predicate(&'data Statement),
     // Variable and statement that defined the variable last.
-    Data(DataContext<'a>),
+    Data(DataContext<'data>),
     // When node has not been executed yet.
     NotExecuted,
     Executed,
 }
 
-impl<'a> NodeState<'a> {
-    pub fn canonicalize(self) -> NodeState<'a> {
+impl<'data> NodeState<'data> {
+    pub fn canonicalize(self) -> NodeState<'data> {
         match self {
             NodeState::Data(ctx) => {
                 if ctx.is_empty() {
@@ -59,7 +59,7 @@ impl<'a> NodeState<'a> {
     }
 }
 
-impl<'a> Hash for NodeState<'a> {
+impl<'data> Hash for NodeState<'data> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             NodeState::Predicate(stmt) => stmt.hash(state),
@@ -77,17 +77,17 @@ impl<'a> Hash for NodeState<'a> {
     }
 }
 
-pub type StateConf<'a> = BTreeSet<(Node<'a>, NodeState<'a>)>;
+pub type StateConf<'data> = BTreeSet<(Node<'data>, NodeState<'data>)>;
 
-pub trait StateConfExt<'a> {
+pub trait StateConfExt<'data> {
     fn canonicalize(self) -> Option<Self>
     where
         Self: Sized;
 
-    fn from_node(node: Node<'a>, state: NodeState<'a>) -> Self;
+    fn from_node(node: Node<'data>, state: NodeState<'data>) -> Self;
 }
 
-impl<'a> StateConfExt<'a> for StateConf<'a> {
+impl<'data> StateConfExt<'data> for StateConf<'data> {
     fn canonicalize(self) -> Option<Self> {
         if self.is_empty() {
             None
@@ -96,17 +96,17 @@ impl<'a> StateConfExt<'a> for StateConf<'a> {
         }
     }
 
-    fn from_node(node: Node<'a>, state: NodeState<'a>) -> Self {
+    fn from_node(node: Node<'data>, state: NodeState<'data>) -> Self {
         [(node, state)].iter().cloned().collect()
     }
 }
 
-struct StackFrame<'a, N: Hash + Eq> {
-    pub current_states: HashMap<N, NodeState<'a>>,
-    pub current_defs: HashMap<u64, &'a Statement>,
+struct StackFrame<'data, N: Hash + Eq> {
+    pub current_states: HashMap<N, NodeState<'data>>,
+    pub current_defs: HashMap<u64, &'data Statement>,
 }
 
-impl<'a, N: Hash + Eq + Copy> StackFrame<'a, N> {
+impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
     pub fn new() -> Self {
         StackFrame {
             current_states: HashMap::new(),
@@ -114,18 +114,18 @@ impl<'a, N: Hash + Eq + Copy> StackFrame<'a, N> {
         }
     }
 
-    pub fn update_state(&mut self, node: N, state: NodeState<'a>) {
+    pub fn update_state(&mut self, node: N, state: NodeState<'data>) {
         self.current_states.insert(node, state.canonicalize());
     }
 
-    pub fn get_state(&self, node: &N) -> NodeState<'a> {
+    pub fn get_state(&self, node: &N) -> NodeState<'data> {
         self.current_states
             .get(node)
             .cloned()
             .unwrap_or(NodeState::NotExecuted)
     }
 
-    pub fn get_data_state(&self, stmt: &'a Statement) -> NodeState<'a> {
+    pub fn get_data_state(&self, stmt: &'data Statement) -> NodeState<'data> {
         let mut state = BTreeSet::new();
 
         for var in stmt
@@ -141,7 +141,7 @@ impl<'a, N: Hash + Eq + Copy> StackFrame<'a, N> {
         NodeState::Data(state)
     }
 
-    pub fn update_defs(&mut self, stmt: &'a Statement) {
+    pub fn update_defs(&mut self, stmt: &'data Statement) {
         // TODO: A data structure that tries to model data dependencies of pointers should be used.
         //       At least on a level, when a pointer is sent to a function and the function modifies it (or its child),
         //       then it should be added as a definition of the function call.
@@ -155,17 +155,17 @@ impl<'a, N: Hash + Eq + Copy> StackFrame<'a, N> {
     }
 }
 
-pub struct TraceItem<'a> {
-    pub node: Node<'a>,
-    pub node_state: NodeState<'a>,
-    pub parents_state_conf: Option<StateConf<'a>>,
+pub struct TraceItem<'data> {
+    pub node: Node<'data>,
+    pub node_state: NodeState<'data>,
+    pub parents_state_conf: Option<StateConf<'data>>,
 }
 
-impl<'a> TraceItem<'a> {
+impl<'data> TraceItem<'data> {
     pub fn new(
-        node: Node<'a>,
-        node_state: NodeState<'a>,
-        parents_state_conf: Option<StateConf<'a>>,
+        node: Node<'data>,
+        node_state: NodeState<'data>,
+        parents_state_conf: Option<StateConf<'data>>,
     ) -> Self {
         TraceItem {
             node,
@@ -175,16 +175,16 @@ impl<'a> TraceItem<'a> {
     }
 }
 
-pub struct Trace<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> {
-    stack_frames: Vec<StackFrame<'a, NodeIndex<DefaultIx>>>,
+pub struct Trace<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> {
+    stack_frames: Vec<StackFrame<'data, NodeIndex<DefaultIx>>>,
     trace: Peekable<I>,
-    next_items: VecDeque<TraceItem<'a>>,
-    api: &'a Api<'a>,
-    models: HashMap<&'a String, M>,
+    next_items: VecDeque<TraceItem<'data>>,
+    api: &'data Api<'data>,
+    models: HashMap<&'data String, M>,
 }
 
-impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Trace<'a, I, M> {
-    pub fn new(trace: I, api: &'a Api<'a>) -> Self {
+impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Trace<'data, I, M> {
+    pub fn new(trace: I, api: &'data Api<'data>) -> Self {
         Trace {
             stack_frames: vec![StackFrame::new()],
             trace: trace.peekable(),
@@ -195,8 +195,8 @@ impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Trace<'a, I, M> {
     }
 }
 
-impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Iterator for Trace<'a, I, M> {
-    type Item = TraceItem<'a>;
+impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for Trace<'data, I, M> {
+    type Item = TraceItem<'data>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.next_items.is_empty() {
@@ -261,7 +261,7 @@ impl<'a, I: Iterator<Item = &'a Statement>, M: Model<'a>> Iterator for Trace<'a,
             let parents = model
                 .neighbors_directed(index, Direction::Incoming)
                 .map(|parent| (model[parent], stack_frame.get_state(&parent)))
-                .collect::<StateConf<'a>>();
+                .collect::<StateConf<'data>>();
 
             self.next_items
                 .push_back(TraceItem::new(node, state, parents.canonicalize()));

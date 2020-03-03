@@ -11,14 +11,14 @@ pub mod invariants;
 pub mod prob_graph;
 pub mod sbfl;
 
-pub struct IrrelevantItems<'a> {
+pub struct IrrelevantItems<'data> {
     // Store relevant items and remove them if they are marked as irrelevant.
     pub stmts: HashSet<u64>,
-    pub tests: HashSet<&'a TestName>,
+    pub tests: HashSet<&'data TestName>,
 }
 
-impl<'a> IrrelevantItems<'a> {
-    pub fn new(api: &'a Api<'a>) -> Self {
+impl<'data> IrrelevantItems<'data> {
+    pub fn new(api: &'data Api<'data>) -> Self {
         // By default, all items are relevant.
         IrrelevantItems {
             stmts: api.get_stmts().iter_ids().copied().collect(),
@@ -43,12 +43,12 @@ impl<'a> IrrelevantItems<'a> {
     }
 }
 
-pub struct Results<'a, 'b> {
-    items: Vec<LocalizationItem<'a, 'b>>,
+pub struct Results<'data, 'out> {
+    items: Vec<LocalizationItem<'data, 'out>>,
     n_results: usize,
 }
 
-impl<'a, 'b> Results<'a, 'b> {
+impl<'data, 'out> Results<'data, 'out> {
     pub fn new(n_results: usize) -> Self {
         Results {
             items: Vec::with_capacity(n_results),
@@ -56,12 +56,12 @@ impl<'a, 'b> Results<'a, 'b> {
         }
     }
 
-    pub fn add(&mut self, item: LocalizationItem<'a, 'b>) {
+    pub fn add(&mut self, item: LocalizationItem<'data, 'out>) {
         // TODO: Manage a sorted vector of size n_results with best results encountered so far.
         self.items.push(item);
     }
 
-    pub fn into_vec(mut self) -> Vec<LocalizationItem<'a, 'b>> {
+    pub fn into_vec(mut self) -> Vec<LocalizationItem<'data, 'out>> {
         // Use stable sort to not break plugins which sort the results using another criterion.
         self.items.sort_by(|lhs, rhs| rhs.cmp(lhs));
 
@@ -147,12 +147,12 @@ impl fmt::Debug for Rationale {
     }
 }
 
-pub struct LocalizationItem<'a, 'b> {
+pub struct LocalizationItem<'data, 'out> {
     pub loc: Loc,
-    pub root_stmt: &'a Statement,
+    pub root_stmt: &'data Statement,
     pub score: f32,
     pub rationale: Rationale,
-    pub links: Vec<&'b LocalizationItem<'a, 'b>>,
+    pub links: Vec<&'out LocalizationItem<'data, 'out>>,
 }
 
 #[derive(Debug)]
@@ -161,10 +161,10 @@ pub enum InvalidLocalizationItem {
     EmptyRationale,
 }
 
-impl<'a, 'b> LocalizationItem<'a, 'b> {
+impl<'data, 'out> LocalizationItem<'data, 'out> {
     pub fn new(
         loc: Loc,
-        root_stmt: &'a Statement,
+        root_stmt: &'data Statement,
         score: f32,
         rationale: Rationale,
     ) -> Result<Self, InvalidLocalizationItem> {
@@ -182,27 +182,27 @@ impl<'a, 'b> LocalizationItem<'a, 'b> {
         }
     }
 
-    pub fn link(&'b mut self, other: &'a LocalizationItem<'a, 'b>) {
+    pub fn link(&'out mut self, other: &'data LocalizationItem<'data, 'out>) {
         self.links.push(other);
     }
 }
 
-impl<'a, 'b> PartialEq for LocalizationItem<'a, 'b> {
+impl<'data, 'out> PartialEq for LocalizationItem<'data, 'out> {
     fn eq(&self, other: &Self) -> bool {
         self.score == other.score
     }
 }
 
-impl<'a, 'b> Eq for LocalizationItem<'a, 'b> {}
+impl<'data, 'out> Eq for LocalizationItem<'data, 'out> {}
 
-impl<'a, 'b> Ord for LocalizationItem<'a, 'b> {
+impl<'data, 'out> Ord for LocalizationItem<'data, 'out> {
     fn cmp(&self, other: &Self) -> Ordering {
         // We check for finiteness of score in the constructor, therefore, we are safe here.
         self.score.partial_cmp(&other.score).unwrap()
     }
 }
 
-impl<'a, 'b> PartialOrd for LocalizationItem<'a, 'b> {
+impl<'data, 'out> PartialOrd for LocalizationItem<'data, 'out> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -211,27 +211,27 @@ impl<'a, 'b> PartialOrd for LocalizationItem<'a, 'b> {
 pub type PluginInitError = String;
 
 pub trait AardwolfPlugin {
-    fn init<'a>(api: &'a Api<'a>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized;
 
-    fn run_pre<'a, 'b>(&'b self, _api: &'a mut Api<'a>) -> Result<(), PluginError> {
+    fn run_pre<'data, 'out>(&'out self, _api: &'data mut Api<'data>) -> Result<(), PluginError> {
         Ok(())
     }
 
-    fn run_loc<'a, 'b, 'c>(
-        &'b self,
-        _api: &'a Api<'a>,
-        _results: &'c mut Results<'a, 'b>,
+    fn run_loc<'data, 'out, 'param>(
+        &'out self,
+        _api: &'data Api<'data>,
+        _results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         Ok(())
     }
 
-    fn run_post<'a, 'b>(
-        &'b self,
-        _api: &'a Api<'a>,
-        _base: HashMap<&'a str, &'b Results<'a, 'b>>,
-        _results: &'b mut Results<'a, 'b>,
+    fn run_post<'data, 'out>(
+        &'out self,
+        _api: &'data Api<'data>,
+        _base: HashMap<&'data str, &'out Results<'data, 'out>>,
+        _results: &'out mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         Ok(())
     }

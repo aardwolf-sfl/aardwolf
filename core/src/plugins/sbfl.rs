@@ -46,7 +46,7 @@ pub struct Sbfl {
 }
 
 impl AardwolfPlugin for Sbfl {
-    fn init<'a>(_api: &'a Api<'a>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -61,10 +61,10 @@ impl AardwolfPlugin for Sbfl {
         Ok(Sbfl { metric })
     }
 
-    fn run_loc<'a, 'b, 'c>(
-        &'b self,
-        api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+    fn run_loc<'data, 'out, 'param>(
+        &'out self,
+        api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();

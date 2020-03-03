@@ -66,12 +66,12 @@ enum Format {
     Dynamic(u8),
 }
 
-struct DataParser<'a, R: BufRead> {
-    source: &'a mut R,
+struct DataParser<'data, R: BufRead> {
+    source: &'data mut R,
 }
 
-impl<'a, R: BufRead> DataParser<'a, R> {
-    fn new(source: &'a mut R) -> Self {
+impl<'data, R: BufRead> DataParser<'data, R> {
+    fn new(source: &'data mut R) -> Self {
         DataParser { source }
     }
 

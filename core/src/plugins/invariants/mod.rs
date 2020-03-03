@@ -24,17 +24,17 @@ macro_rules! required {
 pub struct Invariants;
 
 impl AardwolfPlugin for Invariants {
-    fn init<'a>(_api: &'a Api<'a>, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api<'data>, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
         Ok(Invariants)
     }
 
-    fn run_loc<'a, 'b, 'c>(
-        &'b self,
-        api: &'a Api<'a>,
-        results: &'c mut Results<'a, 'b>,
+    fn run_loc<'data, 'out, 'param>(
+        &'out self,
+        api: &'data Api<'data>,
+        results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
         let vars = required!(api.get_vars(), MissingApi::Vars);

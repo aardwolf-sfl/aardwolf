@@ -6,34 +6,34 @@ use crate::raw::data::{Access, Data, Statement, TestName, TraceItem, VariableDat
 use crate::structures::{FromRawData, FromRawDataError};
 
 #[derive(Debug)]
-pub struct VarItem<'a> {
-    pub stmt: &'a Statement,
+pub struct VarItem<'data> {
+    pub stmt: &'data Statement,
     pub defs: Vec<VariableData>,
     // TODO:
     // pub uses: Vec<VariableData>,
 }
 
-impl<'a> VarItem<'a> {
+impl<'data> VarItem<'data> {
     pub fn zip(&self) -> impl Iterator<Item = (&Access, &VariableData)> {
         self.stmt.defs.iter().zip(self.defs.iter())
     }
 }
 
-pub struct Vars<'a> {
-    traces: HashMap<&'a TestName, Vec<VarItem<'a>>>,
+pub struct Vars<'data> {
+    traces: HashMap<&'data TestName, Vec<VarItem<'data>>>,
 }
 
-impl<'a> Vars<'a> {
+impl<'data> Vars<'data> {
     pub fn iter_vars(
-        &'a self,
-        test: &'a TestName,
-    ) -> Option<impl Iterator<Item = &'a VarItem<'a>>> {
+        &'data self,
+        test: &'data TestName,
+    ) -> Option<impl Iterator<Item = &'data VarItem<'data>>> {
         self.traces.get(test).map(|stmts| stmts.iter())
     }
 }
 
-impl<'a> FromRawData<'a> for Vars<'a> {
-    fn from_raw(data: &'a Data, api: &'a Api<'a>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for Vars<'data> {
+    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
         let mut traces = HashMap::with_capacity(data.test_data.tests.len());

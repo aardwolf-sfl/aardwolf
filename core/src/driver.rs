@@ -146,11 +146,11 @@ impl Driver {
         }
     }
 
-    fn run_loc<'a, P: 'a + AardwolfPlugin>(
-        name: &'a str,
-        api: &'a Api<'a>,
-        opts: &'a HashMap<String, Yaml>,
-        config: &'a Config,
+    fn run_loc<'data, P: 'data + AardwolfPlugin>(
+        name: &'data str,
+        api: &'data Api<'data>,
+        opts: &'data HashMap<String, Yaml>,
+        config: &'data Config,
     ) {
         let plugin = P::init(api, opts).unwrap();
         let mut results = Results::new(config.n_results);
