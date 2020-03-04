@@ -252,7 +252,7 @@ pub trait AardwolfPlugin {
         &'out self,
         _api: &'data Api<'data>,
         _results: &'param mut Results<'data, 'out>,
-        _irrelevant: &'out IrrelevantItems<'data>,
+        _irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         Ok(())
     }

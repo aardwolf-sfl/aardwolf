@@ -158,77 +158,12 @@ impl Driver {
 
         Self::run_script(&config, &driver_paths).unwrap();
 
-        let data = Driver::load_data(&driver_paths);
+        let data = Self::load_data(&driver_paths);
         let api = Api::new(data).unwrap();
 
-        let plugins = config
-            .plugins
-            .iter()
-            .map(|plugin| {
-                let name = match &plugin.name {
-                    Some(name) => name,
-                    None => &plugin.id,
-                };
-
-                let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
-                    "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
-                    "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
-                    "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
-                    _ => panic!("Unknown plugin"),
-                };
-
-                (name, plugin)
-            })
-            .collect::<Vec<_>>();
-
-        let mut preprocessing = IrrelevantItems::new(&api);
-
-        for (_, plugin) in plugins.iter() {
-            plugin.run_pre(&api, &mut preprocessing).unwrap();
-        }
-
-        let mut all_results = BTreeMap::new();
-
-        for (name, plugin) in plugins.iter() {
-            let mut results = Results::new(config.n_results);
-            plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
-
-            if results.any() {
-                all_results.insert(LocalizationId::new(name, all_results.len()), results);
-            }
-        }
-
-        let all_results_by_name = all_results
-            .iter()
-            .map(|(id, results)| (id.0, results))
-            .collect::<HashMap<_, _>>();
-
-        let mut post_results = BTreeMap::new();
-
-        for (name, plugin) in plugins.iter() {
-            let mut results = Results::new(config.n_results);
-            plugin
-                .run_post(&api, &all_results_by_name, &mut results)
-                .unwrap();
-
-            if results.any() {
-                post_results.insert(LocalizationId::new(name, all_results.len()), results);
-            }
-        }
-
-        for (id, results) in post_results {
-            all_results.insert(id, results);
-        }
-
-        for (id, results) in all_results.into_iter() {
-            println!("Results for: {}", id.0);
-
-            for item in results.into_vec() {
-                println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
-            }
-
-            println!();
-        }
+        let plugins = Self::init_plugins(&config, &api);
+        let results = Self::run_loc(&config, &api, &plugins);
+        Self::display_results(&config, &api, results);
     }
 
     // TODO: Make return type so it can also show eventual script stderr/stdout.
@@ -298,6 +233,94 @@ impl Driver {
                 }
                 Err(LoadConfigError::NotFound)
             }
+        }
+    }
+
+    fn init_plugins<'data>(
+        config: &'data Config,
+        api: &'data Api<'data>,
+    ) -> Vec<(&'data String, Box<dyn AardwolfPlugin>)> {
+        config
+            .plugins
+            .iter()
+            .map(|plugin| {
+                let name = match &plugin.name {
+                    Some(name) => name,
+                    None => &plugin.id,
+                };
+
+                let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
+                    "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
+                    "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
+                    "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
+                    _ => panic!("Unknown plugin"),
+                };
+
+                (name, plugin)
+            })
+            .collect()
+    }
+
+    fn run_loc<'data, 'out>(
+        config: &'data Config,
+        api: &'data Api<'data>,
+        plugins: &'data Vec<(&'data String, Box<dyn AardwolfPlugin>)>,
+    ) -> BTreeMap<LocalizationId<'data>, Results<'data, 'out>> {
+        let mut preprocessing = IrrelevantItems::new(&api);
+
+        for (_, plugin) in plugins {
+            plugin.run_pre(&api, &mut preprocessing).unwrap();
+        }
+
+        let mut all_results = BTreeMap::new();
+
+        for (name, plugin) in plugins {
+            let mut results = Results::new(config.n_results);
+            plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
+
+            if results.any() {
+                all_results.insert(LocalizationId::new(name, all_results.len()), results);
+            }
+        }
+
+        let all_results_by_name = all_results
+            .iter()
+            .map(|(id, results)| (id.0, results))
+            .collect::<HashMap<_, _>>();
+
+        let mut post_results = BTreeMap::new();
+
+        for (name, plugin) in plugins {
+            let mut results = Results::new(config.n_results);
+            plugin
+                .run_post(&api, &all_results_by_name, &mut results)
+                .unwrap();
+
+            if results.any() {
+                post_results.insert(LocalizationId::new(name, all_results.len()), results);
+            }
+        }
+
+        for (id, results) in post_results {
+            all_results.insert(id, results);
+        }
+
+        all_results
+    }
+
+    fn display_results<'data, 'out>(
+        _config: &'data Config,
+        _api: &'data Api<'data>,
+        results: BTreeMap<LocalizationId<'data>, Results<'data, 'out>>,
+    ) {
+        for (id, results) in results.into_iter() {
+            println!("Results for: {}", id.0);
+
+            for item in results.into_vec() {
+                println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
+            }
+
+            println!();
         }
     }
 }

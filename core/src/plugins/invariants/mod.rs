@@ -39,7 +39,7 @@ impl AardwolfPlugin for Invariants {
         &'out self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data, 'out>,
-        _irrelevant: &'out IrrelevantItems<'data>,
+        _irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
         let vars = required!(api.get_vars(), MissingApi::Vars);
