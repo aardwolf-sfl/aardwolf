@@ -6,7 +6,8 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{
-    AardwolfPlugin, LocalizationItem, MissingApi, PluginError, PluginInitError, Rationale, Results,
+    AardwolfPlugin, IrrelevantItems, LocalizationItem, MissingApi, PluginError, PluginInitError,
+    Rationale, Results,
 };
 
 use detector::Stats;
@@ -24,7 +25,10 @@ macro_rules! required {
 pub struct Invariants;
 
 impl AardwolfPlugin for Invariants {
-    fn init<'data>(_api: &'data Api<'data>, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(
+        _api: &'data Api<'data>,
+        _opts: &HashMap<String, Yaml>,
+    ) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -35,6 +39,7 @@ impl AardwolfPlugin for Invariants {
         &'out self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data, 'out>,
+        _irrelevant: &'out IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
         let vars = required!(api.get_vars(), MissingApi::Vars);

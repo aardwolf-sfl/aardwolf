@@ -1,16 +1,16 @@
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs::{self, File};
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
-use yaml_rust::Yaml;
-
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
 use crate::plugins::{
-    invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin, Results,
+    invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin, IrrelevantItems,
+    Results,
 };
 use crate::raw::Data;
 
@@ -118,6 +118,35 @@ impl<P: AsRef<Path>> DriverArgs<P> {
     }
 }
 
+// Process localization plugins as they are defined in the config.
+// Implement ordering by its index.
+#[derive(Eq)]
+struct LocalizationId<'data>(&'data str, usize);
+
+impl<'data> LocalizationId<'data> {
+    pub fn new(name: &'data str, index: usize) -> Self {
+        LocalizationId(name, index)
+    }
+}
+
+impl<'data> Ord for LocalizationId<'data> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.1.cmp(&other.1)
+    }
+}
+
+impl<'data> PartialOrd for LocalizationId<'data> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'data> PartialEq for LocalizationId<'data> {
+    fn eq(&self, other: &Self) -> bool {
+        self.1 == other.1
+    }
+}
+
 pub struct Driver;
 
 impl Driver {
@@ -132,35 +161,74 @@ impl Driver {
         let data = Driver::load_data(&driver_paths);
         let api = Api::new(data).unwrap();
 
-        for plugin in config.plugins.iter() {
-            let name = match &plugin.name {
-                Some(name) => name,
-                None => &plugin.id,
-            };
-            match plugin.id.as_str() {
-                "sbfl" => Self::run_loc::<Sbfl>(name, &api, &plugin.opts, &config),
-                "prob-graph" => Self::run_loc::<ProbGraph>(name, &api, &plugin.opts, &config),
-                "invariants" => Self::run_loc::<Invariants>(name, &api, &plugin.opts, &config),
-                _ => panic!("Unknown plugin"),
+        let plugins = config
+            .plugins
+            .iter()
+            .map(|plugin| {
+                let name = match &plugin.name {
+                    Some(name) => name,
+                    None => &plugin.id,
+                };
+
+                let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
+                    "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
+                    "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
+                    "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
+                    _ => panic!("Unknown plugin"),
+                };
+
+                (name, plugin)
+            })
+            .collect::<Vec<_>>();
+
+        let mut preprocessing = IrrelevantItems::new(&api);
+
+        for (_, plugin) in plugins.iter() {
+            plugin.run_pre(&api, &mut preprocessing).unwrap();
+        }
+
+        let mut all_results = BTreeMap::new();
+
+        for (name, plugin) in plugins.iter() {
+            let mut results = Results::new(config.n_results);
+            plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
+
+            if results.any() {
+                all_results.insert(LocalizationId::new(name, all_results.len()), results);
             }
         }
-    }
 
-    fn run_loc<'data, P: 'data + AardwolfPlugin>(
-        name: &'data str,
-        api: &'data Api<'data>,
-        opts: &'data HashMap<String, Yaml>,
-        config: &'data Config,
-    ) {
-        let plugin = P::init(api, opts).unwrap();
-        let mut results = Results::new(config.n_results);
-        plugin.run_loc(api, &mut results).expect("plugin error");
+        let all_results_by_name = all_results
+            .iter()
+            .map(|(id, results)| (id.0, results))
+            .collect::<HashMap<_, _>>();
 
-        println!("Results for: {}", name);
-        for item in results.into_vec() {
-            println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
+        let mut post_results = BTreeMap::new();
+
+        for (name, plugin) in plugins.iter() {
+            let mut results = Results::new(config.n_results);
+            plugin
+                .run_post(&api, &all_results_by_name, &mut results)
+                .unwrap();
+
+            if results.any() {
+                post_results.insert(LocalizationId::new(name, all_results.len()), results);
+            }
         }
-        println!();
+
+        for (id, results) in post_results {
+            all_results.insert(id, results);
+        }
+
+        for (id, results) in all_results.into_iter() {
+            println!("Results for: {}", id.0);
+
+            for item in results.into_vec() {
+                println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
+            }
+
+            println!();
+        }
     }
 
     // TODO: Make return type so it can also show eventual script stderr/stdout.

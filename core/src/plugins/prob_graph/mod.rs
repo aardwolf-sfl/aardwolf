@@ -11,7 +11,7 @@ use yaml_rust::Yaml;
 use self::models::*;
 use self::trace::*;
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, PluginError, PluginInitError, Results};
+use crate::plugins::{AardwolfPlugin, IrrelevantItems, PluginError, PluginInitError, Results};
 
 enum ModelType {
     Dependence,
@@ -23,7 +23,10 @@ pub struct ProbGraph {
 }
 
 impl AardwolfPlugin for ProbGraph {
-    fn init<'data>(_api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(
+        _api: &'data Api<'data>,
+        opts: &HashMap<String, Yaml>,
+    ) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -41,6 +44,7 @@ impl AardwolfPlugin for ProbGraph {
         &'out self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data, 'out>,
+        _irrelevant: &'out IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         match self.model {
             ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),

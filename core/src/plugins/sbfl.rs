@@ -4,7 +4,8 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{
-    AardwolfPlugin, LocalizationItem, PluginError, PluginInitError, Rationale, Results,
+    AardwolfPlugin, IrrelevantItems, LocalizationItem, PluginError, PluginInitError, Rationale,
+    Results,
 };
 
 pub const SAFE_DENOMINATOR: f32 = 0.5;
@@ -46,7 +47,10 @@ pub struct Sbfl {
 }
 
 impl AardwolfPlugin for Sbfl {
-    fn init<'data>(_api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(
+        _api: &'data Api<'data>,
+        opts: &HashMap<String, Yaml>,
+    ) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -65,6 +69,7 @@ impl AardwolfPlugin for Sbfl {
         &'out self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data, 'out>,
+        _irrelevant: &'out IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();

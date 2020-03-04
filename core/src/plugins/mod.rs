@@ -67,6 +67,10 @@ impl<'data, 'out> Results<'data, 'out> {
         self.items.push(item);
     }
 
+    pub fn any(&self) -> bool {
+        !self.items.is_empty()
+    }
+
     pub fn into_vec(mut self) -> Vec<LocalizationItem<'data, 'out>> {
         // Use stable sort to not break plugins which sort the results using another criterion.
         self.items.sort_by(|lhs, rhs| rhs.cmp(lhs));
@@ -228,11 +232,19 @@ impl<'data, 'out> PartialOrd for LocalizationItem<'data, 'out> {
 pub type PluginInitError = String;
 
 pub trait AardwolfPlugin {
-    fn init<'data>(api: &'data Api<'data>, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init<'data>(
+        api: &'data Api<'data>,
+        opts: &HashMap<String, Yaml>,
+    ) -> Result<Self, PluginInitError>
     where
         Self: Sized;
 
-    fn run_pre<'data, 'out>(&'out self, _api: &'data mut Api<'data>) -> Result<(), PluginError> {
+    // TODO: Make general structure Preprocessing instead of IrrelevantItems.
+    fn run_pre<'data, 'out>(
+        &'out self,
+        _api: &'data Api<'data>,
+        _irrelevant: &'out mut IrrelevantItems<'data>,
+    ) -> Result<(), PluginError> {
         Ok(())
     }
 
@@ -240,15 +252,16 @@ pub trait AardwolfPlugin {
         &'out self,
         _api: &'data Api<'data>,
         _results: &'param mut Results<'data, 'out>,
+        _irrelevant: &'out IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         Ok(())
     }
 
-    fn run_post<'data, 'out>(
+    fn run_post<'data, 'out, 'param>(
         &'out self,
         _api: &'data Api<'data>,
-        _base: HashMap<&'data str, &'out Results<'data, 'out>>,
-        _results: &'out mut Results<'data, 'out>,
+        _base: &'param HashMap<&'param str, &'param Results<'data, 'out>>,
+        _results: &'param mut Results<'data, 'out>,
     ) -> Result<(), PluginError> {
         Ok(())
     }
