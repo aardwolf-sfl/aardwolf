@@ -4,6 +4,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
+use crate::api::Api;
+
 #[derive(PartialEq, Eq, Hash)]
 pub enum Access {
     Scalar(u64),
@@ -97,6 +99,23 @@ impl Loc {
             line_end: 0,
             col_end: 0,
         }
+    }
+
+    pub fn to_string<'data>(&self, api: &'data Api<'data>) -> String {
+        let mut loc = String::new();
+        loc.push_str(api.get_filepath(self.file_id).unwrap().to_str().unwrap());
+        loc.push(':');
+
+        if self.line_begin == self.line_end && self.col_begin == self.col_end {
+            loc.push_str(&format!("{}:{}", self.line_begin, self.col_begin));
+        } else {
+            loc.push_str(&format!(
+                "{}:{}-{}:{}",
+                self.line_begin, self.col_begin, self.line_end, self.col_end
+            ));
+        }
+
+        loc
     }
 }
 

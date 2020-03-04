@@ -1,3 +1,6 @@
+use std::env;
+use std::path::PathBuf;
+
 use lazycell::LazyCell;
 
 use crate::raw::data::Data;
@@ -106,5 +109,14 @@ impl<'data> Api<'data> {
 
     pub fn get_vars(&'data self) -> Option<&Vars<'data>> {
         get_lazy_fallible!(self, vars)
+    }
+
+    pub fn get_filepath(&self, file_id: u32) -> Option<PathBuf> {
+        let raw = PathBuf::from(self.data.static_data.files.get(&file_id)?);
+        raw.canonicalize()
+            .ok()?
+            .strip_prefix(env::current_dir().ok()?)
+            .ok()
+            .map(|path| path.to_path_buf())
     }
 }

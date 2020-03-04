@@ -8,6 +8,7 @@ dependencies = [
  "lazycell",
  "petgraph",
  "yaml-rust",
+ "yansi",
 ]
 
 [[package]]
@@ -166,3 +167,9 @@ checksum = "65923dd1784f44da1d2c3dbbc5e822045628c590ba72123e1c73d3c230c4434d"
 dependencies = [
  "linked-hash-map",
 ]
+
+[[package]]
+name = "yansi"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc79f4a1e39857fc00c3f662cbf2651c771f00e9c15fe2abc341806bd46bd71"

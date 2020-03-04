@@ -6,6 +6,8 @@ use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
+use yansi::Paint;
+
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
 use crate::plugins::{
@@ -310,14 +312,45 @@ impl Driver {
 
     fn display_results<'data, 'out>(
         _config: &'data Config,
-        _api: &'data Api<'data>,
+        api: &'data Api<'data>,
         results: BTreeMap<LocalizationId<'data>, Results<'data, 'out>>,
     ) {
         for (id, results) in results.into_iter() {
-            println!("Results for: {}", id.0);
+            let bar =
+                (0..(id.0.len() + 20)).fold(String::with_capacity(id.0.len()), |mut bar, _| {
+                    bar.push('-');
+                    bar
+                });
 
-            for item in results.into_vec() {
-                println!("{:?}\t{}\t{:?}", item.loc, item.score, item.rationale);
+            println!();
+            println!("{}+", bar);
+            println!("   Localization: {}   |", Paint::new(id.0).bold());
+            println!("{}+", bar);
+            println!();
+
+            for (index, item) in results.into_vec().into_iter().enumerate() {
+                println!();
+                println!("----------");
+                println!(
+                    "{}",
+                    Paint::cyan(format!(
+                        ">>> Hypothesis {}",
+                        Paint::new(format!("#{}", index + 1)).bold()
+                    ))
+                );
+                println!();
+                print!("at {}", Paint::new(item.loc.to_string(api)).bold());
+                println!(
+                    "\twith suspiciousness {}",
+                    Paint::new((item.score * 100.0).round() / 100.0).bold()
+                );
+
+                println!();
+                println!("Rationale:");
+                println!("{}", item.rationale.display(api));
+                println!();
+                println!("----------");
+                println!();
             }
 
             println!();
