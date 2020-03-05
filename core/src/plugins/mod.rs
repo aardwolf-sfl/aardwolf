@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -7,6 +6,7 @@ use yaml_rust::Yaml;
 use crate::api::Api;
 use crate::raw::data::{Loc, Statement, TestName};
 
+pub mod collect_bb;
 pub mod invariants;
 pub mod prob_graph;
 pub mod sbfl;
@@ -43,13 +43,14 @@ impl<'data> IrrelevantItems<'data> {
     }
 }
 
-pub struct Results<'data, 'out> {
-    items: Vec<LocalizationItem<'data, 'out>>,
+#[derive(Clone)]
+pub struct Results<'data> {
+    items: Vec<LocalizationItem<'data>>,
     n_results: usize,
     max_score: f32,
 }
 
-impl<'data, 'out> Results<'data, 'out> {
+impl<'data> Results<'data> {
     pub fn new(n_results: usize) -> Self {
         Results {
             items: Vec::with_capacity(n_results),
@@ -58,35 +59,61 @@ impl<'data, 'out> Results<'data, 'out> {
         }
     }
 
-    pub fn add(&mut self, item: LocalizationItem<'data, 'out>) {
+    pub fn add(&mut self, item: LocalizationItem<'data>) {
         if item.score > self.max_score {
             self.max_score = item.score;
         }
 
-        // TODO: Manage a sorted vector of size n_results with best results encountered so far.
-        self.items.push(item);
+        // Use stable algorithm when sorting the items to not break plugins
+        // which sort the results using another criterion.
+        // Also, we can safely unwrap the result of partial_cmp,
+        // because score is checked for finiteness in LocalizationItem constructor.
+
+        if self.items.len() < self.n_results {
+            self.items.push(item);
+            self.items
+                .sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
+        } else {
+            match self.items.last() {
+                None => self.items.push(item),
+                Some(worst) => {
+                    if item.score > worst.score {
+                        self.items.pop();
+                        self.items.push(item);
+                        self.items
+                            .sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
+                    }
+                }
+            }
+        }
     }
 
     pub fn any(&self) -> bool {
         !self.items.is_empty()
     }
 
-    pub fn into_vec(mut self) -> Vec<LocalizationItem<'data, 'out>> {
-        // Use stable sort to not break plugins which sort the results using another criterion.
-        self.items.sort_by(|lhs, rhs| rhs.cmp(lhs));
-
-        // Normalize
+    pub fn normalize(self) -> Self {
         let max_score = self.max_score;
-
-        self.items
-            .iter_mut()
-            .for_each(|item| item.normalize(max_score));
-
-        self.items
+        let items = self
+            .items
             .into_iter()
-            // TODO: Will not be necessary when the optimization mentioned in `add` method is implemented.
-            .take(self.n_results)
-            .collect()
+            .map(|item| item.normalize(max_score))
+            .collect();
+
+        Results { items, ..self }
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &LocalizationItem<'data>> {
+        self.items.iter()
+    }
+}
+
+impl<'data> IntoIterator for Results<'data> {
+    type Item = LocalizationItem<'data>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
     }
 }
 
@@ -106,13 +133,13 @@ pub enum PluginError {
     MissingApi(MissingApi),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum RationaleChunk {
     Text(String),
     Anchor(Loc),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Rationale(Vec<RationaleChunk>);
 
 impl Rationale {
@@ -178,12 +205,12 @@ impl fmt::Debug for Rationale {
     }
 }
 
-pub struct LocalizationItem<'data, 'out> {
+#[derive(Clone, PartialEq)]
+pub struct LocalizationItem<'data> {
     pub loc: Loc,
     pub root_stmt: &'data Statement,
     pub score: f32,
     pub rationale: Rationale,
-    pub links: Vec<&'out LocalizationItem<'data, 'out>>,
 }
 
 #[derive(Debug)]
@@ -192,7 +219,7 @@ pub enum InvalidLocalizationItem {
     EmptyRationale,
 }
 
-impl<'data, 'out> LocalizationItem<'data, 'out> {
+impl<'data> LocalizationItem<'data> {
     pub fn new(
         loc: Loc,
         root_stmt: &'data Statement,
@@ -208,38 +235,15 @@ impl<'data, 'out> LocalizationItem<'data, 'out> {
                 root_stmt,
                 score,
                 rationale,
-                links: Vec::new(),
             }),
         }
     }
 
-    pub fn link(&'out mut self, other: &'data LocalizationItem<'data, 'out>) {
-        self.links.push(other);
-    }
-
-    pub fn normalize(&mut self, max_score: f32) {
-        self.score = self.score / max_score;
-    }
-}
-
-impl<'data, 'out> PartialEq for LocalizationItem<'data, 'out> {
-    fn eq(&self, other: &Self) -> bool {
-        self.score == other.score
-    }
-}
-
-impl<'data, 'out> Eq for LocalizationItem<'data, 'out> {}
-
-impl<'data, 'out> Ord for LocalizationItem<'data, 'out> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // We check for finiteness of score in the constructor, therefore, we are safe here.
-        self.score.partial_cmp(&other.score).unwrap()
-    }
-}
-
-impl<'data, 'out> PartialOrd for LocalizationItem<'data, 'out> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+    pub fn normalize(self, max_score: f32) -> Self {
+        LocalizationItem {
+            score: self.score / max_score,
+            ..self
+        }
     }
 }
 
@@ -262,20 +266,20 @@ pub trait AardwolfPlugin {
         Ok(())
     }
 
-    fn run_loc<'data, 'out, 'param>(
-        &'out self,
+    fn run_loc<'data, 'param>(
+        &self,
         _api: &'data Api<'data>,
-        _results: &'param mut Results<'data, 'out>,
+        _results: &'param mut Results<'data>,
         _irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         Ok(())
     }
 
-    fn run_post<'data, 'out, 'param>(
-        &'out self,
+    fn run_post<'data, 'param>(
+        &self,
         _api: &'data Api<'data>,
-        _base: &'param HashMap<&'param str, &'param Results<'data, 'out>>,
-        _results: &'param mut Results<'data, 'out>,
+        _base: &'param HashMap<&'param str, &'param Results<'data>>,
+        _results: &'param mut Results<'data>,
     ) -> Result<(), PluginError> {
         Ok(())
     }

@@ -12,6 +12,8 @@ script:
 
 plugins:
   - sbfl: sbfl-dstar
+    options:
+      n_results: 20
   - sbfl: sbfl-ochai
     options:
       metric: ochiai
@@ -20,3 +22,6 @@ plugins:
       metric: tarantula
   - prob-graph
   - invariants
+  - collect-bb: "sbfl-dstar collected"
+    options:
+      for: sbfl-dstar

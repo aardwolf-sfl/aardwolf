@@ -35,10 +35,10 @@ impl AardwolfPlugin for Invariants {
         Ok(Invariants)
     }
 
-    fn run_loc<'data, 'out, 'param>(
-        &'out self,
+    fn run_loc<'data, 'param>(
+        &self,
         api: &'data Api<'data>,
-        results: &'param mut Results<'data, 'out>,
+        results: &'param mut Results<'data>,
         _irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();

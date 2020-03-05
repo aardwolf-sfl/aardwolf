@@ -9,8 +9,8 @@ use std::process::{self, Command};
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
 use crate::plugins::{
-    invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl, AardwolfPlugin, IrrelevantItems,
-    Results,
+    collect_bb::CollectBb, invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl,
+    AardwolfPlugin, IrrelevantItems, Results,
 };
 use crate::raw::Data;
 use crate::ui::CliUi;
@@ -251,6 +251,7 @@ impl Driver {
                     "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
                     "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
                     "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
+                    "collect-bb" => Box::new(CollectBb::init(&api, &plugin.opts).unwrap()),
                     _ => panic!("Unknown plugin"),
                 };
 
@@ -259,11 +260,11 @@ impl Driver {
             .collect()
     }
 
-    fn run_loc<'data, 'out>(
+    fn run_loc<'data>(
         config: &'data Config,
         api: &'data Api<'data>,
         plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
-    ) -> BTreeMap<LocalizationId<'data>, Results<'data, 'out>> {
+    ) -> BTreeMap<LocalizationId<'data>, Results<'data>> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
         for (_, plugin) in plugins {
@@ -278,7 +279,7 @@ impl Driver {
             plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
 
             if results.any() {
-                all_results.insert(id, results);
+                all_results.insert(id, results.normalize());
             }
         }
 
@@ -297,7 +298,7 @@ impl Driver {
                 .unwrap();
 
             if results.any() {
-                post_results.insert(id, results);
+                post_results.insert(id, results.normalize());
             }
         }
 
@@ -308,10 +309,10 @@ impl Driver {
         all_results
     }
 
-    fn display_results<'data, 'out>(
+    fn display_results<'data>(
         config: &'data Config,
         api: &'data Api<'data>,
-        results: BTreeMap<LocalizationId<'data>, Results<'data, 'out>>,
+        results: BTreeMap<LocalizationId<'data>, Results<'data>>,
     ) {
         let mut ui = CliUi::new(api).unwrap();
 
@@ -319,7 +320,7 @@ impl Driver {
             if Self::should_display(config, &id) {
                 ui.plugin(id.0);
 
-                for item in results.into_vec() {
+                for item in results {
                     ui.result(&item);
                 }
             }

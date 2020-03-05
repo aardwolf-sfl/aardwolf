@@ -67,7 +67,7 @@ impl Access {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Loc {
     pub file_id: u32,
     pub line_begin: u32,
@@ -91,6 +91,24 @@ impl Loc {
         }
     }
 
+    pub fn contains(&self, other: &Self) -> bool {
+        let file = self.file_id == other.file_id;
+
+        let begin = if self.line_begin == other.line_begin {
+            self.col_begin <= other.col_begin
+        } else {
+            self.line_begin <= other.line_begin
+        };
+
+        let end = if self.line_end == other.line_end {
+            self.col_end >= other.col_end
+        } else {
+            self.line_end >= other.line_end
+        };
+
+        file && begin && end
+    }
+
     pub const fn dummy() -> Self {
         Loc {
             file_id: 0,
@@ -109,10 +127,7 @@ impl Loc {
         if self.line_begin == self.line_end && self.col_begin == self.col_end {
             loc.push_str(&format!("{}:{}", self.line_begin, self.col_begin));
         } else {
-            loc.push_str(&format!(
-                "{}:{}-{}:{}",
-                self.line_begin, self.col_begin, self.line_end, self.col_end
-            ));
+            loc.push_str(&format!("{}-{}", self.line_begin, self.line_end));
         }
 
         loc

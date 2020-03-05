@@ -89,7 +89,7 @@ impl<'data> CliUi<'data> {
         self.hypothesis = 1;
     }
 
-    pub fn result<'out>(&mut self, item: &LocalizationItem<'data, 'out>) {
+    pub fn result(&mut self, item: &LocalizationItem<'data>) {
         let bar = self.construct_bar(20, '_');
 
         self.writeln(bar.clone());

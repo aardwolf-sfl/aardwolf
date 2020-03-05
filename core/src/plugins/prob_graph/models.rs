@@ -84,11 +84,11 @@ impl<'data> Node<'data> {
 pub trait Model<'data> {
     fn get_graph(&self) -> &ModelGraph<'data>;
     fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self;
-    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
         trace: Trace<'data, I, Self>,
         ppdg: &Ppdg,
         api: &'data Api<'data>,
-        results: &'param mut Results<'data, 'out>,
+        results: &'param mut Results<'data>,
     ) -> Result<(), PluginError>
     where
         Self: Sized;
@@ -107,11 +107,11 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
         DependencyNetwork(create_dependency_network(pdg))
     }
 
-    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
         trace: Trace<'data, I, Self>,
         ppdg: &Ppdg,
         _api: &'data Api<'data>,
-        results: &'param mut Results<'data, 'out>,
+        results: &'param mut Results<'data>,
     ) -> Result<(), PluginError>
     where
         Self: Sized,
@@ -164,11 +164,11 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
         BayesianNetwork(create_bayesian_network(pdg))
     }
 
-    fn run_loc<'out, 'param, I: Iterator<Item = &'data Statement>>(
+    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
         _trace: Trace<'data, I, Self>,
         _ppdg: &Ppdg,
         _api: &'data Api<'data>,
-        _results: &'param mut Results<'data, 'out>,
+        _results: &'param mut Results<'data>,
     ) -> Result<(), PluginError>
     where
         Self: Sized,

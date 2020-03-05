@@ -65,10 +65,10 @@ impl AardwolfPlugin for Sbfl {
         Ok(Sbfl { metric })
     }
 
-    fn run_loc<'data, 'out, 'param>(
-        &'out self,
+    fn run_loc<'data, 'param>(
+        &self,
         api: &'data Api<'data>,
-        results: &'param mut Results<'data, 'out>,
+        results: &'param mut Results<'data>,
         _irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
