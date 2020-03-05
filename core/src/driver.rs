@@ -240,15 +240,12 @@ impl Driver {
     fn init_plugins<'data>(
         config: &'data Config,
         api: &'data Api<'data>,
-    ) -> Vec<(&'data String, Box<dyn AardwolfPlugin>)> {
+    ) -> Vec<(&'data str, Box<dyn AardwolfPlugin>)> {
         config
             .plugins
             .iter()
             .map(|plugin| {
-                let name = match &plugin.name {
-                    Some(name) => name,
-                    None => &plugin.id,
-                };
+                let name = plugin.id();
 
                 let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
                     "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
@@ -265,7 +262,7 @@ impl Driver {
     fn run_loc<'data, 'out>(
         config: &'data Config,
         api: &'data Api<'data>,
-        plugins: &'data Vec<(&'data String, Box<dyn AardwolfPlugin>)>,
+        plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
     ) -> BTreeMap<LocalizationId<'data>, Results<'data, 'out>> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
@@ -276,11 +273,12 @@ impl Driver {
         let mut all_results = BTreeMap::new();
 
         for (name, plugin) in plugins {
-            let mut results = Results::new(config.n_results);
+            let id = LocalizationId::new(name, all_results.len());
+            let mut results = Results::new(Self::n_results(config, &id));
             plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
 
             if results.any() {
-                all_results.insert(LocalizationId::new(name, all_results.len()), results);
+                all_results.insert(id, results);
             }
         }
 
@@ -292,13 +290,14 @@ impl Driver {
         let mut post_results = BTreeMap::new();
 
         for (name, plugin) in plugins {
-            let mut results = Results::new(config.n_results);
+            let id = LocalizationId::new(name, all_results.len());
+            let mut results = Results::new(Self::n_results(config, &id));
             plugin
                 .run_post(&api, &all_results_by_name, &mut results)
                 .unwrap();
 
             if results.any() {
-                post_results.insert(LocalizationId::new(name, all_results.len()), results);
+                post_results.insert(id, results);
             }
         }
 
@@ -310,18 +309,52 @@ impl Driver {
     }
 
     fn display_results<'data, 'out>(
-        _config: &'data Config,
+        config: &'data Config,
         api: &'data Api<'data>,
         results: BTreeMap<LocalizationId<'data>, Results<'data, 'out>>,
     ) {
         let mut ui = CliUi::new(api).unwrap();
 
         for (id, results) in results.into_iter() {
-            ui.plugin(id.0);
+            if Self::should_display(config, &id) {
+                ui.plugin(id.0);
 
-            for item in results.into_vec() {
-                ui.result(&item);
+                for item in results.into_vec() {
+                    ui.result(&item);
+                }
             }
         }
+    }
+
+    fn n_results<'data>(config: &'data Config, id: &LocalizationId<'data>) -> usize {
+        for plugin in config.plugins.iter() {
+            if plugin.id() == id.0 {
+                if let Some(n_results) = plugin
+                    .opts
+                    .get("n_results")
+                    .and_then(|n_results| n_results.as_i64())
+                {
+                    return n_results as usize;
+                }
+            }
+        }
+
+        config.n_results
+    }
+
+    fn should_display<'data>(config: &'data Config, id: &LocalizationId<'data>) -> bool {
+        for plugin in config.plugins.iter() {
+            if plugin.id() == id.0 {
+                if let Some(false) = plugin
+                    .opts
+                    .get("display")
+                    .and_then(|display| display.as_bool())
+                {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }

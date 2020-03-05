@@ -38,6 +38,13 @@ impl Plugin {
             opts,
         }
     }
+
+    pub fn id(&self) -> &str {
+        match &self.name {
+            Some(name) => name,
+            None => &self.id,
+        }
+    }
 }
 
 #[derive(Debug)]
