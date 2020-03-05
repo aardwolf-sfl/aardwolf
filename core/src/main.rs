@@ -4,6 +4,7 @@ mod driver;
 pub mod plugins;
 pub mod raw;
 pub mod structures;
+mod ui;
 
 use clap::{App, Arg};
 

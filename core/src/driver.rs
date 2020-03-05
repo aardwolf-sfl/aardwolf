@@ -6,8 +6,6 @@ use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
-use yansi::Paint;
-
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
 use crate::plugins::{
@@ -15,6 +13,7 @@ use crate::plugins::{
     Results,
 };
 use crate::raw::Data;
+use crate::ui::CliUi;
 
 // TARGET_FILE (program code, usually preprocessed)
 //     | program analysis and instrumentation
@@ -315,45 +314,14 @@ impl Driver {
         api: &'data Api<'data>,
         results: BTreeMap<LocalizationId<'data>, Results<'data, 'out>>,
     ) {
+        let mut ui = CliUi::new(api).unwrap();
+
         for (id, results) in results.into_iter() {
-            let bar =
-                (0..(id.0.len() + 20)).fold(String::with_capacity(id.0.len()), |mut bar, _| {
-                    bar.push('-');
-                    bar
-                });
+            ui.plugin(id.0);
 
-            println!();
-            println!("{}+", bar);
-            println!("   Localization: {}   |", Paint::new(id.0).bold());
-            println!("{}+", bar);
-            println!();
-
-            for (index, item) in results.into_vec().into_iter().enumerate() {
-                println!();
-                println!("----------");
-                println!(
-                    "{}",
-                    Paint::cyan(format!(
-                        ">>> Hypothesis {}",
-                        Paint::new(format!("#{}", index + 1)).bold()
-                    ))
-                );
-                println!();
-                print!("at {}", Paint::new(item.loc.to_string(api)).bold());
-                println!(
-                    "\twith suspiciousness {}",
-                    Paint::new((item.score * 100.0).round() / 100.0).bold()
-                );
-
-                println!();
-                println!("Rationale:");
-                println!("{}", item.rationale.display(api));
-                println!();
-                println!("----------");
-                println!();
+            for item in results.into_vec() {
+                ui.result(&item);
             }
-
-            println!();
         }
     }
 }

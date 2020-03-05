@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use yaml_rust::Yaml;
-use yansi::Paint;
 
 use crate::api::Api;
 use crate::raw::data::{Loc, Statement, TestName};
@@ -108,7 +107,7 @@ pub enum PluginError {
 }
 
 #[derive(Clone)]
-enum RationaleChunk {
+pub enum RationaleChunk {
     Text(String),
     Anchor(Loc),
 }
@@ -145,11 +144,8 @@ impl Rationale {
         self.0.is_empty()
     }
 
-    pub fn display<'a, 'data>(&'a self, api: &'data Api<'data>) -> RationaleDisplay<'a, 'data> {
-        RationaleDisplay {
-            rationale: self,
-            api,
-        }
+    pub fn chunks(&self) -> &Vec<RationaleChunk> {
+        &self.0
     }
 }
 
@@ -176,46 +172,6 @@ impl fmt::Debug for Rationale {
                 RationaleChunk::Text(text) => write!(f, "{}", text)?,
                 RationaleChunk::Anchor(anchor) => write!(f, "{:?}", anchor)?,
             }
-        }
-
-        Ok(())
-    }
-}
-
-pub struct RationaleDisplay<'a, 'data> {
-    rationale: &'a Rationale,
-    api: &'data Api<'data>,
-}
-
-impl<'a, 'data> fmt::Display for RationaleDisplay<'a, 'data> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut anchors = Vec::new();
-
-        for chunk in self.rationale.0.iter() {
-            match chunk {
-                RationaleChunk::Text(text) => write!(f, "{}", Paint::yellow(text))?,
-                RationaleChunk::Anchor(anchor) => {
-                    anchors.push(anchor);
-                    write!(
-                        f,
-                        "{}",
-                        Paint::yellow(format!("[{}]", anchors.len())).bold()
-                    )?;
-                }
-            }
-        }
-
-        if !anchors.is_empty() {
-            write!(f, "\n\nAnchors:\n")?;
-        }
-
-        for (index, anchor) in anchors.into_iter().enumerate() {
-            write!(
-                f,
-                "{} --> {}",
-                Paint::new(format!("[{}]", index + 1)).bold(),
-                Paint::new(anchor.to_string(self.api)).bold(),
-            )?;
         }
 
         Ok(())
