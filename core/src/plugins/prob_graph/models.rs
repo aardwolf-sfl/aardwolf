@@ -4,11 +4,11 @@ use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
-use super::pdg;
 use crate::api::Api;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
 use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
 use crate::raw::data::Statement;
+use crate::structures::{EdgeType as PdgEdgeType, Pdg};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
 pub enum NodeType {
@@ -25,11 +25,11 @@ pub enum EdgeType {
     StateSplit,
 }
 
-impl From<pdg::EdgeType> for EdgeType {
-    fn from(value: pdg::EdgeType) -> Self {
+impl From<PdgEdgeType> for EdgeType {
+    fn from(value: PdgEdgeType) -> Self {
         match value {
-            pdg::EdgeType::ControlDep => EdgeType::ControlDep,
-            pdg::EdgeType::DataDep => EdgeType::DataDep,
+            PdgEdgeType::ControlDep => EdgeType::ControlDep,
+            PdgEdgeType::DataDep => EdgeType::DataDep,
         }
     }
 }
@@ -83,7 +83,7 @@ impl<'data> Node<'data> {
 
 pub trait Model<'data> {
     fn get_graph(&self) -> &ModelGraph<'data>;
-    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self;
+    fn from_pdg(pdg: &Pdg<'data>) -> Self;
     fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
         trace: Trace<'data, I, Self>,
         ppdg: &Ppdg,
@@ -103,7 +103,7 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
         &self.0
     }
 
-    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self {
+    fn from_pdg(pdg: &Pdg<'data>) -> Self {
         DependencyNetwork(create_dependency_network(pdg))
     }
 
@@ -160,7 +160,7 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
         &self.0
     }
 
-    fn from_pdg(pdg: &pdg::Pdg<'data>) -> Self {
+    fn from_pdg(pdg: &Pdg<'data>) -> Self {
         BayesianNetwork(create_bayesian_network(pdg))
     }
 
@@ -179,7 +179,7 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
     }
 }
 
-fn create_dependency_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data> {
+fn create_dependency_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
     let mut dn = pdg.map(
         |_, node| {
             Node::new(
@@ -241,7 +241,7 @@ fn create_dependency_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data> 
     dn
 }
 
-pub fn create_bayesian_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data> {
+pub fn create_bayesian_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
     let dn = create_dependency_network(pdg);
 
     // TODO: Transform to Bayesian network.
@@ -251,7 +251,7 @@ pub fn create_bayesian_network<'data>(pdg: &pdg::Pdg<'data>) -> ModelGraph<'data
 
 #[cfg(test)]
 mod tests {
-    use super::super::pdg::{create_pdg, tests::*};
+    use crate::structures::pdg::{create_pdg, tests::*};
     use super::*;
 
     use petgraph::algo;

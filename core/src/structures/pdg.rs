@@ -3,9 +3,33 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
-use super::graph_ext::DominatorsExt;
-use crate::raw::data::Statement;
-use crate::structures::{Cfg, EXIT};
+use crate::api::Api;
+use crate::graph_ext::DominatorsExt;
+use crate::raw::data::{Data, Statement};
+use crate::structures::{Cfg, FromRawData, FromRawDataError, EXIT};
+
+pub type Pdg<'data> = DiGraph<&'data Statement, EdgeType>;
+
+pub struct Pdgs<'data>(HashMap<&'data str, Pdg<'data>>);
+
+impl<'data> Pdgs<'data> {
+    pub fn get(&'data self, func: &str) -> Option<&'data Pdg<'data>> {
+        self.0.get(func)
+    }
+}
+
+impl<'data> FromRawData<'data> for Pdgs<'data> {
+    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+        let mut result = HashMap::new();
+        let cfgs = api.get_cfgs();
+
+        for (func_name, _) in data.static_data.functions.iter() {
+            result.insert(func_name.as_str(), create_pdg(cfgs.get(func_name).unwrap()));
+        }
+
+        Ok(Pdgs(result))
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum EdgeTypePriv {
@@ -118,8 +142,6 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         self.stmt
     }
 }
-
-pub type Pdg<'data> = DiGraph<&'data Statement, EdgeType>;
 
 pub fn create_pdg<'data>(cfg: &Cfg<'data>) -> Pdg<'data> {
     let mut pdg = cfg.map(

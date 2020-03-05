@@ -26,6 +26,7 @@ pub struct Api<'data> {
     def_use: LazyCell<DefUse<'data>>,
     spectra: LazyCell<Spectra<'data>>,
     cfgs: LazyCell<Cfgs<'data>>,
+    pdgs: LazyCell<Pdgs<'data>>,
     vars: LazyCell<Vars<'data>>,
 }
 
@@ -78,6 +79,7 @@ impl<'data> Api<'data> {
                 def_use: LazyCell::new(),
                 spectra: LazyCell::new(),
                 cfgs: LazyCell::new(),
+                pdgs: LazyCell::new(),
                 vars: LazyCell::new(),
             })
         }
@@ -105,6 +107,10 @@ impl<'data> Api<'data> {
 
     pub fn get_cfgs(&'data self) -> &Cfgs<'data> {
         get_lazy_infallible!(self, cfgs)
+    }
+
+    pub fn get_pdgs(&'data self) -> &Pdgs<'data> {
+        get_lazy_infallible!(self, pdgs)
     }
 
     pub fn get_vars(&'data self) -> Option<&Vars<'data>> {

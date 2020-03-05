@@ -1,6 +1,7 @@
 pub mod api;
 pub mod config;
 mod driver;
+mod graph_ext;
 pub mod plugins;
 pub mod raw;
 pub mod structures;

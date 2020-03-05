@@ -1,5 +1,6 @@
 mod cfg;
 mod def_use;
+pub(crate) mod pdg;
 mod spectra;
 mod stmts;
 mod tests;
@@ -10,6 +11,7 @@ use crate::raw::data::Data;
 
 pub use cfg::{Cfg, Cfgs, ENTRY, EXIT};
 pub use def_use::DefUse;
+pub use pdg::{EdgeType, Pdg, Pdgs};
 pub use spectra::Spectra;
 pub use stmts::Stmts;
 pub use tests::Tests;

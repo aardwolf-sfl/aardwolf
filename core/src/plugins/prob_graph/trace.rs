@@ -6,7 +6,6 @@ use petgraph::graph::{DefaultIx, NodeIndex};
 use petgraph::Direction;
 
 use super::models::{Model, Node, NodeType};
-use super::pdg::create_pdg;
 use crate::api::Api;
 use crate::raw::data::Statement;
 
@@ -212,13 +211,13 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
         //   * We missed a function call and a return statement discarded wrong stack frame.
         let stack_frame = self.stack_frames.last_mut().unwrap();
 
-        let cfgs = self.api.get_cfgs();
+        let pdgs = self.api.get_pdgs();
 
         // Get (or initialize) model for the function which the statement comes from.
         let model = self
             .models
             .entry(func)
-            .or_insert_with(|| M::from_pdg(&create_pdg(cfgs.get(func).unwrap())))
+            .or_insert_with(|| M::from_pdg(&pdgs.get(func).unwrap()))
             .get_graph();
 
         // Get all nodes from the model corresponding to the statement.

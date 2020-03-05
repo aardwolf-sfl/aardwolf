@@ -12,10 +12,10 @@ pub const EXIT: &'static Statement = &Statement::dummy(std::u64::MAX);
 
 pub type Cfg<'data> = DiGraph<&'data Statement, ()>;
 
-pub struct Cfgs<'data>(HashMap<&'data str, DiGraph<&'data Statement, ()>>);
+pub struct Cfgs<'data>(HashMap<&'data str, Cfg<'data>>);
 
 impl<'data> Cfgs<'data> {
-    pub fn get(&'data self, func: &str) -> Option<&'data DiGraph<&'data Statement, ()>> {
+    pub fn get(&'data self, func: &str) -> Option<&'data Cfg<'data>> {
         self.0.get(func)
     }
 }
