@@ -71,6 +71,7 @@ impl ProbGraph {
 
         // Learn PPDG on passing tests.
         for test in tests.iter_passed() {
+            // We don't filter irrelevant statements because it might negatively affect the parent state computation.
             let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap(), api);
 
             for item in trace {

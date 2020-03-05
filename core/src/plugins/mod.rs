@@ -8,6 +8,7 @@ use crate::raw::data::{Loc, Statement, TestName};
 
 pub mod collect_bb;
 pub mod invariants;
+pub mod irrelevant;
 pub mod prob_graph;
 pub mod sbfl;
 

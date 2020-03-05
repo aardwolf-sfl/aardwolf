@@ -69,7 +69,7 @@ impl AardwolfPlugin for Sbfl {
         &self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data>,
-        _irrelevant: &'param IrrelevantItems<'data>,
+        irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();
@@ -81,7 +81,7 @@ impl AardwolfPlugin for Sbfl {
 
         let mut counters = HashMap::new();
 
-        for stmt in stmts.iter_stmts() {
+        for stmt in stmts.iter_stmts().filter(|stmt| irrelevant.is_stmt_relevant(stmt)) {
             let stmt_counters = counters.entry(stmt).or_insert(Counters::new());
 
             for test in tests.iter_names() {

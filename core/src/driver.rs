@@ -9,8 +9,8 @@ use std::process::{self, Command};
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
 use crate::plugins::{
-    collect_bb::CollectBb, invariants::Invariants, prob_graph::ProbGraph, sbfl::Sbfl,
-    AardwolfPlugin, IrrelevantItems, Results,
+    collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
+    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results,
 };
 use crate::raw::Data;
 use crate::ui::CliUi;
@@ -252,6 +252,7 @@ impl Driver {
                     "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
                     "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
                     "collect-bb" => Box::new(CollectBb::init(&api, &plugin.opts).unwrap()),
+                    "irrelevant" => Box::new(Irrelevant::init(&api, &plugin.opts).unwrap()),
                     _ => panic!("Unknown plugin"),
                 };
 

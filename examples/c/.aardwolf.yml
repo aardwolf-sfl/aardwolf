@@ -25,3 +25,4 @@ plugins:
   - collect-bb: "sbfl-dstar collected"
     options:
       for: sbfl-dstar
+  - irrelevant

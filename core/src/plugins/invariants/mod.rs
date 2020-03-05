@@ -39,7 +39,7 @@ impl AardwolfPlugin for Invariants {
         &self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data>,
-        _irrelevant: &'param IrrelevantItems<'data>,
+        irrelevant: &'param IrrelevantItems<'data>,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
         let vars = required!(api.get_vars(), MissingApi::Vars);
@@ -47,7 +47,11 @@ impl AardwolfPlugin for Invariants {
         let mut stats = Stats::new();
 
         for test in tests.iter_passed() {
-            for item in vars.iter_vars(test).unwrap() {
+            for item in vars
+                .iter_vars(test)
+                .unwrap()
+                .filter(|item| irrelevant.is_stmt_relevant(item.stmt))
+            {
                 for (access, data) in item.zip() {
                     stats.learn(access, data, test);
                 }
