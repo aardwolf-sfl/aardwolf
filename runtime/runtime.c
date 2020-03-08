@@ -35,7 +35,11 @@ FILE * __aardwolf_get_fd(void)
             strcpy(filepath + destination_length, filename);
         }
 
+#ifndef NO_HEADER
         __aardwolf_fd = fopen(filepath, "w");
+#else
+        __aardwolf_fd = fopen(filepath, "a");
+#endif
 
         if (__aardwolf_fd == NULL) {
             fprintf(stderr, "Aardwolf error: cannot open %s.\n", filepath);
@@ -43,9 +47,11 @@ FILE * __aardwolf_get_fd(void)
             exit(1);
         }
 
+#ifndef NO_HEADER
         // Print header.
         fputs("AARD/D", __aardwolf_fd);
         fputc(FILE_FORMAT_VERSION + ASCII_ZERO, __aardwolf_fd);
+#endif
 
         free(filepath);
     }
@@ -55,10 +61,12 @@ FILE * __aardwolf_get_fd(void)
 
 void __aardwolf_write_data(uint8_t token, void* data, size_t type_size)
 {
+#ifndef NO_DATA
     FILE *fd = __aardwolf_get_fd();
     fputc(token, fd);
     fwrite(data, type_size, 1, fd);
     fflush(fd);
+#endif
 }
 
 
@@ -69,11 +77,14 @@ void aardwolf_write_statement(statement_ref_t id)
 
 void aardwolf_write_external(const char *external)
 {
+#ifndef NO_DATA
     FILE *fd = __aardwolf_get_fd();
+    fseek(fd, 0, SEEK_END);
     fputc(TOKEN_EXTERNAL, fd);
     fputs(external, fd);
     fputc(0, fd); // null terminator
     fflush(fd);
+#endif
 }
 
 void aardwolf_write_data_unsupported()

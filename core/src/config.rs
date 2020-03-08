@@ -66,7 +66,7 @@ pub enum LoadConfigError {
 
 impl Config {
     pub fn load_from_file<P: AsRef<Path>>(filepath: P) -> Result<Self, LoadConfigError> {
-        let mut file = File::open(filepath).map_err(|err| LoadConfigError::Io(err))?;
+        let mut file = File::open(&filepath).map_err(|err| LoadConfigError::Io(err))?;
         let mut content = String::new();
         file.read_to_string(&mut content)
             .map_err(|err| LoadConfigError::Io(err))?;
@@ -82,7 +82,7 @@ impl Config {
             })?;
 
         let mut script = Vec::new();
-        let mut output_dir = PathBuf::new();
+        let mut output_dir = PathBuf::from(filepath.as_ref().parent().unwrap());
         let mut n_results = DEFAULT_N_RESULTS;
         let mut plugins = Vec::new();
 
@@ -104,10 +104,11 @@ impl Config {
                     }
                 }
                 "output_dir" => {
-                    output_dir = value
-                        .as_str()
-                        .ok_or(LoadConfigError::Invalid("Invalid format".to_string()))?
-                        .into();
+                    output_dir.push(
+                        value
+                            .as_str()
+                            .ok_or(LoadConfigError::Invalid("Invalid format".to_string()))?,
+                    );
                 }
                 "n_results" => {
                     n_results = value

@@ -8,7 +8,6 @@ set(CMAKE_C_STANDARD_REQUIRED on)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE} with compiler: ${CMAKE_C_COMPILER}")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
-set_source_files_properties(runtime_noop.c PROPERTIES COMPILE_FLAGS -Wno-unused-parameter)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 add_definitions(-DDEBUG_ENABLED)
@@ -17,4 +16,8 @@ elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif ()
 
 add_library(aardwolf_runtime STATIC runtime.c)
-add_library(aardwolf_runtime_noop STATIC runtime_noop.c)
+add_library(aardwolf_runtime_bare STATIC runtime.c)
+add_library(aardwolf_runtime_noop STATIC runtime.c)
+
+set_target_properties(aardwolf_runtime_bare PROPERTIES COMPILE_FLAGS "-DNO_HEADER")
+set_target_properties(aardwolf_runtime_noop PROPERTIES COMPILE_FLAGS "-DNO_DATA -Wno-unused-parameter")

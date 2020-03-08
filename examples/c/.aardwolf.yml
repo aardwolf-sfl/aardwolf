@@ -2,7 +2,7 @@ output_dir: bin
 
 script:
   - cd ${OUTPUT_DIR}
-  - rm -f *
+  - rm -f *.bc
   - clang -g -c -emit-llvm ../src/*.c
   - llvm-link -o ${TARGET_FILE}.bc *.bc
   - ${FRONTEND} -d ${OUTPUT_DIR} ${TARGET_FILE}.bc
