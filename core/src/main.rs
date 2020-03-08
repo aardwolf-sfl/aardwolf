@@ -2,15 +2,16 @@ pub mod api;
 pub mod config;
 mod driver;
 mod graph_ext;
+mod logger;
 pub mod plugins;
 pub mod raw;
 pub mod structures;
 mod ui;
-mod logger;
 
 use clap::{App, Arg};
 
 use driver::{Driver, DriverArgs};
+use ui::UiName;
 
 fn main() {
     let matches = App::new("aardwolf")
@@ -41,6 +42,13 @@ fn main() {
                 .help("")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("ui")
+                .long("ui")
+                .takes_value(true)
+                .possible_values(&["cli", "json"])
+                .help(""),
+        )
         .get_matches();
 
     let args = DriverArgs::new(
@@ -50,7 +58,17 @@ fn main() {
             .unwrap_or("libaardwolf_runtime.a"),
     )
     .with_config_path(matches.value_of("config"))
-    .with_frontend_path(matches.value_of("frontend"));
+    .with_frontend_path(matches.value_of("frontend"))
+    .with_ui(
+        matches
+            .value_of("ui")
+            .map(|ui| match ui {
+                "cli" => UiName::Cli,
+                "json" => UiName::Json,
+                _ => unreachable!(),
+            })
+            .unwrap_or_default(),
+    );
 
     Driver::run(&args);
 }

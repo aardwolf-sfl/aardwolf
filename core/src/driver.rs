@@ -14,7 +14,7 @@ use crate::plugins::{
     sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results,
 };
 use crate::raw::Data;
-use crate::ui::CliUi;
+use crate::ui::{CliUi, JsonUi, Ui, UiName};
 
 // TARGET_FILE (program code, usually preprocessed)
 //     | program analysis and instrumentation
@@ -95,6 +95,7 @@ pub struct DriverArgs<P: AsRef<Path>> {
     runtime_path: P,
     config_path: Option<P>,
     frontend_path: Option<P>,
+    ui: UiName,
 }
 
 impl<P: AsRef<Path>> DriverArgs<P> {
@@ -103,6 +104,7 @@ impl<P: AsRef<Path>> DriverArgs<P> {
             runtime_path: runtime_path,
             config_path: None,
             frontend_path: None,
+            ui: UiName::default(),
         }
     }
 
@@ -118,6 +120,10 @@ impl<P: AsRef<Path>> DriverArgs<P> {
             frontend_path,
             ..self
         }
+    }
+
+    pub fn with_ui(self, ui: UiName) -> Self {
+        Self { ui, ..self }
     }
 }
 
@@ -179,7 +185,7 @@ impl Driver {
         let results = Self::run_loc(&config, &api, &plugins, &mut logger);
 
         let display_handle = logger.perf("display results");
-        Self::display_results(&config, &api, results);
+        Self::display_results(args.ui, &config, &api, results);
         display_handle.stop();
     }
 
@@ -336,11 +342,17 @@ impl Driver {
     }
 
     fn display_results<'data>(
+        ui: UiName,
         config: &'data Config,
         api: &'data Api<'data>,
         results: BTreeMap<LocalizationId<'data>, Results<'data>>,
     ) {
-        let mut ui = CliUi::new(api).unwrap();
+        let mut ui: Box<dyn Ui> = match ui {
+            UiName::Cli => Box::new(CliUi::new(api).unwrap()),
+            UiName::Json => Box::new(JsonUi::new(api)),
+        };
+
+        ui.prolog();
 
         for (id, results) in results.into_iter() {
             if Self::should_display(config, &id) {
@@ -351,6 +363,8 @@ impl Driver {
                 }
             }
         }
+
+        ui.epilog();
     }
 
     fn n_results<'data>(config: &'data Config, id: &LocalizationId<'data>) -> usize {

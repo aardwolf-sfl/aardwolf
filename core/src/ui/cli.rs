@@ -4,6 +4,7 @@ use term::{
 };
 use unicode_width::UnicodeWidthChar;
 
+use super::Ui;
 use crate::api::Api;
 use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
 
@@ -70,56 +71,6 @@ impl<'data> CliUi<'data> {
             current_color: None,
             hypothesis: 1,
         })
-    }
-
-    pub fn plugin(&mut self, id: &str) {
-        let bar = self.construct_bar(id.len() + 20, '-');
-
-        self.newline();
-        self.newline();
-        self.writeln(format!("{}+", bar));
-        self.write("   Localization: ");
-        self.bold();
-        self.write(id);
-        self.reset_style();
-        self.writeln("   |");
-        self.writeln(format!("{}+", bar));
-        self.newline();
-
-        self.hypothesis = 1;
-    }
-
-    pub fn result(&mut self, item: &LocalizationItem<'data>) {
-        let bar = self.construct_bar(20, '_');
-
-        self.writeln(bar.clone());
-        self.newline();
-
-        self.color(color::CYAN);
-        self.write(">>> Hypothesis ");
-        self.bold();
-        self.write(format!("#{}", self.hypothesis));
-        self.reset();
-        self.newline();
-        self.newline();
-
-        self.write("at ");
-        self.bold();
-        self.write(item.loc.to_string(self.api));
-        self.reset_style();
-        self.write("\twith suspiciousness ");
-        self.bold();
-        self.write(format!("{}", (item.score * 100.0).round() / 100.0));
-        self.reset_style();
-        self.newline();
-
-        self.newline();
-        self.rationale(&item.rationale);
-
-        self.writeln(bar);
-        self.newline();
-
-        self.hypothesis += 1;
     }
 
     fn rationale(&mut self, rationale: &Rationale) {
@@ -213,5 +164,57 @@ impl<'data> CliUi<'data> {
             bar.push(ch);
             bar
         })
+    }
+}
+
+impl<'data> Ui<'data> for CliUi<'data> {
+    fn plugin(&mut self, id: &str) {
+        let bar = self.construct_bar(id.len() + 20, '-');
+
+        self.newline();
+        self.newline();
+        self.writeln(format!("{}+", bar));
+        self.write("   Localization: ");
+        self.bold();
+        self.write(id);
+        self.reset_style();
+        self.writeln("   |");
+        self.writeln(format!("{}+", bar));
+        self.newline();
+
+        self.hypothesis = 1;
+    }
+
+    fn result(&mut self, item: &LocalizationItem<'data>) {
+        let bar = self.construct_bar(20, '_');
+
+        self.writeln(bar.clone());
+        self.newline();
+
+        self.color(color::CYAN);
+        self.write(">>> Hypothesis ");
+        self.bold();
+        self.write(format!("#{}", self.hypothesis));
+        self.reset();
+        self.newline();
+        self.newline();
+
+        self.write("at ");
+        self.bold();
+        self.write(item.loc.to_string(self.api));
+        self.reset_style();
+        self.write("\twith suspiciousness ");
+        self.bold();
+        self.write(format!("{}", (item.score * 100.0).round() / 100.0));
+        self.reset_style();
+        self.newline();
+
+        self.newline();
+        self.rationale(&item.rationale);
+
+        self.writeln(bar);
+        self.newline();
+
+        self.hypothesis += 1;
     }
 }
