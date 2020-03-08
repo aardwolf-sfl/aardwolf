@@ -8,6 +8,7 @@ use std::process::{self, Command};
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
+use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
     sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results,
@@ -30,6 +31,7 @@ pub const INSTR_FILE: &'static str = "aard.instr";
 pub const EXEC_FILE: &'static str = "aard.exec";
 pub const TRACE_FILE: &'static str = "aard.trace";
 pub const RESULT_FILE: &'static str = "aard.result";
+pub const LOG_FILE: &'static str = "aard.log";
 
 pub const DEFAULT_CONFIG_FILE: &'static str = ".aardwolf.yml";
 pub const DEFAULT_SHELL: &'static str = "bash";
@@ -157,14 +159,28 @@ impl Driver {
 
         fs::create_dir_all(&driver_paths.output_dir).unwrap();
 
-        Self::run_script(&config, &driver_paths).unwrap();
+        let mut logger = Logger::new(driver_paths.output_dir.join(LOG_FILE));
+        logger.info("config file loaded");
 
+        let script_handle = logger.perf("run script");
+        Self::run_script(&config, &driver_paths).unwrap();
+        script_handle.stop();
+
+        let data_handle = logger.perf("load data");
         let data = Self::load_data(&driver_paths);
+        data_handle.stop();
+
         let api = Api::new(data).unwrap();
 
+        let init_handle = logger.perf("init plugins");
         let plugins = Self::init_plugins(&config, &api);
-        let results = Self::run_loc(&config, &api, &plugins);
+        init_handle.stop();
+
+        let results = Self::run_loc(&config, &api, &plugins, &mut logger);
+
+        let display_handle = logger.perf("display results");
         Self::display_results(&config, &api, results);
+        display_handle.stop();
     }
 
     // TODO: Make return type so it can also show eventual script stderr/stdout.
@@ -265,11 +281,14 @@ impl Driver {
         config: &'data Config,
         api: &'data Api<'data>,
         plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
+        logger: &mut Logger,
     ) -> BTreeMap<LocalizationId<'data>, Results<'data>> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
-        for (_, plugin) in plugins {
+        for (name, plugin) in plugins {
+            let handle = logger.perf(format!("{} (pre)", name));
             plugin.run_pre(&api, &mut preprocessing).unwrap();
+            handle.stop();
         }
 
         let mut all_results = BTreeMap::new();
@@ -277,7 +296,10 @@ impl Driver {
         for (name, plugin) in plugins {
             let id = LocalizationId::new(name, all_results.len());
             let mut results = Results::new(Self::n_results(config, &id));
+
+            let handle = logger.perf(format!("{} (loc)", name));
             plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
+            handle.stop();
 
             if results.any() {
                 all_results.insert(id, results.normalize());
@@ -294,9 +316,12 @@ impl Driver {
         for (name, plugin) in plugins {
             let id = LocalizationId::new(name, all_results.len());
             let mut results = Results::new(Self::n_results(config, &id));
+
+            let handle = logger.perf(format!("{} (post)", name));
             plugin
                 .run_post(&api, &all_results_by_name, &mut results)
                 .unwrap();
+            handle.stop();
 
             if results.any() {
                 post_results.insert(id, results.normalize());

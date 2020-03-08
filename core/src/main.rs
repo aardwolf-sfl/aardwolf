@@ -6,6 +6,7 @@ pub mod plugins;
 pub mod raw;
 pub mod structures;
 mod ui;
+mod logger;
 
 use clap::{App, Arg};
 
