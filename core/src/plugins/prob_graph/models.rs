@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::ops::Index;
 
-use petgraph::graph::DiGraph;
+use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
@@ -12,10 +13,9 @@ use crate::structures::{EdgeType as PdgEdgeType, Pdg};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
 pub enum NodeType {
-    // Numbers determine the ordering.
-    SelfLoop = 1,
-    NonPredicate = 2,
-    Predicate = 3,
+    SelfLoop,
+    NonPredicate,
+    Predicate,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -94,7 +94,76 @@ pub trait Model<'data> {
         Self: Sized;
 }
 
-pub type ModelGraph<'data> = DiGraph<Node<'data>, EdgeType>;
+pub enum StmtNodes {
+    Just([NodeIndex; 1]),
+    Split([NodeIndex; 2]),
+}
+
+impl StmtNodes {
+    pub fn new(index: NodeIndex) -> Self {
+        StmtNodes::Just([index])
+    }
+
+    pub fn add(self, index: NodeIndex) -> Self {
+        // Either node-splitting or self-loop elimination. In both cases, new index is predecessor.
+        match self {
+            StmtNodes::Just([original]) => StmtNodes::Split([index, original]),
+            StmtNodes::Split([_, original]) => {
+                debug_assert!(false, "cannot add new index when the node is already split");
+                StmtNodes::Split([index, original])
+            }
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &NodeIndex> {
+        match self {
+            StmtNodes::Just(just) => just.iter(),
+            StmtNodes::Split(split) => split.iter(),
+        }
+    }
+}
+
+pub struct ModelGraph<'data> {
+    graph: DiGraph<Node<'data>, EdgeType>,
+    mapping: HashMap<&'data Statement, StmtNodes>,
+}
+
+impl<'data> ModelGraph<'data> {
+    pub fn new(
+        graph: DiGraph<Node<'data>, EdgeType>,
+        mapping: HashMap<&'data Statement, StmtNodes>,
+    ) -> Self {
+        ModelGraph { graph, mapping }
+    }
+}
+
+impl<'data> AsRef<DiGraph<Node<'data>, EdgeType>> for ModelGraph<'data> {
+    fn as_ref(&self) -> &DiGraph<Node<'data>, EdgeType> {
+        &self.graph
+    }
+}
+
+impl<'data> AsMut<DiGraph<Node<'data>, EdgeType>> for ModelGraph<'data> {
+    fn as_mut(&mut self) -> &mut DiGraph<Node<'data>, EdgeType> {
+        &mut self.graph
+    }
+}
+
+impl<'data> Index<&Statement> for ModelGraph<'data> {
+    type Output = StmtNodes;
+
+    fn index(&self, stmt: &Statement) -> &Self::Output {
+        &self.mapping[stmt]
+    }
+}
+
+impl<'data> Index<NodeIndex> for ModelGraph<'data> {
+    type Output = Node<'data>;
+
+    fn index(&self, index: NodeIndex) -> &Self::Output {
+        &self.graph[index]
+    }
+}
 
 pub struct DependencyNetwork<'data>(ModelGraph<'data>);
 
@@ -104,7 +173,8 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
     }
 
     fn from_pdg(pdg: &Pdg<'data>) -> Self {
-        DependencyNetwork(create_dependency_network(pdg))
+        let (graph, mapping) = create_dependency_network(pdg);
+        DependencyNetwork(ModelGraph::new(graph, mapping))
     }
 
     fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
@@ -161,7 +231,8 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
     }
 
     fn from_pdg(pdg: &Pdg<'data>) -> Self {
-        BayesianNetwork(create_bayesian_network(pdg))
+        let (graph, mapping) = create_bayesian_network(pdg);
+        BayesianNetwork(ModelGraph::new(graph, mapping))
     }
 
     fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
@@ -179,7 +250,12 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
     }
 }
 
-fn create_dependency_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
+fn create_dependency_network<'data>(
+    pdg: &Pdg<'data>,
+) -> (
+    DiGraph<Node<'data>, EdgeType>,
+    HashMap<&'data Statement, StmtNodes>,
+) {
     let mut dn = pdg.map(
         |_, node| {
             Node::new(
@@ -194,9 +270,13 @@ fn create_dependency_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
         |_, edge| EdgeType::from(*edge),
     );
 
+    let mut mapping = HashMap::new();
+
     let mut remove = Vec::new();
 
     for index in dn.node_indices() {
+        let mut stmt_nodes = StmtNodes::new(index);
+
         // Split two-state (predicate and data) nodes.
         let has_predicate_state = dn
             .edges_directed(index, Direction::Outgoing)
@@ -223,6 +303,8 @@ fn create_dependency_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
             }
 
             dn.add_edge(data_index, index, EdgeType::StateSplit);
+
+            stmt_nodes = stmt_nodes.add(data_index);
         } else if let Some(edge_index) = dn.find_edge(index, index) {
             // Remove self-loops of nodes which were not handled during node splitting.
             let self_loop_node = dn.add_node(dn[index].to_self_loop());
@@ -231,28 +313,37 @@ fn create_dependency_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
             // dn.update_source(edge_index, self_loop_node);
             remove.push(edge_index);
             dn.add_edge(self_loop_node, index, dn[edge_index]);
+
+            stmt_nodes = stmt_nodes.add(self_loop_node);
         }
+
+        mapping.insert(dn[index].stmt, stmt_nodes);
     }
 
     for edge_index in remove {
         dn.remove_edge(edge_index);
     }
 
-    dn
+    (dn, mapping)
 }
 
-pub fn create_bayesian_network<'data>(pdg: &Pdg<'data>) -> ModelGraph<'data> {
-    let dn = create_dependency_network(pdg);
+pub fn create_bayesian_network<'data>(
+    pdg: &Pdg<'data>,
+) -> (
+    DiGraph<Node<'data>, EdgeType>,
+    HashMap<&'data Statement, StmtNodes>,
+) {
+    let (dn, mapping) = create_dependency_network(pdg);
 
     // TODO: Transform to Bayesian network.
 
-    dn
+    (dn, mapping)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::structures::pdg::{create_pdg, tests::*};
     use super::*;
+    use crate::structures::pdg::{create_pdg, tests::*};
 
     use petgraph::algo;
     use petgraph::graph::DiGraph;
@@ -265,7 +356,7 @@ mod tests {
         let cfg = create_basic_cfg(&mut factory);
 
         let pdg = create_pdg(&cfg);
-        let actual = create_dependency_network(&pdg);
+        let (actual, _) = create_dependency_network(&pdg);
 
         let mut factory = StatementFactory::new();
         factory.add_many(1..=10);

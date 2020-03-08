@@ -4,12 +4,12 @@ use std::collections::{
 };
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, StaticData, TraceItem};
+use crate::raw::data::{Data, Statement, TraceItem};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Stmts<'data> {
     mapping: HashMap<u64, &'data Statement>,
-    raw: &'data StaticData,
+    functions: HashMap<u64, &'data String>,
 }
 
 impl<'data> Stmts<'data> {
@@ -26,13 +26,7 @@ impl<'data> Stmts<'data> {
     }
 
     pub fn find_fn(&self, stmt: &Statement) -> Option<&'data String> {
-        for (name, stmts) in self.raw.functions.iter() {
-            if stmts.contains_key(&stmt.id) {
-                return Some(name);
-            }
-        }
-
-        None
+        self.functions.get(&stmt.id).copied()
     }
 }
 
@@ -40,11 +34,18 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
     fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
+        let mut functions = HashMap::new();
 
         for item in data.dynamic_data.trace.iter() {
             match item {
                 TraceItem::Statement(stmt) => {
                     executed.insert(*stmt);
+
+                    for (name, stmts) in data.static_data.functions.iter() {
+                        if stmts.contains_key(stmt) {
+                            functions.insert(*stmt, name);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -58,9 +59,6 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
             }
         }
 
-        Ok(Stmts {
-            mapping,
-            raw: &data.static_data,
-        })
+        Ok(Stmts { mapping, functions })
     }
 }

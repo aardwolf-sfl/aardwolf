@@ -221,16 +221,8 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
             .get_graph();
 
         // Get all nodes from the model corresponding to the statement.
-        let mut nodes = model
-            .node_indices()
-            .filter(|index| model[*index].stmt == stmt)
-            .collect::<Vec<_>>();
-
-        // Sort the nodes by type. The ordering of the type should ensure that nodes are sorted "topologically".
-        nodes.sort_unstable_by_key(|index| model[*index].typ);
-
-        for index in nodes {
-            let node = model[index];
+        for index in model[stmt].iter() {
+            let node = model[*index];
 
             let state = match node.typ {
                 NodeType::Predicate => {
@@ -238,27 +230,28 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
                     let next = self.trace.peek().unwrap();
                     let state = NodeState::Predicate(next);
 
-                    stack_frame.update_state(index, state.clone());
+                    stack_frame.update_state(*index, state.clone());
 
                     state
                 }
                 NodeType::NonPredicate => {
                     let state = stack_frame.get_data_state(stmt).canonicalize();
 
-                    stack_frame.update_state(index, state.clone());
+                    stack_frame.update_state(*index, state.clone());
                     stack_frame.update_defs(stmt);
 
                     state
                 }
                 NodeType::SelfLoop => {
                     let state = NodeState::Executed;
-                    stack_frame.update_state(index, state.clone());
+                    stack_frame.update_state(*index, state.clone());
                     state
                 }
             };
 
             let parents = model
-                .neighbors_directed(index, Direction::Incoming)
+                .as_ref()
+                .neighbors_directed(*index, Direction::Incoming)
                 .map(|parent| (model[parent], stack_frame.get_state(&parent)))
                 .collect::<StateConf<'data>>();
 
