@@ -10,6 +10,8 @@ use crate::structures::{FromRawData, FromRawDataError};
 pub struct Stmts<'data> {
     mapping: HashMap<u64, &'data Statement>,
     functions: HashMap<u64, &'data String>,
+    n_total: usize,
+    n_executed: usize,
 }
 
 impl<'data> Stmts<'data> {
@@ -28,6 +30,14 @@ impl<'data> Stmts<'data> {
     pub fn find_fn(&self, stmt: &Statement) -> Option<&'data String> {
         self.functions.get(&stmt.id).copied()
     }
+
+    pub fn get_n_total(&self) -> usize {
+        self.n_total
+    }
+
+    pub fn get_n_executed(&self) -> usize {
+        self.n_executed
+    }
 }
 
 impl<'data> FromRawData<'data> for Stmts<'data> {
@@ -35,6 +45,9 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
         let mut functions = HashMap::new();
+
+        let mut n_total = 0;
+        let mut n_executed = 0;
 
         for item in data.dynamic_data.trace.iter() {
             match item {
@@ -53,12 +66,20 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
 
         for (_, stmts) in data.static_data.functions.iter() {
             for (id, stmt) in stmts.iter() {
+                n_total += 1;
+
                 if executed.contains(id) {
                     mapping.insert(*id, stmt);
+                    n_executed += 1;
                 }
             }
         }
 
-        Ok(Stmts { mapping, functions })
+        Ok(Stmts {
+            mapping,
+            functions,
+            n_total,
+            n_executed,
+        })
     }
 }

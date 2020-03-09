@@ -13,6 +13,7 @@ struct Output {
     version: String,
     utc_time: DateTime<Utc>,
     local_time: DateTime<Local>,
+    statements_count: usize,
     plugins: Vec<Plugin>,
 }
 
@@ -54,6 +55,7 @@ impl<'data> JsonUi<'data> {
                 version: String::from("v1"),
                 utc_time: Utc::now(),
                 local_time: Local::now(),
+                statements_count: api.get_stmts().get_n_total(),
                 plugins: Vec::new(),
             },
         }

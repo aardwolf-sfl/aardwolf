@@ -70,7 +70,8 @@ impl<'data> Results<'data> {
         // Also, we can safely unwrap the result of partial_cmp,
         // because score is checked for finiteness in LocalizationItem constructor.
 
-        if self.items.len() < self.n_results {
+        if self.n_results == 0 || self.items.len() < self.n_results {
+            // TODO: Use binary heap.
             self.items.push(item);
             self.items
                 .sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
