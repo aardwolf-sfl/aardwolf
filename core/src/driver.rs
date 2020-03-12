@@ -11,24 +11,11 @@ use crate::config::{Config, LoadConfigError};
 use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
-    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results, NormalizedResults
+    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, NormalizedResults, Results,
 };
 use crate::raw::Data;
 use crate::ui::{CliUi, JsonUi, Ui, UiName};
 
-// TARGET_FILE (program code, usually preprocessed)
-//     | program analysis and instrumentation
-//     v
-// INSTR_FILE
-//     | final compilation
-//     v
-// EXEC_FILE
-//     | execution --> TRACE_FILE
-//     v
-// RESULT_FILE (test results)
-pub const TARGET_FILE: &'static str = "aard.target";
-pub const INSTR_FILE: &'static str = "aard.instr";
-pub const EXEC_FILE: &'static str = "aard.exec";
 pub const TRACE_FILE: &'static str = "aard.trace";
 pub const RESULT_FILE: &'static str = "aard.result";
 pub const LOG_FILE: &'static str = "aard.log";
@@ -41,10 +28,6 @@ pub struct DriverPaths {
     pub work_dir: PathBuf,
     pub runtime_lib: PathBuf,
     pub frontend: PathBuf,
-    pub target_file: PathBuf,
-    pub instr_file: PathBuf,
-    pub exec_file: PathBuf,
-    pub analysis_file: PathBuf,
     pub trace_file: PathBuf,
     pub result_file: PathBuf,
 }
@@ -57,19 +40,7 @@ impl DriverPaths {
     ) -> Self {
         let output_dir = config_path.as_ref().join(&config.output_dir);
 
-        let target_file = output_dir.join(TARGET_FILE);
-
-        let mut analysis_file = target_file.clone();
-        let mut analysis_filename = analysis_file.file_name().unwrap().to_os_string();
-        analysis_filename.push(".aard");
-        analysis_file.set_file_name(analysis_filename);
-
-        // TODO: Allow to override the files (e.g., llvm linker needs .bc extensions to process the files).
         DriverPaths {
-            target_file,
-            instr_file: output_dir.join(INSTR_FILE),
-            exec_file: output_dir.join(EXEC_FILE),
-            analysis_file,
             trace_file: output_dir.join(TRACE_FILE),
             result_file: output_dir.join(RESULT_FILE),
             output_dir,
@@ -202,10 +173,6 @@ impl Driver {
             .env("WORK_DIR", &driver_paths.work_dir)
             .env("RUNTIME_LIB", &driver_paths.runtime_lib)
             .env("FRONTEND", &driver_paths.frontend)
-            .env("TARGET_FILE", &driver_paths.target_file)
-            .env("INSTR_FILE", &driver_paths.instr_file)
-            .env("EXEC_FILE", &driver_paths.exec_file)
-            .env("ANALYSIS_FILE", &driver_paths.analysis_file)
             .env("TRACE_FILE", &driver_paths.trace_file)
             .env("RESULT_FILE", &driver_paths.result_file)
             .spawn()
@@ -217,11 +184,37 @@ impl Driver {
     }
 
     fn load_data(driver_paths: &DriverPaths) -> Data {
-        let mut static_file = BufReader::new(File::open(&driver_paths.analysis_file).unwrap());
+        let mut static_files = Self::find_static_files(driver_paths);
         let mut dynamic_file = BufReader::new(File::open(&driver_paths.trace_file).unwrap());
         let mut test_file = BufReader::new(File::open(&driver_paths.result_file).unwrap());
 
-        Data::parse(&mut static_file, &mut dynamic_file, &mut test_file).unwrap()
+        Data::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file).unwrap()
+    }
+
+    fn find_static_files(driver_paths: &DriverPaths) -> Vec<BufReader<File>> {
+        let mut files = Vec::new();
+
+        let mut dirs = vec![driver_paths.output_dir.clone()];
+
+        while let Some(dir) = dirs.pop() {
+            if let Ok(entries) = dir.read_dir() {
+                for entry in entries.filter_map(|entry| entry.ok()) {
+                    let entry_path = entry.path();
+
+                    if entry_path.is_file() {
+                        if let Some("aard") =
+                            entry_path.extension().map(|ext| ext.to_str().unwrap())
+                        {
+                            files.push(BufReader::new(File::open(entry_path).unwrap()));
+                        }
+                    } else if entry_path.is_dir() {
+                        dirs.push(entry_path);
+                    }
+                }
+            }
+        }
+
+        files
     }
 
     fn load_config<P: AsRef<Path>>(

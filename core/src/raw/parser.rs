@@ -75,11 +75,8 @@ impl<'data, R: BufRead> DataParser<'data, R> {
         DataParser { source }
     }
 
-    fn parse_static(&mut self) -> Result<StaticData, ParseError> {
-        let mut statements: HashMap<u64, Statement> = HashMap::new();
-        let mut functions: HashMap<String, HashMap<u64, Statement>> = HashMap::new();
-        let mut files: HashMap<u32, String> = HashMap::new();
-
+    fn parse_static(&mut self, data: &mut StaticData) -> Result<(), ParseError> {
+        let mut statements = HashMap::new();
         let mut function = String::new();
 
         match self.parse_header()? {
@@ -96,7 +93,7 @@ impl<'data, R: BufRead> DataParser<'data, R> {
                 TOKEN_FUNCTION => {
                     let previous_function = std::mem::replace(&mut function, self.parse_cstr()?);
                     if !statements.is_empty() {
-                        functions.insert(
+                        data.functions.insert(
                             previous_function,
                             std::mem::replace(&mut statements, HashMap::new()),
                         );
@@ -107,7 +104,7 @@ impl<'data, R: BufRead> DataParser<'data, R> {
                     for _ in 0..n_files {
                         let file_id = self.parse_u32()?;
                         let filepath = self.parse_cstr()?;
-                        files.insert(file_id, filepath);
+                        data.files.insert(file_id, filepath);
                     }
                 }
                 _ => return Err(ParseError::UnexpectedByte),
@@ -115,10 +112,10 @@ impl<'data, R: BufRead> DataParser<'data, R> {
         }
 
         if !statements.is_empty() {
-            functions.insert(function, statements);
+            data.functions.insert(function, statements);
         }
 
-        Ok(StaticData { functions, files })
+        Ok(())
     }
 
     fn parse_dynamic(&mut self) -> Result<DynamicData, ParseError> {
@@ -396,8 +393,16 @@ impl<'data, R: BufRead> DataParser<'data, R> {
 }
 
 impl StaticData {
-    pub fn parse<R: BufRead>(source: &mut R) -> Result<StaticData, ParseError> {
-        DataParser::new(source).parse_static()
+    pub fn parse<'a, R: BufRead + 'a>(
+        sources: impl Iterator<Item = &'a mut R>,
+    ) -> Result<StaticData, ParseError> {
+        let mut data = StaticData::default();
+
+        for source in sources {
+            DataParser::new(source).parse_static(&mut data)?;
+        }
+
+        Ok(data)
     }
 }
 
@@ -414,12 +419,12 @@ impl TestData {
 }
 
 impl Data {
-    pub fn parse<R1: BufRead, R2: BufRead, R3: BufRead>(
-        static_data_source: &mut R1,
+    pub fn parse<'a, R1: BufRead + 'a, R2: BufRead, R3: BufRead>(
+        static_data_sources: impl Iterator<Item = &'a mut R1>,
         dynamic_data_source: &mut R2,
         test_data_source: &mut R3,
     ) -> Result<Data, ParseError> {
-        let static_data = StaticData::parse(static_data_source);
+        let static_data = StaticData::parse(static_data_sources);
         let dynamic_data = DynamicData::parse(dynamic_data_source);
         let test_data = TestData::parse(test_data_source);
 

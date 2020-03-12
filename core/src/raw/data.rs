@@ -148,6 +148,15 @@ pub struct StaticData {
     pub files: HashMap<u32, String>,
 }
 
+impl Default for StaticData {
+    fn default() -> Self {
+        StaticData {
+            functions: HashMap::new(),
+            files: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialOrd)]
 pub struct FpWrapper(f64);
 

@@ -4,13 +4,11 @@ script:
   # Do all the stuff inside output directory
   - cd ${OUTPUT_DIR}
   # Analyse, instrument and compile sources
-  - clang -Xclang -load -Xclang ${FRONTEND} -c -g -o ${TARGET_FILE}.o ../src/maintenance.c
+  - clang -Xclang -load -Xclang ${FRONTEND} -c -g -o maintenance.o ../src/*.c
   # Compile test runner and link it with the compiled source
-  - clang -o ${EXEC_FILE} ../tests/test.c ${TARGET_FILE}.o ${RUNTIME_LIB}
+  - clang -o run ../tests/test.c maintenance.o ${RUNTIME_LIB}
   # Execute the test runner
-  - ${EXEC_FILE} > ${RESULT_FILE}
-  # Temporary solution for limited static data collection
-  - mv maintenance.c.aard ${ANALYSIS_FILE}
+  - ./run > ${RESULT_FILE}
 
 plugins:
   - sbfl: sbfl-dstar
