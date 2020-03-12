@@ -58,50 +58,52 @@ impl AardwolfPlugin for Invariants {
             }
         }
 
-        for item in vars.iter_vars(tests.get_failed()).unwrap() {
-            for (access, data) in item.zip() {
-                let violations = stats.check(data, access);
+        for test in tests.iter_failed() {
+            for item in vars.iter_vars(test).unwrap() {
+                for (access, data) in item.zip() {
+                    let violations = stats.check(data, access);
 
-                if !violations.is_empty() {
-                    let confidence = violations
-                        .iter()
-                        .map(|info| info.confidence)
-                        // Confidence must be a finite number.
-                        .max_by(|lhs, rhs| lhs.partial_cmp(rhs).unwrap())
-                        // We checked that the vector is not empty.
-                        .unwrap();
+                    if !violations.is_empty() {
+                        let confidence = violations
+                            .iter()
+                            .map(|info| info.confidence)
+                            // Confidence must be a finite number.
+                            .max_by(|lhs, rhs| lhs.partial_cmp(rhs).unwrap())
+                            // We checked that the vector is not empty.
+                            .unwrap();
 
-                    let mut explanation = violations
-                        .iter()
-                        .map(|info| info.explain(data))
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                        let mut explanation = violations
+                            .iter()
+                            .map(|info| info.explain(data))
+                            .collect::<Vec<_>>()
+                            .join(", ");
 
-                    explanation.push('.');
+                        explanation.push('.');
 
-                    let mut rationale = Rationale::new();
+                        let mut rationale = Rationale::new();
 
-                    // NOTE: Could be configurable to disable args, calls, etc.
-                    if item.stmt.is_arg() {
-                        rationale.add_text("The value of this argument violates some invariants inferred from passing runs.");
-                    } else if item.stmt.is_ret() {
-                        rationale.add_text(
-                            "The return value violates some invariants inferred from passing runs.",
+                        // NOTE: Could be configurable to disable args, calls, etc.
+                        if item.stmt.is_arg() {
+                            rationale.add_text("The value of this argument violates some invariants inferred from passing runs.");
+                        } else if item.stmt.is_ret() {
+                            rationale.add_text(
+                                "The return value violates some invariants inferred from passing runs.",
+                            );
+                        } else if item.stmt.is_call() {
+                            rationale.add_text("The result of this function call violates some invariants inferred from passing runs.");
+                        } else {
+                            rationale.add_text("The result of this statement violates some invariants inferred from passing runs.");
+                        }
+
+                        rationale
+                            .add_text(" The violations are: ")
+                            .add_text(explanation);
+
+                        results.add(
+                            LocalizationItem::new(item.stmt.loc, item.stmt, confidence, rationale)
+                                .unwrap(),
                         );
-                    } else if item.stmt.is_call() {
-                        rationale.add_text("The result of this function call violates some invariants inferred from passing runs.");
-                    } else {
-                        rationale.add_text("The result of this statement violates some invariants inferred from passing runs.");
                     }
-
-                    rationale
-                        .add_text(" The violations are: ")
-                        .add_text(explanation);
-
-                    results.add(
-                        LocalizationItem::new(item.stmt.loc, item.stmt, confidence, rationale)
-                            .unwrap(),
-                    );
                 }
             }
         }

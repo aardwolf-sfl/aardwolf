@@ -60,9 +60,13 @@ impl ProbGraph {
         let tests = api.get_tests();
 
         let ppdg = self.learn_ppdg::<M>(api);
-        let trace: Trace<_, M> = Trace::new(tests.iter_stmts(tests.get_failed()).unwrap(), api);
 
-        M::run_loc(trace, &ppdg, api, results)
+        for test in tests.iter_failed() {
+            let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap(), api);
+            M::run_loc(trace, &ppdg, api, results)?;
+        }
+
+        Ok(())
     }
 
     pub fn learn_ppdg<'data, M: Model<'data>>(&self, api: &'data Api<'data>) -> Ppdg<'data> {

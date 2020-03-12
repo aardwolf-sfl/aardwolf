@@ -7,7 +7,9 @@ use petgraph::{
 use yaml_rust::Yaml;
 
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, LocalizationItem, PluginError, PluginInitError, Results};
+use crate::plugins::{
+    AardwolfPlugin, LocalizationItem, NormalizedResults, PluginError, PluginInitError, Results,
+};
 use crate::raw::data::{Loc, Statement};
 
 pub struct CollectBb {
@@ -38,7 +40,7 @@ impl AardwolfPlugin for CollectBb {
     fn run_post<'data, 'param>(
         &self,
         api: &'data Api<'data>,
-        base: &'param HashMap<&'param str, &'param Results<'data>>,
+        base: &'param HashMap<&'param str, &'param NormalizedResults<'data>>,
         results: &'param mut Results<'data>,
     ) -> Result<(), PluginError> {
         let mut original = base

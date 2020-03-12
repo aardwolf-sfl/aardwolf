@@ -11,7 +11,7 @@ use crate::config::{Config, LoadConfigError};
 use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
-    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results,
+    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, Results, NormalizedResults
 };
 use crate::raw::Data;
 use crate::ui::{CliUi, JsonUi, Ui, UiName};
@@ -288,7 +288,7 @@ impl Driver {
         api: &'data Api<'data>,
         plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
         logger: &mut Logger,
-    ) -> BTreeMap<LocalizationId<'data>, Results<'data>> {
+    ) -> BTreeMap<LocalizationId<'data>, NormalizedResults<'data>> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
         for (name, plugin) in plugins {
@@ -345,7 +345,7 @@ impl Driver {
         ui: UiName,
         config: &'data Config,
         api: &'data Api<'data>,
-        results: BTreeMap<LocalizationId<'data>, Results<'data>>,
+        results: BTreeMap<LocalizationId<'data>, NormalizedResults<'data>>,
     ) {
         let mut ui: Box<dyn Ui> = match ui {
             UiName::Cli => Box::new(CliUi::new(api).unwrap()),

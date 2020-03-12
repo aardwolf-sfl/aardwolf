@@ -46,7 +46,13 @@ impl<'data> IrrelevantItems<'data> {
 
 #[derive(Clone)]
 pub struct Results<'data> {
-    items: Vec<LocalizationItem<'data>>,
+    // TODO: Make a specialized data structure which combines HashMap and BinaryHeap
+    //       (maybe custom implementation of binary heap is necessary).
+    // TODO: Make two variants of the results (enum)
+    //         - first, which just blindly adds all new items up to set limit and keeps them sorted,
+    //         - second, which will also check if an existing item is added again and keeps only the most suspicious.
+    //       Plugins can then switch between these variants using a method (they get mutable reference).
+    items: HashMap<Loc, LocalizationItem<'data>>,
     n_results: usize,
     max_score: f32,
 }
@@ -54,7 +60,7 @@ pub struct Results<'data> {
 impl<'data> Results<'data> {
     pub fn new(n_results: usize) -> Self {
         Results {
-            items: Vec::with_capacity(n_results),
+            items: HashMap::with_capacity(n_results),
             n_results,
             max_score: 0.0,
         }
@@ -65,26 +71,36 @@ impl<'data> Results<'data> {
             self.max_score = item.score;
         }
 
-        // Use stable algorithm when sorting the items to not break plugins
-        // which sort the results using another criterion.
-        // Also, we can safely unwrap the result of partial_cmp,
-        // because score is checked for finiteness in LocalizationItem constructor.
-
         if self.n_results == 0 || self.items.len() < self.n_results {
-            // TODO: Use binary heap.
-            self.items.push(item);
-            self.items
-                .sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
+            // Check if there exists an item with the same location.
+            if let Some(original) = self.items.get(&item.loc) {
+                // If so, add new item only if it has higher suspiciousness.
+                if item.score > original.score {
+                    self.items.insert(item.loc, item);
+                }
+            } else {
+                // If not, just add the item.
+                self.items.insert(item.loc, item);
+            }
         } else {
-            match self.items.last() {
-                None => self.items.push(item),
-                Some(worst) => {
-                    if item.score > worst.score {
-                        self.items.pop();
-                        self.items.push(item);
-                        self.items
-                            .sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
-                    }
+            // Check if there exists an item with the same location.
+            if let Some(original) = self.items.get(&item.loc) {
+                // If so, add new item only if it has higher suspiciousness.
+                if item.score > original.score {
+                    self.items.insert(item.loc, item);
+                }
+            } else {
+                // If not, replace it with the worst one.
+                let (loc, worst) = self
+                    .items
+                    .iter()
+                    .min_by(|(_, lhs), (_, rhs)| lhs.score.partial_cmp(&rhs.score).unwrap())
+                    .map(|(loc, worst)| (*loc, worst.score))
+                    .unwrap();
+
+                if item.score > worst {
+                    self.items.remove(&loc);
+                    self.items.insert(item.loc, item);
                 }
             }
         }
@@ -94,23 +110,39 @@ impl<'data> Results<'data> {
         !self.items.is_empty()
     }
 
-    pub fn normalize(self) -> Self {
+    pub fn normalize(self) -> NormalizedResults<'data> {
         let max_score = self.max_score;
-        let items = self
+        let mut items = self
             .items
             .into_iter()
-            .map(|item| item.normalize(max_score))
-            .collect();
+            .map(|(_, item)| item.normalize(max_score))
+            .collect::<Vec<_>>();
 
-        Results { items, ..self }
+        // Use stable algorithm when sorting the items to not break plugins
+        // which sort the results using another criterion.
+        // Also, we can safely unwrap the result of partial_cmp,
+        // because score is checked for finiteness in LocalizationItem constructor.
+        items.sort_by(|lhs, rhs| rhs.score.partial_cmp(&lhs.score).unwrap());
+
+        NormalizedResults { items }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &LocalizationItem<'data>> {
+        self.items.values()
+    }
+}
+
+pub struct NormalizedResults<'data> {
+    items: Vec<LocalizationItem<'data>>,
+}
+
+impl<'data> NormalizedResults<'data> {
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &LocalizationItem<'data>> {
         self.items.iter()
     }
 }
 
-impl<'data> IntoIterator for Results<'data> {
+impl<'data> IntoIterator for NormalizedResults<'data> {
     type Item = LocalizationItem<'data>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -280,7 +312,7 @@ pub trait AardwolfPlugin {
     fn run_post<'data, 'param>(
         &self,
         _api: &'data Api<'data>,
-        _base: &'param HashMap<&'param str, &'param Results<'data>>,
+        _base: &'param HashMap<&'param str, &'param NormalizedResults<'data>>,
         _results: &'param mut Results<'data>,
     ) -> Result<(), PluginError> {
         Ok(())

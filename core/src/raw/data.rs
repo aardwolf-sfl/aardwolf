@@ -67,7 +67,7 @@ impl Access {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
     pub file_id: u32,
     pub line_begin: u32,
