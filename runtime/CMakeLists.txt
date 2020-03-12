@@ -21,3 +21,6 @@ add_library(aardwolf_runtime_noop STATIC runtime.c)
 
 set_target_properties(aardwolf_runtime_bare PROPERTIES COMPILE_FLAGS "-DNO_HEADER")
 set_target_properties(aardwolf_runtime_noop PROPERTIES COMPILE_FLAGS "-DNO_DATA -Wno-unused-parameter")
+
+add_executable(aardwolf_external aardwolf_external.c)
+target_link_libraries(aardwolf_external aardwolf_runtime_bare)

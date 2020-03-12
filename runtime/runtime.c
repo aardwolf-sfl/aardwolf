@@ -12,6 +12,12 @@
 // Opened on the first API use. Closed after the process termination.
 static FILE * __aardwolf_fd = NULL;
 
+void __write_header(FILE *fd)
+{
+    fputs("AARD/D", fd);
+    fputc(FILE_FORMAT_VERSION + ASCII_ZERO, fd);
+}
+
 FILE * __aardwolf_get_fd(void)
 {
     if (__aardwolf_fd == NULL) {
@@ -48,9 +54,7 @@ FILE * __aardwolf_get_fd(void)
         }
 
 #ifndef NO_HEADER
-        // Print header.
-        fputs("AARD/D", __aardwolf_fd);
-        fputc(FILE_FORMAT_VERSION + ASCII_ZERO, __aardwolf_fd);
+        __write_header(__aardwolf_fd);
 #endif
 
         free(filepath);
@@ -85,6 +89,11 @@ void aardwolf_write_external(const char *external)
     fputc(0, fd); // null terminator
     fflush(fd);
 #endif
+}
+
+void aardwolf_write_header()
+{
+    __write_header(__aardwolf_get_fd());
 }
 
 void aardwolf_write_data_unsupported()

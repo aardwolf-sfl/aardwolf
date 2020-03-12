@@ -28,6 +28,11 @@ void aardwolf_write_statement(statement_ref_t id);
 // analysis.
 void aardwolf_write_external(const char *external);
 
+// Separated function for generating the header. It is called automatically in
+// normal version of runtime. This should be only called when bare runtime is
+// used and the file header must be generated explicitly.
+void aardwolf_write_header();
+
 // Only primitive types. It is the responsibility of the frontend to correctly
 // write serialize complex types (e.g., arrays or structures).
 //
