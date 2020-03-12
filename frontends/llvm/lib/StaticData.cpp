@@ -149,10 +149,11 @@ std::string getFilename(std::string Name) {
   }
 }
 
-StaticData::StaticData(std::string &DestDir) : DestDir(DestDir) {}
+StaticDataBase::StaticDataBase() {}
 
-llvm::PreservedAnalyses StaticData::run(llvm::Module &M,
-                                        llvm::ModuleAnalysisManager &MAM) {
+StaticDataBase::StaticDataBase(std::string &DestDir) : DestDir(DestDir) {}
+
+bool StaticDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
   std::string Dest;
 
   if (!DestDir.empty()) {
@@ -165,14 +166,13 @@ llvm::PreservedAnalyses StaticData::run(llvm::Module &M,
 
   if (EC) {
     llvm::errs() << EC.message() << "\n";
-    return llvm::PreservedAnalyses::all();
+    return false;
   }
 
   // Header.
   Stream << "AARD/S1";
 
   std::vector<Statement *> Outgoing;
-  auto Repo = MAM.getResult<StatementDetection>(M);
 
   for (auto &F : M) {
     if (F.isDeclaration()) {
@@ -199,5 +199,30 @@ llvm::PreservedAnalyses StaticData::run(llvm::Module &M,
 
   exportMetadata(Repo, Stream);
 
-  return llvm::PreservedAnalyses::all();
+  return false;
+}
+
+StaticData::StaticData(std::string &DestDir) : StaticDataBase(DestDir) {}
+
+llvm::PreservedAnalyses StaticData::run(llvm::Module &M,
+                                        llvm::ModuleAnalysisManager &MAM) {
+  if (runBase(M, MAM.getResult<StatementDetection>(M))) {
+    return llvm::PreservedAnalyses::none();
+  } else {
+    return llvm::PreservedAnalyses::all();
+  }
+}
+
+LegacyStaticData::LegacyStaticData() : llvm::ModulePass(ID) {}
+
+LegacyStaticData::LegacyStaticData(std::string &DestDir)
+    : llvm::ModulePass(ID), StaticDataBase(DestDir) {}
+
+bool LegacyStaticData::runOnModule(llvm::Module &M) {
+  return runBase(M, getAnalysis<LegacyStatementDetection>().Repo);
+}
+
+void LegacyStaticData::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LegacyStatementDetection>();
 }

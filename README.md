@@ -49,5 +49,5 @@ cargo build
 # Apply a bug
 git apply bug1.patch # or bug2.patch
 # Run Aardwolf
-../../core/target/debug/aardwolf --runtime ../../runtime/build/libaardwolf_runtime.a --frontend ../../frontends/llvm/build/bin/aardwolf_llvm
+../../core/target/debug/aardwolf --runtime ../../runtime/build/libaardwolf_runtime.a --frontend ../../frontends/llvm/build/lib/libAardwolfLLVM.so
 ```

@@ -198,6 +198,7 @@ impl Driver {
         Command::new(DEFAULT_SHELL)
             .arg(path)
             .env("OUTPUT_DIR", &driver_paths.output_dir)
+            .env("AARDWOLF_DATA_DEST", &driver_paths.output_dir)
             .env("WORK_DIR", &driver_paths.work_dir)
             .env("RUNTIME_LIB", &driver_paths.runtime_lib)
             .env("FRONTEND", &driver_paths.frontend)

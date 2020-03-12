@@ -279,10 +279,7 @@ Statement runOnInstr(llvm::Instruction *I) {
   return Result;
 }
 
-StatementRepository StatementDetection::run(llvm::Module &M,
-                                            llvm::ModuleAnalysisManager &) {
-  StatementRepository Repo;
-
+bool StatementDetectionBase::runBase(llvm::Module &M) {
   // First and last statements for each non-empty basic block.
   std::map<const llvm::BasicBlock *,
            std::pair<llvm::Instruction *, llvm::Instruction *>>
@@ -377,7 +374,23 @@ StatementRepository StatementDetection::run(llvm::Module &M,
     }
   }
 
+  return false;
+}
+
+StatementRepository StatementDetection::run(llvm::Module &M,
+                                            llvm::ModuleAnalysisManager &) {
+  runBase(M);
   return Repo;
 }
 
 llvm::AnalysisKey StatementDetection::Key;
+
+LegacyStatementDetection::LegacyStatementDetection() : llvm::ModulePass(ID) {}
+
+bool LegacyStatementDetection::runOnModule(llvm::Module &M) {
+  return runBase(M);
+}
+
+void LegacyStatementDetection::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+}

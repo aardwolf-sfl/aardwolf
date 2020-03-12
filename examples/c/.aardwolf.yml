@@ -1,14 +1,16 @@
 output_dir: bin
 
 script:
+  # Do all the stuff inside output directory
   - cd ${OUTPUT_DIR}
-  - rm -f *.bc
-  - clang -g -c -emit-llvm ../src/*.c
-  - llvm-link -o ${TARGET_FILE}.bc *.bc
-  - ${FRONTEND} -d ${OUTPUT_DIR} ${TARGET_FILE}.bc
-  - clang -g -o ${EXEC_FILE} ../tests/test.c ${INSTR_FILE}.bc ${RUNTIME_LIB}
-  - export AARDWOLF_DATA_DEST=${OUTPUT_DIR} && ${EXEC_FILE} > ${RESULT_FILE}
-  - mv ${TARGET_FILE}.bc.aard ${ANALYSIS_FILE}
+  # Analyse, instrument and compile sources
+  - clang -Xclang -load -Xclang ${FRONTEND} -c -g -o ${TARGET_FILE}.o ../src/maintenance.c
+  # Compile test runner and link it with the compiled source
+  - clang -o ${EXEC_FILE} ../tests/test.c ${TARGET_FILE}.o ${RUNTIME_LIB}
+  # Execute the test runner
+  - ${EXEC_FILE} > ${RESULT_FILE}
+  # Temporary solution for limited static data collection
+  - mv maintenance.c.aard ${ANALYSIS_FILE}
 
 plugins:
   - sbfl: sbfl-dstar

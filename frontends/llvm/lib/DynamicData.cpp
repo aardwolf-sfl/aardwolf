@@ -90,14 +90,12 @@ getDefVarTracer(llvm::Module &M, llvm::Instruction *I) {
       std::make_pair(M.getOrInsertFunction(Name, TraceTy), Args));
 }
 
-llvm::PreservedAnalyses DynamicData::run(llvm::Module &M,
-                                         llvm::ModuleAnalysisManager &MAM) {
+bool DynamicDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
   auto &Ctx = M.getContext();
   auto StmtRefTy = getStmtRefTy(Ctx);
 
   auto WriteStmt = getWriteStmtTracer(M);
 
-  auto Repo = MAM.getResult<StatementDetection>(M);
   llvm::IRBuilder<> Builder(Ctx);
 
   for (auto &F : M) {
@@ -134,5 +132,25 @@ llvm::PreservedAnalyses DynamicData::run(llvm::Module &M,
     }
   }
 
-  return llvm::PreservedAnalyses::none();
+  return true;
+}
+
+llvm::PreservedAnalyses DynamicData::run(llvm::Module &M,
+                                         llvm::ModuleAnalysisManager &MAM) {
+  if (runBase(M, MAM.getResult<StatementDetection>(M))) {
+    return llvm::PreservedAnalyses::none();
+  } else {
+    return llvm::PreservedAnalyses::all();
+  }
+}
+
+LegacyDynamicData::LegacyDynamicData() : llvm::ModulePass(ID) {}
+
+bool LegacyDynamicData::runOnModule(llvm::Module &M) {
+  return runBase(M, getAnalysis<LegacyStatementDetection>().Repo);
+}
+
+void LegacyDynamicData::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LegacyStatementDetection>();
 }

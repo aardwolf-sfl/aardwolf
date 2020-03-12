@@ -10,12 +10,29 @@
 
 namespace aardwolf {
 
-struct StatementDetection : public llvm::AnalysisInfoMixin<StatementDetection> {
+struct StatementDetectionBase {
+  StatementRepository Repo;
+
+  bool runBase(llvm::Module &M);
+};
+
+struct StatementDetection : public llvm::AnalysisInfoMixin<StatementDetection>,
+                            public StatementDetectionBase {
   using Result = StatementRepository;
 
   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &);
 
   static llvm::AnalysisKey Key;
+};
+
+struct LegacyStatementDetection : public llvm::ModulePass,
+                                  public StatementDetectionBase {
+  static char ID;
+
+  LegacyStatementDetection();
+
+  virtual bool runOnModule(llvm::Module &M);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
 
 } // namespace aardwolf

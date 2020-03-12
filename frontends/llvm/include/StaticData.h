@@ -3,15 +3,37 @@
 
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
+
+#include "StatementRepository.h"
 
 namespace aardwolf {
 
-struct StaticData : public llvm::PassInfoMixin<StaticData> {
+struct StaticDataBase {
   std::string DestDir;
-  StaticData(std::string& DestDir);
+  StaticDataBase();
+  StaticDataBase(std::string &DestDir);
 
-  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+  bool runBase(llvm::Module &M, StatementRepository &Repo);
+};
+
+struct StaticData : public llvm::PassInfoMixin<StaticData>,
+                    public StaticDataBase {
+  std::string DestDir;
+  StaticData(std::string &DestDir);
+
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
+};
+
+struct LegacyStaticData : public llvm::ModulePass, public StaticDataBase {
+  static char ID;
+  LegacyStaticData();
+  LegacyStaticData(std::string &DestDir);
+
+  virtual bool runOnModule(llvm::Module &M);
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
 
 } // namespace aardwolf
