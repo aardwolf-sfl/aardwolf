@@ -15,7 +15,7 @@ void test(const char *name, test_fn *fn)
     __GLOBAL_STATUS = 1;
     aardwolf_write_external(name);
     fn();
-    printf("\"%s\": %s\n", name, __GLOBAL_STATUS ? "PASSED" : "FAILED");
+    printf("%s: %s\n", __GLOBAL_STATUS ? "PASS" : "FAIL", name);
 }
 
 #define TEST(fn) test(#fn, &fn)

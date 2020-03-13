@@ -10,9 +10,9 @@
     aardwolf_write_external(name); \
     int actual = findmax(values, sizeof(values) / sizeof(int)); \
     if (actual == expected) { \
-        printf("\"%s\": PASSED\n", name); \
+        printf("PASS: %s\n", name); \
     } else { \
-        printf("\"%s\": FAILED\n", name); \
+        printf("FAIL: %s\n", name); \
     } \
 }
 

@@ -171,39 +171,17 @@ impl<'data, R: BufRead> DataParser<'data, R> {
     fn parse_tests(&mut self) -> Result<TestData, ParseError> {
         let mut tests: HashMap<String, TestStatus> = HashMap::new();
 
-        let mut ch_buf = [0; 1];
         loop {
-            match self.source.read_exact(&mut ch_buf) {
-                Ok(_) => {
-                    if (ch_buf[0] as char) != '"' {
-                        return Err(ParseError::UnexpectedByte);
-                    }
-                }
-                Err(err) => {
-                    if err.kind() == io::ErrorKind::UnexpectedEof {
-                        return Ok(TestData { tests });
-                    } else {
-                        return Err(ParseError::from(err));
-                    }
-                }
-            }
-
-            let name = self.parse_quoted_str()?;
-
-            let mut buf = [0; 2];
-            self.source.read_exact(&mut buf).map_err(ParseError::from)?;
-            if buf != [':' as u8, ' ' as u8] {
-                return Err(ParseError::UnexpectedByte);
-            }
-
-            let status = self.parse_test_status()?;
-
-            let mut buf = Vec::new();
-            self.source
-                .read_until('\n' as u8, &mut buf)
-                .map_err(ParseError::from)?;
-
-            tests.insert(name, status);
+            let mut line = String::new();
+            match self.source.read_line(&mut line) {
+                Ok(0) => return Ok(TestData { tests }),
+                Ok(_) => match &line[0..6] {
+                    "PASS: " => tests.insert(line[6..].trim().to_owned(), TestStatus::Passed),
+                    "FAIL: " => tests.insert(line[6..].trim().to_owned(), TestStatus::Failed),
+                    _ => return Err(ParseError::UnexpectedByte)
+                },
+                Err(err) => return Err(ParseError::from(err)),
+            };
         }
     }
 
@@ -338,45 +316,6 @@ impl<'data, R: BufRead> DataParser<'data, R> {
         buf.pop();
 
         String::from_utf8(buf).map_err(ParseError::from)
-    }
-
-    fn parse_quoted_str(&mut self) -> Result<String, ParseError> {
-        let mut buf = [0; 1];
-
-        let mut output = String::new();
-        let mut escape = false;
-
-        loop {
-            self.source.read_exact(&mut buf).map_err(ParseError::from)?;
-            let ch = buf[0] as char;
-
-            if !escape {
-                if ch == '\\' {
-                    escape = true;
-                } else if ch == '"' {
-                    return Ok(output);
-                } else if ch == '\n' {
-                    return Err(ParseError::UnexpectedByte);
-                } else {
-                    output.push(ch);
-                }
-            } else {
-                output.push(ch);
-            }
-        }
-    }
-
-    fn parse_test_status(&mut self) -> Result<TestStatus, ParseError> {
-        let mut buf = [0; 6];
-        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
-
-        let data = String::from_utf8(Vec::from(&buf[..])).map_err(ParseError::from)?;
-
-        match data.as_str() {
-            "PASSED" => Ok(TestStatus::Passed),
-            "FAILED" => Ok(TestStatus::Failed),
-            _ => Err(ParseError::UnexpectedByte),
-        }
     }
 
     fn parse_vec<T, C, F>(&mut self, count: C, parser: F) -> Result<Vec<T>, ParseError>
