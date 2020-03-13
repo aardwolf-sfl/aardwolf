@@ -7,8 +7,8 @@ use crate::api::Api;
 use crate::raw::data::{Data, Statement};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub const ENTRY: &'static Statement = &Statement::dummy(std::u64::MAX - 1);
-pub const EXIT: &'static Statement = &Statement::dummy(std::u64::MAX);
+pub const ENTRY: &'static Statement = &Statement::dummy((0, std::u64::MAX - 1));
+pub const EXIT: &'static Statement = &Statement::dummy((0, std::u64::MAX));
 
 pub type Cfg<'data> = DiGraph<&'data Statement, ()>;
 

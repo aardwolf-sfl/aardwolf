@@ -117,7 +117,7 @@ impl<'data> Api<'data> {
         get_lazy_fallible!(self, vars)
     }
 
-    pub fn get_filepath(&self, file_id: u32) -> Option<PathBuf> {
+    pub fn get_filepath(&self, file_id: u64) -> Option<PathBuf> {
         let raw = PathBuf::from(self.data.static_data.files.get(&file_id)?);
         raw.canonicalize()
             .ok()?

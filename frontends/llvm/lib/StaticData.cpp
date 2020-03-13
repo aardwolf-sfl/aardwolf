@@ -50,6 +50,12 @@ void exportFunctionName(llvm::raw_ostream &Stream, llvm::Function &F) {
   writeBytes(Stream, F.getName().str());
 }
 
+void exportStatementId(llvm::raw_ostream &Stream,
+                       const std::pair<uint64_t, uint64_t> &Id) {
+  writeBytes(Stream, Id.first);
+  writeBytes(Stream, Id.second);
+}
+
 void exportAccess(StatementRepository &Repo, llvm::raw_ostream &Stream,
                   const Access *Access) {
   if (Access->isScalar()) {
@@ -94,13 +100,13 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
                      Statement &Stmt, std::vector<Statement *> &Successors) {
   // Statement id.
   writeBytes(Stream, (uint8_t)TOKEN_STATEMENT);
-  writeBytes(Stream, Repo.getStatementId(Stmt));
+  exportStatementId(Stream, Repo.getStatementId(Stmt));
 
   // Successors.
   writeBytes(Stream, (uint8_t)Successors.size());
 
   for (auto Succ : Successors) {
-    writeBytes(Stream, Repo.getStatementId(*Succ));
+    exportStatementId(Stream, Repo.getStatementId(*Succ));
   }
 
   // Defs.

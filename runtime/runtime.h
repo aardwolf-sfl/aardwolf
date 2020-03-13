@@ -17,10 +17,11 @@
 #define TOKEN_DATA_F32 0x19
 #define TOKEN_DATA_F64 0x20
 
+typedef uint64_t file_ref_t;
 typedef uint64_t statement_ref_t;
 
 // Log executed statement.
-void aardwolf_write_statement(statement_ref_t id);
+void aardwolf_write_statement(file_ref_t file_id, statement_ref_t stmt_id);
 
 // Log external identifier. This is intended for differentiating individual test
 // cases such that aardwolf can assign blocks of traces to these test cases

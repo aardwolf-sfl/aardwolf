@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TestName, TraceItem};
+use crate::raw::data::{Data, Statement, TestName, TraceItem, StmtId};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Spectra<'data> {
-    spectra: HashMap<&'data TestName, HashSet<u64>>,
+    spectra: HashMap<&'data TestName, HashSet<StmtId>>,
 }
 
 impl<'data> Spectra<'data> {

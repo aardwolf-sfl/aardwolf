@@ -33,8 +33,9 @@ TOKEN_DATA_F32 = b'\x19'
 TOKEN_DATA_F64 = b'\x20'
 
 def read_stmt(f):
-    id = struct.unpack('Q', f.read(8))[0]
-    return f'#{id}'
+    file_id = struct.unpack('Q', f.read(8))[0]
+    stmt_id = struct.unpack('Q', f.read(8))[0]
+    return f'#{file_id}:{stmt_id}'
 
 def read_i8(f):
     return struct.unpack('b', f.read(1))[0]
@@ -126,7 +127,7 @@ def get_static_handlers():
         n_uses = read_u8(f)
         uses = ', '.join(sorted([read_access(f) for _ in range(n_uses)]))
 
-        loc = f'@{read_u32(f)} {read_u32(f)}:{read_u32(f)}-{read_u32(f)}:{read_u32(f)}'
+        loc = f'@{read_u64(f)} {read_u32(f)}:{read_u32(f)}-{read_u32(f)}:{read_u32(f)}'
 
         metadata = read_metadata(f)
 
@@ -138,7 +139,7 @@ def get_static_handlers():
 
     def _parse_filenames(f):
         n_filenames = read_u32(f)
-        filenames = '\n'.join([f'@{read_u32(f)} = {read_cstr(f)}' for _ in range(n_filenames)])
+        filenames = '\n'.join([f'@{read_u64(f)} = {read_cstr(f)}' for _ in range(n_filenames)])
         return f'\n{filenames}'
 
     return {
@@ -180,7 +181,7 @@ def parse(f):
             print(handler(f))
         else:
             token_value = int.from_bytes(token, byteorder=sys.byteorder)
-            print(f'invalid token identifier: {token_value}')
+            print('invalid token identifier: 0x{:02x}'.format(token_value))
             exit(1)
 
         token = f.read(1)

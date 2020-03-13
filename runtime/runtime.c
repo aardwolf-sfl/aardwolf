@@ -74,9 +74,10 @@ void __aardwolf_write_data(uint8_t token, void* data, size_t type_size)
 }
 
 
-void aardwolf_write_statement(statement_ref_t id)
+void aardwolf_write_statement(file_ref_t file_id, statement_ref_t stmt_id)
 {
-    __aardwolf_write_data(TOKEN_STATEMENT, &id, sizeof(statement_ref_t));
+    uint64_t pair[2] = {file_id, stmt_id};
+    __aardwolf_write_data(TOKEN_STATEMENT, &pair, sizeof(pair));
 }
 
 void aardwolf_write_external(const char *external)

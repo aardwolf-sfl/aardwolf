@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
 use crate::api::Api;
-use crate::raw::data::{Access, Data, Statement};
+use crate::raw::data::{Access, Data, Statement, StmtId};
 use crate::structures::{FromRawData, FromRawDataError};
 
 struct DefUseItem<'data> {
@@ -10,7 +10,7 @@ struct DefUseItem<'data> {
     uses: HashSet<&'data Access>,
 }
 
-pub struct DefUse<'data>(HashMap<u64, DefUseItem<'data>>);
+pub struct DefUse<'data>(HashMap<StmtId, DefUseItem<'data>>);
 
 impl<'data> DefUse<'data> {
     pub fn get_defs(&'data self, stmt: &Statement) -> Option<&'data HashSet<&'data Access>> {

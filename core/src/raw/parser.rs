@@ -102,7 +102,7 @@ impl<'data, R: BufRead> DataParser<'data, R> {
                 TOKEN_FILENAMES => {
                     let n_files = self.parse_u32()?;
                     for _ in 0..n_files {
-                        let file_id = self.parse_u32()?;
+                        let file_id = self.parse_u64()?;
                         let filepath = self.parse_cstr()?;
                         data.files.insert(file_id, filepath);
                     }
@@ -128,7 +128,9 @@ impl<'data, R: BufRead> DataParser<'data, R> {
 
         while let Ok(token) = self.parse_u8() {
             match token {
-                TOKEN_STATEMENT => trace.push(TraceItem::Statement(self.parse_u64()?)),
+                TOKEN_STATEMENT => {
+                    trace.push(TraceItem::Statement((self.parse_u64()?, self.parse_u64()?)))
+                }
                 TOKEN_EXTERNAL => trace.push(TraceItem::External(self.parse_cstr()?)),
                 TOKEN_DATA_UNSUPPORTED => trace.push(TraceItem::Data(VariableData::Unsupported)),
                 TOKEN_DATA_I8 => {
@@ -178,7 +180,7 @@ impl<'data, R: BufRead> DataParser<'data, R> {
                 Ok(_) => match &line[0..6] {
                     "PASS: " => tests.insert(line[6..].trim().to_owned(), TestStatus::Passed),
                     "FAIL: " => tests.insert(line[6..].trim().to_owned(), TestStatus::Failed),
-                    _ => return Err(ParseError::UnexpectedByte)
+                    _ => return Err(ParseError::UnexpectedByte),
                 },
                 Err(err) => return Err(ParseError::from(err)),
             };
@@ -198,10 +200,10 @@ impl<'data, R: BufRead> DataParser<'data, R> {
     }
 
     fn parse_stmt(&mut self) -> Result<Statement, ParseError> {
-        let id = self.parse_u64()?;
+        let id = (self.parse_u64()?, self.parse_u64()?);
 
         let n_succ = self.parse_u8()?;
-        let succ = self.parse_vec(n_succ, |this| this.parse_u64())?;
+        let succ = self.parse_vec(n_succ, |this| Ok((this.parse_u64()?, this.parse_u64()?)))?;
 
         let n_defs = self.parse_u8()?;
         let defs = self.parse_vec(n_defs, |this| this.parse_access())?;
@@ -210,7 +212,7 @@ impl<'data, R: BufRead> DataParser<'data, R> {
         let uses = self.parse_vec(n_uses, |this| this.parse_access())?;
 
         let loc = Loc {
-            file_id: self.parse_u32()?,
+            file_id: self.parse_u64()?,
             line_begin: self.parse_u32()?,
             col_begin: self.parse_u32()?,
             line_end: self.parse_u32()?,

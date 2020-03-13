@@ -105,8 +105,9 @@ bool DynamicDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
 
     for (auto I : Repo.FuncInstrsMap[&F]) {
       std::vector<llvm::Value *> Args;
-      Args.push_back(llvm::ConstantInt::get(
-          StmtRefTy, Repo.getStatementId(Repo.InstrStmtMap[I])));
+      auto Id = Repo.getStatementId(Repo.InstrStmtMap[I]);
+      Args.push_back(llvm::ConstantInt::get(StmtRefTy, Id.first));
+      Args.push_back(llvm::ConstantInt::get(StmtRefTy, Id.second));
 
       auto CI = Builder.CreateCall(WriteStmt, Args);
       // Instruction can be a terminator, we need to put the printing statement

@@ -4,7 +4,7 @@ use std::fmt;
 use yaml_rust::Yaml;
 
 use crate::api::Api;
-use crate::raw::data::{Loc, Statement, TestName};
+use crate::raw::data::{Loc, Statement, TestName, StmtId};
 
 pub mod collect_bb;
 pub mod invariants;
@@ -14,7 +14,7 @@ pub mod sbfl;
 
 pub struct IrrelevantItems<'data> {
     // Store relevant items and remove them if they are marked as irrelevant.
-    pub stmts: HashSet<u64>,
+    pub stmts: HashSet<StmtId>,
     pub tests: HashSet<&'data TestName>,
 }
 

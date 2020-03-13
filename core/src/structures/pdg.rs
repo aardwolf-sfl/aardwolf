@@ -236,27 +236,27 @@ pub mod tests {
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
-    use crate::raw::data::{Access, Statement};
+    use crate::raw::data::{Access, Statement, StmtId};
     use crate::structures::{ENTRY, EXIT};
 
-    pub struct StatementFactory(HashMap<u64, Statement>);
+    pub struct StatementFactory(HashMap<StmtId, Statement>);
 
     impl StatementFactory {
         pub fn new() -> Self {
             StatementFactory(HashMap::new())
         }
 
-        pub fn add(&mut self, id: u64) {
+        pub fn add(&mut self, id: StmtId) {
             self.0.insert(id, Statement::dummy(id));
         }
 
-        pub fn add_many(&mut self, ids: impl Iterator<Item = u64>) {
+        pub fn add_many(&mut self, ids: impl Iterator<Item = StmtId>) {
             for id in ids {
                 self.add(id);
             }
         }
 
-        pub fn add_def(&mut self, id: u64, access: Access) {
+        pub fn add_def(&mut self, id: StmtId, access: Access) {
             if let Some(stmt) = self.0.get_mut(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
@@ -264,7 +264,7 @@ pub mod tests {
             }
         }
 
-        pub fn add_use(&mut self, id: u64, access: Access) {
+        pub fn add_use(&mut self, id: StmtId, access: Access) {
             if let Some(stmt) = self.0.get_mut(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
@@ -272,7 +272,7 @@ pub mod tests {
             }
         }
 
-        pub fn add_succ(&mut self, id: u64, succ: u64) {
+        pub fn add_succ(&mut self, id: StmtId, succ: StmtId) {
             if let Some(stmt) = self.0.get_mut(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
@@ -280,7 +280,7 @@ pub mod tests {
             }
         }
 
-        pub fn get(&self, id: u64) -> &Statement {
+        pub fn get(&self, id: StmtId) -> &Statement {
             // This structure is for testing purposes, safe API (returning Option) is not needed.
             &self.0[&id]
         }
@@ -290,45 +290,45 @@ pub mod tests {
         // Example program from "The probabilistic program dependence graph and its application to fault diagnosis"
         let mut cfg = DiGraph::new();
 
-        factory.add_many(1..=10);
+        factory.add_many((1..=10).map(|stmt| (0, stmt)));
 
         let var_i = 1;
         let var_n = 2;
         let var_max = 3;
         let var_v = 4;
 
-        factory.add_def(1, Access::Scalar(var_i));
-        factory.add_def(2, Access::Scalar(var_n));
-        factory.add_def(3, Access::Scalar(var_max));
-        factory.add_def(5, Access::Scalar(var_v));
-        factory.add_def(7, Access::Scalar(var_max));
-        factory.add_def(8, Access::Scalar(var_i));
+        factory.add_def((0, 1), Access::Scalar(var_i));
+        factory.add_def((0, 2), Access::Scalar(var_n));
+        factory.add_def((0, 3), Access::Scalar(var_max));
+        factory.add_def((0, 5), Access::Scalar(var_v));
+        factory.add_def((0, 7), Access::Scalar(var_max));
+        factory.add_def((0, 8), Access::Scalar(var_i));
 
-        factory.add_use(4, Access::Scalar(var_i));
-        factory.add_use(4, Access::Scalar(var_n));
-        factory.add_use(6, Access::Scalar(var_v));
-        factory.add_use(6, Access::Scalar(var_max));
-        factory.add_use(7, Access::Scalar(var_v));
-        factory.add_use(8, Access::Scalar(var_i));
-        factory.add_use(4, Access::Scalar(var_i));
-        factory.add_use(10, Access::Scalar(var_max));
+        factory.add_use((0, 4), Access::Scalar(var_i));
+        factory.add_use((0, 4), Access::Scalar(var_n));
+        factory.add_use((0, 6), Access::Scalar(var_v));
+        factory.add_use((0, 6), Access::Scalar(var_max));
+        factory.add_use((0, 7), Access::Scalar(var_v));
+        factory.add_use((0, 8), Access::Scalar(var_i));
+        factory.add_use((0, 4), Access::Scalar(var_i));
+        factory.add_use((0, 10), Access::Scalar(var_max));
 
         // Add only successors of predicates which is needed for is_predicate method of the statement.
-        factory.add_succ(4, 5);
-        factory.add_succ(4, 10);
-        factory.add_succ(6, 7);
-        factory.add_succ(6, 8);
+        factory.add_succ((0, 4), (0, 5));
+        factory.add_succ((0, 4), (0, 10));
+        factory.add_succ((0, 6), (0, 7));
+        factory.add_succ((0, 6), (0, 8));
 
         let entry = cfg.add_node(ENTRY);
-        let n1 = cfg.add_node(factory.get(1));
-        let n2 = cfg.add_node(factory.get(2));
-        let n3 = cfg.add_node(factory.get(3));
-        let n4 = cfg.add_node(factory.get(4));
-        let n5 = cfg.add_node(factory.get(5));
-        let n6 = cfg.add_node(factory.get(6));
-        let n7 = cfg.add_node(factory.get(7));
-        let n8 = cfg.add_node(factory.get(8));
-        let n10 = cfg.add_node(factory.get(10));
+        let n1 = cfg.add_node(factory.get((0, 1)));
+        let n2 = cfg.add_node(factory.get((0, 2)));
+        let n3 = cfg.add_node(factory.get((0, 3)));
+        let n4 = cfg.add_node(factory.get((0, 4)));
+        let n5 = cfg.add_node(factory.get((0, 5)));
+        let n6 = cfg.add_node(factory.get((0, 6)));
+        let n7 = cfg.add_node(factory.get((0, 7)));
+        let n8 = cfg.add_node(factory.get((0, 8)));
+        let n10 = cfg.add_node(factory.get((0, 10)));
         let exit = cfg.add_node(EXIT);
 
         cfg.add_edge(entry, n1, ());
@@ -355,20 +355,20 @@ pub mod tests {
         let actual = create_pdg(&cfg);
 
         let mut factory = StatementFactory::new();
-        factory.add_many(1..=10);
+        factory.add_many((1..=10).map(|stmt| (0, stmt)));
 
         let mut expected = DiGraph::new();
 
         let _ = expected.add_node(ENTRY);
-        let n1 = expected.add_node(factory.get(1));
-        let n2 = expected.add_node(factory.get(2));
-        let n3 = expected.add_node(factory.get(3));
-        let n4 = expected.add_node(factory.get(4));
-        let n5 = expected.add_node(factory.get(5));
-        let n6 = expected.add_node(factory.get(6));
-        let n7 = expected.add_node(factory.get(7));
-        let n8 = expected.add_node(factory.get(8));
-        let n10 = expected.add_node(factory.get(10));
+        let n1 = expected.add_node(factory.get((0, 1)));
+        let n2 = expected.add_node(factory.get((0, 2)));
+        let n3 = expected.add_node(factory.get((0, 3)));
+        let n4 = expected.add_node(factory.get((0, 4)));
+        let n5 = expected.add_node(factory.get((0, 5)));
+        let n6 = expected.add_node(factory.get((0, 6)));
+        let n7 = expected.add_node(factory.get((0, 7)));
+        let n8 = expected.add_node(factory.get((0, 8)));
+        let n10 = expected.add_node(factory.get((0, 10)));
         let _ = expected.add_node(EXIT);
 
         expected.add_edge(n1, n4, EdgeType::DataDep);

@@ -69,7 +69,7 @@ impl Access {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
-    pub file_id: u32,
+    pub file_id: u64,
     pub line_begin: u32,
     pub col_begin: u32,
     pub line_end: u32,
@@ -134,9 +134,11 @@ impl Loc {
     }
 }
 
+pub type StmtId = (u64, u64);
+
 pub struct Statement {
-    pub id: u64,
-    pub succ: Vec<u64>,
+    pub id: StmtId,
+    pub succ: Vec<StmtId>,
     pub defs: Vec<Access>,
     pub uses: Vec<Access>,
     pub loc: Loc,
@@ -144,8 +146,8 @@ pub struct Statement {
 }
 
 pub struct StaticData {
-    pub functions: HashMap<String, HashMap<u64, Statement>>,
-    pub files: HashMap<u32, String>,
+    pub functions: HashMap<String, HashMap<StmtId, Statement>>,
+    pub files: HashMap<u64, String>,
 }
 
 impl Default for StaticData {
@@ -410,7 +412,7 @@ impl fmt::Display for VariableDataType {
 }
 
 pub enum TraceItem {
-    Statement(u64),
+    Statement(StmtId),
     External(String),
     Data(VariableData),
 }
@@ -448,7 +450,7 @@ pub struct Data {
 }
 
 impl Statement {
-    pub const fn dummy(id: u64) -> Self {
+    pub const fn dummy(id: StmtId) -> Self {
         Statement {
             id,
             succ: Vec::new(),
@@ -517,14 +519,14 @@ impl fmt::Debug for Loc {
 
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "#{} -> ", self.id)?;
+        write!(f, "#{}:{} -> ", self.id.0, self.id.1)?;
 
         let mut succ_iter = self.succ.iter();
         if let Some(succ) = succ_iter.next() {
-            write!(f, "#{}", succ)?;
+            write!(f, "#{}:{}", succ.0, succ.1)?;
 
             while let Some(succ) = succ_iter.next() {
-                write!(f, ", #{}", succ)?;
+                write!(f, ", #{}:{}", succ.0, succ.1)?;
             }
         }
 
@@ -648,7 +650,7 @@ impl fmt::Debug for VariableData {
 impl fmt::Debug for TraceItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TraceItem::Statement(id) => write!(f, "statement: #{}", id),
+            TraceItem::Statement(id) => write!(f, "statement: #{}:{}", id.0, id.1),
             TraceItem::External(external) => write!(f, "external: \"{}\"", external),
             TraceItem::Data(data) => write!(f, "data: {:?}", data),
         }

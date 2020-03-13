@@ -4,26 +4,26 @@ use std::collections::{
 };
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TraceItem};
+use crate::raw::data::{Data, Statement, TraceItem, StmtId};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Stmts<'data> {
-    mapping: HashMap<u64, &'data Statement>,
-    functions: HashMap<u64, &'data String>,
+    mapping: HashMap<StmtId, &'data Statement>,
+    functions: HashMap<StmtId, &'data String>,
     n_total: usize,
     n_executed: usize,
 }
 
 impl<'data> Stmts<'data> {
-    pub fn iter_ids(&self) -> Keys<u64, &'data Statement> {
+    pub fn iter_ids(&self) -> Keys<StmtId, &'data Statement> {
         self.mapping.keys()
     }
 
-    pub fn iter_stmts(&self) -> Values<u64, &'data Statement> {
+    pub fn iter_stmts(&self) -> Values<StmtId, &'data Statement> {
         self.mapping.values()
     }
 
-    pub fn get(&self, id: &u64) -> Option<&'data Statement> {
+    pub fn get(&self, id: &StmtId) -> Option<&'data Statement> {
         self.mapping.get(id).map(|stmt| *stmt)
     }
 

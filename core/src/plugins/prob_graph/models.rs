@@ -359,23 +359,23 @@ mod tests {
         let (actual, _) = create_dependency_network(&pdg);
 
         let mut factory = StatementFactory::new();
-        factory.add_many(1..=10);
+        factory.add_many((1..=10).map(|stmt| (0, stmt)));
 
         let mut expected = DiGraph::new();
 
         let _ = expected.add_node(Node::new(ENTRY, NodeType::NonPredicate));
-        let n1 = expected.add_node(Node::new(factory.get(1), NodeType::NonPredicate));
-        let n2 = expected.add_node(Node::new(factory.get(2), NodeType::NonPredicate));
-        let n3 = expected.add_node(Node::new(factory.get(3), NodeType::NonPredicate));
-        let n4 = expected.add_node(Node::new(factory.get(4), NodeType::Predicate));
-        let n4_data = expected.add_node(Node::new(factory.get(4), NodeType::NonPredicate));
-        let n5 = expected.add_node(Node::new(factory.get(5), NodeType::NonPredicate));
-        let n6 = expected.add_node(Node::new(factory.get(6), NodeType::Predicate));
-        let n6_data = expected.add_node(Node::new(factory.get(6), NodeType::NonPredicate));
-        let n7 = expected.add_node(Node::new(factory.get(7), NodeType::NonPredicate));
-        let n8 = expected.add_node(Node::new(factory.get(8), NodeType::NonPredicate));
-        let n8_loop = expected.add_node(Node::new(factory.get(8), NodeType::SelfLoop));
-        let n10 = expected.add_node(Node::new(factory.get(10), NodeType::NonPredicate));
+        let n1 = expected.add_node(Node::new(factory.get((0, 1)), NodeType::NonPredicate));
+        let n2 = expected.add_node(Node::new(factory.get((0, 2)), NodeType::NonPredicate));
+        let n3 = expected.add_node(Node::new(factory.get((0, 3)), NodeType::NonPredicate));
+        let n4 = expected.add_node(Node::new(factory.get((0, 4)), NodeType::Predicate));
+        let n4_data = expected.add_node(Node::new(factory.get((0, 4)), NodeType::NonPredicate));
+        let n5 = expected.add_node(Node::new(factory.get((0, 5)), NodeType::NonPredicate));
+        let n6 = expected.add_node(Node::new(factory.get((0, 6)), NodeType::Predicate));
+        let n6_data = expected.add_node(Node::new(factory.get((0, 6)), NodeType::NonPredicate));
+        let n7 = expected.add_node(Node::new(factory.get((0, 7)), NodeType::NonPredicate));
+        let n8 = expected.add_node(Node::new(factory.get((0, 8)), NodeType::NonPredicate));
+        let n8_loop = expected.add_node(Node::new(factory.get((0, 8)), NodeType::SelfLoop));
+        let n10 = expected.add_node(Node::new(factory.get((0, 10)), NodeType::NonPredicate));
         let _ = expected.add_node(Node::new(EXIT, NodeType::NonPredicate));
 
         expected.add_edge(n1, n4_data, EdgeType::DataDep);

@@ -13,6 +13,7 @@
 
 #include "Exceptions.h"
 #include "StatementRepository.h"
+#include "Tools.h"
 
 using namespace aardwolf;
 
@@ -168,40 +169,6 @@ findInputs(const llvm::Instruction *I) {
   }
 
   return Result;
-}
-
-// Retrieves the instruction location in the original source code. If this data
-// is not available, it throws an UnknownLocation exception.
-const llvm::DebugLoc getInstrLoc(const llvm::Instruction *I) {
-  if (auto Loc = I->getDebugLoc()) {
-    if (Loc->getScope() != nullptr) {
-      return Loc;
-    }
-  } else if (llvm::isa<llvm::StoreInst>(I) &&
-             llvm::isa<llvm::Argument>(I->getOperand(0))) {
-    // Function argument.
-    auto Alloca = I->getOperand(1);
-
-    // NOTE: Can there be multiple debug uses?
-    for (auto Dbg : llvm::FindDbgAddrUses(Alloca)) {
-      auto Loc = Dbg->getDebugLoc();
-      if (Loc->getScope() != nullptr) {
-        return Loc;
-      }
-    }
-  }
-
-  throw UnknownLocation();
-}
-
-const std::string getDebugLocFile(llvm::DebugLoc Loc) {
-  if (Loc->getScope()->getDirectory() == "") {
-    return Loc->getScope()->getFilename().str();
-  } else {
-    return (Loc->getScope()->getDirectory() + "/" +
-            Loc->getScope()->getFilename())
-        .str();
-  }
 }
 
 // Retrieves the location of the whole statement in the original source code.

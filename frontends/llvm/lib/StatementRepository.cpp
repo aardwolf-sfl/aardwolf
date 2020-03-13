@@ -1,13 +1,17 @@
 #include "StatementRepository.h"
 
 #include "Statement.h"
+#include "Tools.h"
 
 using namespace aardwolf;
 
-uint64_t StatementRepository::getStatementId(Statement &Stmt) {
+std::pair<uint64_t, uint64_t>
+StatementRepository::getStatementId(Statement &Stmt) {
   auto Found = StmtsIdMap.find(Stmt.Instr);
   if (Found == StmtsIdMap.end()) {
-    uint64_t Id = StmtsIdMap.size() + 1;
+    auto FileId = getFileId(getDebugLocFile(getInstrLoc(Stmt.Instr)));
+    uint64_t StmtId = StmtsIdMap.size() + 1;
+    auto Id = std::make_pair(FileId, StmtId);
     StmtsIdMap.insert({Stmt.Instr, Id});
     return Id;
   } else {
@@ -26,11 +30,11 @@ uint64_t StatementRepository::getValueId(const llvm::Value *Value) {
   }
 }
 
-uint32_t StatementRepository::getFileId(const std::string Filepath) {
-  auto Found = FilesIdMap.find(Filepath);
+uint64_t StatementRepository::getFileId(const std::string &File) {
+  auto Found = FilesIdMap.find(File);
   if (Found == FilesIdMap.end()) {
-    uint64_t Id = FilesIdMap.size() + 1;
-    FilesIdMap.insert({Filepath, Id});
+    auto Id = getFileUniqueId(File);
+    FilesIdMap.insert({File, Id});
     return Id;
   } else {
     return Found->second;
@@ -39,7 +43,7 @@ uint32_t StatementRepository::getFileId(const std::string Filepath) {
 
 void StatementRepository::registerStatement(llvm::Function *F,
                                             Statement &Stmt) {
-  InstrStmtMap.insert({ Stmt.Instr, Stmt });
+  InstrStmtMap.insert({Stmt.Instr, Stmt});
 
   getStatementId(Stmt);
 
