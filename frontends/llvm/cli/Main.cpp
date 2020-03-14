@@ -30,6 +30,11 @@ static llvm::cl::opt<std::string>
                     llvm::cl::init("aardwolf"),
                     llvm::cl::cat{AardwolfCategory});
 
+static llvm::cl::opt<std::string> OutputFilename(
+    "o", llvm::cl::desc("Override output file for the instrumented program"),
+    llvm::cl::value_desc("file name"), llvm::cl::init(""),
+    llvm::cl::cat{AardwolfCategory});
+
 static llvm::cl::opt<bool>
     NoInstrumentation("disable-instrumentation",
                       llvm::cl::desc("Do not write instrumented bitcode file"),
@@ -80,8 +85,13 @@ int main(int Argc, char **Argv) {
   std::unique_ptr<llvm::ToolOutputFile> Out;
   std::error_code EC;
   // TODO: `aard.instr` should be overridable by command line option.
-  Out.reset(new llvm::ToolOutputFile(OutputDirectory + "/aard.instr.bc", EC,
-                                     llvm::sys::fs::OF_None));
+
+  std::string InstrumentedFile(OutputFilename.getValue());
+  if (InstrumentedFile.empty()) {
+    InstrumentedFile = "instrumented." + InputFilename.getValue();
+  }
+  Out.reset(new llvm::ToolOutputFile(OutputDirectory + "/" + InstrumentedFile,
+                                     EC, llvm::sys::fs::OF_None));
   if (EC) {
     llvm::errs() << "Error writing to output directory: " << EC.message()
                  << '\n';
