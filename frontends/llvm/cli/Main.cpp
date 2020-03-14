@@ -84,7 +84,6 @@ int main(int Argc, char **Argv) {
 
   std::unique_ptr<llvm::ToolOutputFile> Out;
   std::error_code EC;
-  // TODO: `aard.instr` should be overridable by command line option.
 
   std::string InstrumentedFile(OutputFilename.getValue());
   if (InstrumentedFile.empty()) {
