@@ -15,14 +15,18 @@ llvm::IntegerType *getStmtRefTy(llvm::LLVMContext &Ctx) {
   return llvm::Type::getInt64Ty(Ctx);
 }
 
+llvm::IntegerType *getFileRefTy(llvm::LLVMContext &Ctx) {
+  return llvm::Type::getInt64Ty(Ctx);
+}
+
 llvm::FunctionCallee getWriteStmtTracer(llvm::Module &M) {
   auto &Ctx = M.getContext();
 
   auto VoidTy = llvm::Type::getVoidTy(Ctx);
-  auto StmtRefTy = getStmtRefTy(Ctx);
 
   std::vector<llvm::Type *> WriteParams;
-  WriteParams.push_back(StmtRefTy);
+  WriteParams.push_back(getFileRefTy(Ctx));
+  WriteParams.push_back(getStmtRefTy(Ctx));
 
   auto WriteStmtTy = llvm::FunctionType::get(VoidTy, WriteParams, false);
   return M.getOrInsertFunction("aardwolf_write_statement", WriteStmtTy);
@@ -92,10 +96,12 @@ getDefVarTracer(llvm::Module &M, llvm::Instruction *I) {
 
 bool DynamicDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
   auto &Ctx = M.getContext();
+  auto FileRefTy = getFileRefTy(Ctx);
   auto StmtRefTy = getStmtRefTy(Ctx);
 
   auto WriteStmt = getWriteStmtTracer(M);
 
+  std::vector<llvm::Value *> Args;
   llvm::IRBuilder<> Builder(Ctx);
 
   for (auto &F : M) {
@@ -104,9 +110,9 @@ bool DynamicDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
     }
 
     for (auto I : Repo.FuncInstrsMap[&F]) {
-      std::vector<llvm::Value *> Args;
+      Args.clear();
       auto Id = Repo.getStatementId(Repo.InstrStmtMap[I]);
-      Args.push_back(llvm::ConstantInt::get(StmtRefTy, Id.first));
+      Args.push_back(llvm::ConstantInt::get(FileRefTy, Id.first));
       Args.push_back(llvm::ConstantInt::get(StmtRefTy, Id.second));
 
       auto CI = Builder.CreateCall(WriteStmt, Args);
