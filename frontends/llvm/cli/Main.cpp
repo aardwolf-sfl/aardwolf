@@ -40,6 +40,21 @@ static llvm::cl::opt<bool>
                       llvm::cl::desc("Do not write instrumented bitcode file"),
                       llvm::cl::cat{AardwolfCategory});
 
+std::string basename(const std::string &Path) {
+  char Sep = '/';
+
+#ifdef _WIN32
+  Sep = '\\';
+#endif
+
+  size_t i = Path.rfind(Sep, Path.length());
+  if (i != std::string::npos) {
+    return Path.substr(i + 1, Path.length() - i);
+  }
+
+  return Path;
+}
+
 static void process(llvm::Module &M) {
   llvm::ModulePassManager MPM;
   StaticData StaticData(OutputDirectory);
@@ -87,7 +102,7 @@ int main(int Argc, char **Argv) {
 
   std::string InstrumentedFile(OutputFilename.getValue());
   if (InstrumentedFile.empty()) {
-    InstrumentedFile = "instrumented." + InputFilename.getValue();
+    InstrumentedFile = "instrumented." + basename(InputFilename.getValue());
   }
   Out.reset(new llvm::ToolOutputFile(OutputDirectory + "/" + InstrumentedFile,
                                      EC, llvm::sys::fs::OF_None));
