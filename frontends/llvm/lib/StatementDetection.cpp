@@ -6,6 +6,7 @@
 
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -108,6 +109,18 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     } else {
       return std::make_shared<Access>(Access::makeArrayLike(*B, A));
     }
+  } else if (auto CE = llvm::dyn_cast<llvm::ConstantExpr>(U)) {
+    // Assignment of a constant to a static array with compile-time known index.
+    if (CE->isGEPWithNoNotionalOverIndexing()) {
+      std::vector<Access> Empty;
+      auto B = getValueAccess(llvm::dyn_cast<llvm::User>(CE->getOperand(0)));
+
+      if (B != nullptr) {
+        return std::make_shared<Access>(Access::makeArrayLike(*B, Empty));
+      }
+    }
+
+    return nullptr;
   } else if (auto LI = llvm::dyn_cast<llvm::LoadInst>(U)) {
     if (LI->getType()->isPointerTy()) {
       // Dereferencing a pointer. Treat it like array[0] because we do not have
