@@ -265,13 +265,13 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
             self.stack_frames.pop();
         }
 
-        // FIXME: This will not work with things like operator overloading, when a custom function is called
-        //        but it cannot be determined using static analysis in the frontend for some reason
-        //        (especially true for dynamic languages). But we should be able to determine a call
-        //        by looking at the next statement - the statement is a call if the next one is not the statement's successor.
-        if stmt.is_call() {
-            // Initialize new stack frame which will be used in the called function.
-            self.stack_frames.push(StackFrame::new());
+        // We cannot use just stmt.is_call() because static analysis in some cases would not detect
+        // that the statement is call, especially in dynamic languages.
+        if let Some(next_stmt) = self.trace.peek() {
+            if !stmt.is_succ(next_stmt) {
+                // Initialize new stack frame which will be used in the called function.
+                self.stack_frames.push(StackFrame::new());
+            }
         }
 
         self.next_items.pop_front()

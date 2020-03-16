@@ -477,6 +477,10 @@ impl Statement {
         self.succ.len() > 1
     }
 
+    pub fn is_succ(&self, stmt: &Statement) -> bool {
+        self.succ.iter().any(|succ| succ == &stmt.id)
+    }
+
     pub fn has_meta(&self) -> bool {
         self.metadata != 0
     }
