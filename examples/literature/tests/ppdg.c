@@ -16,28 +16,42 @@
     } \
 }
 
-void test_all_positive()
+void test_pass1()
 {
-    int values[] = {1, 2, 3};
-    TEST("all positive", values, 3);
+    int values[] = {1};
+    TEST("test 1", values, 1);
 }
 
-void test_mixed()
+void test_pass2()
 {
-    int values[] = {1, -2, 3};
-    TEST("mixed", values, 3);
+    int values[] = {1, -1};
+    TEST("test 2", values, 1);
 }
 
-void test_all_negative()
+void test_pass3()
 {
-    int values[] = {-1, -2, -3};
-    TEST("all negative", values, -1);
+    int values[] = {-1, 1};
+    TEST("test 3", values, 1);
+}
+
+void test_pass4()
+{
+    int values[] = {0};
+    TEST("test 4", values, 0);
+}
+
+void test_fail1()
+{
+    int values[] = {-1};
+    TEST("test 5", values, -1);
 }
 
 int main()
 {
-    test_all_positive();
-    test_mixed();
-    test_all_negative();
+    test_pass1();
+    test_pass2();
+    test_pass3();
+    test_pass4();
+    test_fail1();
     return 0;
 }
