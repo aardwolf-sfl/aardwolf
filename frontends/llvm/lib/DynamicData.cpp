@@ -130,11 +130,17 @@ bool DynamicDataBase::runBase(llvm::Module &M, StatementRepository &Repo) {
 
         auto WriteVar = WriteVarOptional.value();
         auto CI = Builder.CreateCall(WriteVar.first, WriteVar.second);
-        // Instruction is a store or function call, it is not a terminator.
-        // Moreover, in case of function call, it is the value returned by the
-        // function, therefore, it needs to be printed *after* the execution of
-        // the instruction.
-        CI->insertAfter(I);
+
+        if (I->isTerminator()) {
+          // Instruction is terminator, we need to place the tracing call before
+          // it.
+          CI->insertBefore(I);
+        } else {
+          // Instruction is not a terminator, so we can put the tracing call
+          // after it. In case of function call, it is even required since we
+          // dump the output of the call.
+          CI->insertAfter(I);
+        }
       } else if (Repo.InstrStmtMap[I].Out == nullptr) {
         // TODO: Forgotten var trace.
       }

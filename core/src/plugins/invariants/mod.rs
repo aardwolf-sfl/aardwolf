@@ -85,10 +85,6 @@ impl AardwolfPlugin for Invariants {
                         // NOTE: Could be configurable to disable args, calls, etc.
                         if item.stmt.is_arg() {
                             rationale.add_text("The value of this argument violates some invariants inferred from passing runs.");
-                        } else if item.stmt.is_ret() {
-                            rationale.add_text(
-                                "The return value violates some invariants inferred from passing runs.",
-                            );
                         } else if item.stmt.is_call() {
                             rationale.add_text("The result of this function call violates some invariants inferred from passing runs.");
                         } else {

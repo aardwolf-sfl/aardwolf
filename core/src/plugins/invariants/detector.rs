@@ -18,14 +18,23 @@ impl<'data> Stats<'data> {
         }
     }
 
-    pub fn learn(&mut self, access: &'data Access, data: &'data VariableData, test: &'data TestName) {
+    pub fn learn(
+        &mut self,
+        access: &'data Access,
+        data: &'data VariableData,
+        test: &'data TestName,
+    ) {
         self.samples.insert(test);
 
         let view = AccessView::new(access);
         self.data.entry(view).or_default().learn(data, test);
     }
 
-    pub fn check(&self, data: &'data VariableData, access: &'data Access) -> Vec<InvariantInfo<'data>> {
+    pub fn check(
+        &self,
+        data: &'data VariableData,
+        access: &'data Access,
+    ) -> Vec<InvariantInfo<'data>> {
         let view = AccessView::new(access);
 
         if let Some(state) = self.data.get(&view) {
