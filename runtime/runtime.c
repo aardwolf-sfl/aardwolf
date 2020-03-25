@@ -151,3 +151,8 @@ void aardwolf_write_data_f64(double value)
 {
     __aardwolf_write_data(TOKEN_DATA_F64, &value, sizeof(double));
 }
+
+void aardwolf_write_data_bool(uint8_t value)
+{
+    __aardwolf_write_data(TOKEN_DATA_BOOL, &value, sizeof(uint8_t));
+}

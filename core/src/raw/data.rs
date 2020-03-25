@@ -267,6 +267,7 @@ pub enum VariableData {
     Signed(DataHolder<i64>),
     Unsigned(DataHolder<u64>),
     Floating(DataHolder<FpWrapper>),
+    Boolean(bool),
 }
 
 impl VariableData {
@@ -286,12 +287,17 @@ impl VariableData {
         VariableData::Floating(value.into())
     }
 
+    pub fn boolean(value: bool) -> Self {
+        VariableData::Boolean(value)
+    }
+
     pub fn get_type(&self) -> VariableDataType {
         match self {
             VariableData::Unsupported => VariableDataType::Unsupported,
             VariableData::Signed(value) => VariableDataType::Signed(value.width),
             VariableData::Unsigned(value) => VariableDataType::Unsigned(value.width),
             VariableData::Floating(value) => VariableDataType::Floating(value.width),
+            VariableData::Boolean(_) => VariableDataType::Boolean,
         }
     }
 
@@ -301,6 +307,7 @@ impl VariableData {
             VariableData::Signed(value) => **value == 0,
             VariableData::Unsigned(value) => **value == 0,
             VariableData::Floating(value) => ***value == 0.0,
+            VariableData::Boolean(value) => !value,
         }
     }
 
@@ -338,6 +345,13 @@ impl VariableData {
             _ => None,
         }
     }
+
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            VariableData::Boolean(value) => Some(*value),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for VariableData {
@@ -347,6 +361,7 @@ impl fmt::Display for VariableData {
             VariableData::Signed(value) => write!(f, "{}", **value),
             VariableData::Unsigned(value) => write!(f, "{}", **value),
             VariableData::Floating(value) => write!(f, "{}", ***value),
+            VariableData::Boolean(value) => write!(f, "{}", value),
         }
     }
 }
@@ -358,6 +373,7 @@ impl PartialOrd for VariableData {
             (VariableData::Signed(lhs), VariableData::Signed(rhs)) => lhs.partial_cmp(rhs),
             (VariableData::Unsigned(lhs), VariableData::Unsigned(rhs)) => lhs.partial_cmp(rhs),
             (VariableData::Floating(lhs), VariableData::Floating(rhs)) => lhs.partial_cmp(rhs),
+            (VariableData::Boolean(lhs), VariableData::Boolean(rhs)) => lhs.partial_cmp(rhs),
             _ => None,
         }
     }
@@ -369,6 +385,7 @@ pub enum VariableDataType {
     Signed(u8),
     Unsigned(u8),
     Floating(u8),
+    Boolean,
 }
 
 impl VariableDataType {
@@ -396,6 +413,13 @@ impl VariableDataType {
     pub fn is_numeric(&self) -> bool {
         self.is_signed() || self.is_unsigned() || self.is_floating()
     }
+
+    pub fn is_boolean(&self) -> bool {
+        match self {
+            VariableDataType::Boolean => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for VariableDataType {
@@ -407,6 +431,7 @@ impl fmt::Display for VariableDataType {
             VariableDataType::Floating(32) => write!(f, "float"),
             VariableDataType::Floating(64) => write!(f, "double"),
             VariableDataType::Floating(width) => write!(f, "{}-bit floating point", width),
+            VariableDataType::Boolean => write!(f, "boolean"),
         }
     }
 }
@@ -647,6 +672,7 @@ impl fmt::Debug for VariableData {
             VariableData::Signed(value) => write!(f, "{}: i{}", **value, value.width),
             VariableData::Unsigned(value) => write!(f, "{}: u{}", **value, value.width),
             VariableData::Floating(value) => write!(f, "{}: f{}", **value, value.width),
+            VariableData::Boolean(value) => write!(f, "{}: boolean", value),
         }
     }
 }

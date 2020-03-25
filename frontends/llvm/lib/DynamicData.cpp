@@ -77,6 +77,8 @@ getDefVarTracer(llvm::Module &M, llvm::Instruction *I) {
     Name = "aardwolf_write_data_f32";
   } else if (ValueTy->isDoubleTy()) {
     Name = "aardwolf_write_data_f64";
+  } else if (ValueTy->isIntegerTy(1)) {
+    Name = "aardwolf_write_data_bool";
   }
 
   if (Name.empty()) {

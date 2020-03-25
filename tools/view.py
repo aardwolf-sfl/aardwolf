@@ -31,6 +31,7 @@ TOKEN_DATA_U32 = b'\x17'
 TOKEN_DATA_U64 = b'\x18'
 TOKEN_DATA_F32 = b'\x19'
 TOKEN_DATA_F64 = b'\x20'
+TOKEN_DATA_BOOL = b'\x21'
 
 def read_stmt(f):
     file_id = struct.unpack('Q', f.read(8))[0]
@@ -66,6 +67,9 @@ def read_f32(f):
 
 def read_f64(f):
     return struct.unpack('d', f.read(8))[0]
+
+def read_bool(f):
+    return struct.unpack('B', f.read(1))[0] > 0
 
 def read_cstr(f):
     result = ''
@@ -166,6 +170,7 @@ def get_dynamic_handlers():
         TOKEN_DATA_U64: _prepend('u64', read_u64),
         TOKEN_DATA_F32: _prepend('f32', read_f32),
         TOKEN_DATA_F64: _prepend('f64', read_f64),
+        TOKEN_DATA_BOOL: _prepend('bool', read_bool),
     }
 
 def parse(f):

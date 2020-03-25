@@ -25,6 +25,7 @@ const TOKEN_DATA_U32: u8 = 0x17;
 const TOKEN_DATA_U64: u8 = 0x18;
 const TOKEN_DATA_F32: u8 = 0x19;
 const TOKEN_DATA_F64: u8 = 0x20;
+const TOKEN_DATA_BOOL: u8 = 0x21;
 
 pub enum ParseError {
     UnexpectedByte,
@@ -162,6 +163,9 @@ impl<'data, R: BufRead> DataParser<'data, R> {
                 }
                 TOKEN_DATA_F64 => {
                     trace.push(TraceItem::Data(VariableData::floating(self.parse_f64()?)))
+                }
+                TOKEN_DATA_BOOL => {
+                    trace.push(TraceItem::Data(VariableData::boolean(self.parse_boolean()?)))
                 }
                 _ => return Err(ParseError::UnexpectedByte),
             }
@@ -306,6 +310,12 @@ impl<'data, R: BufRead> DataParser<'data, R> {
         let mut buf = [0; 8];
         self.source.read_exact(&mut buf).map_err(ParseError::from)?;
         Ok(f64::from_ne_bytes(buf))
+    }
+
+    fn parse_boolean(&mut self) -> Result<bool, ParseError> {
+        let mut buf = [0; 1];
+        self.source.read_exact(&mut buf).map_err(ParseError::from)?;
+        Ok(buf[0] > 0)
     }
 
     fn parse_cstr(&mut self) -> Result<String, ParseError> {
