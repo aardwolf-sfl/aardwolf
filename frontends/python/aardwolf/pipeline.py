@@ -2,12 +2,13 @@ import ast
 import symtable
 import os
 
-from .static_data import StaticDataAnalyzer
-from .dynamic_data import DynamicDataInstrumenter
+from .analysis import Analysis
+from .static_data import StaticData
 
 def _process(tree, symbols, outdir, filename):
-    StaticDataAnalyzer(symbols, outdir, filename).visit(tree)
-    tree = DynamicDataInstrumenter().visit(tree)
+    analysis = Analysis(symbols, filename)
+    analysis.visit(tree)
+    StaticData(analysis).write(outdir)
     return tree
 
 def process_str(source, outdir=None, filename='<string>', mode='exec'):

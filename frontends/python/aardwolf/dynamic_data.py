@@ -1,4 +1,4 @@
 import ast
 
-class DynamicDataInstrumenter(ast.NodeTransformer):
+class Instrumenter(ast.NodeTransformer):
     pass
