@@ -1,7 +1,8 @@
 import sys
 import os
+import types
 
-from importlib import invalidate_caches
+from importlib import invalidate_caches, reload
 from importlib.abc import Loader, MetaPathFinder
 from importlib.util import spec_from_file_location, find_spec
 from importlib.machinery import SourceFileLoader
@@ -86,8 +87,13 @@ class PackageError(Exception):
 
 
 def install(package, outdir=None):
-    # Try to get the specification for the package.
-    spec = find_spec(package)
+    if isinstance(package, str):
+        # Try to get the specification for the package.
+        spec = find_spec(package)
+        reload_package = False
+    elif isinstance(package, types.ModuleType):
+        spec = find_spec(package.__name__)
+        reload_package = True
 
     if spec is None:
         raise PackageError.not_found(package)
@@ -98,4 +104,7 @@ def install(package, outdir=None):
         raise PackageError.no_source(package)
 
     # Insert Aardwolf finder to the beginning of meta_path.
-    sys.meta_path.insert(0, AardwolfMetaFinder(package, outdir))
+    sys.meta_path.insert(0, AardwolfMetaFinder(spec.name, outdir))
+
+    if reload_package:
+        reload(package)
