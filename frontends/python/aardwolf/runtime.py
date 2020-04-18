@@ -10,7 +10,7 @@ def _init_if_needed():
     global WRITER
     if WRITER is None:
         WRITER = Writer(os.path.join(os.environ.get(
-            'AARDWOLF_DATA_DEST', os.getcwd()), 'aard.trace'))
+            DATA_DEST, os.getcwd()), 'aard.trace'))
         WRITER.write_str('AARD/D1')
 
 
