@@ -14,9 +14,3 @@ plugins:
   - sbfl: sbfl-tarantula
     options:
       metric: tarantula
-  - prob-graph
-  - invariants
-  - collect-bb: "sbfl-dstar collected"
-    options:
-      for: sbfl-dstar
-  - irrelevant

@@ -1,9 +1,9 @@
 from datetime import datetime
-import maintenance
-from maintenance import Entity, process
 
 import aardwolf
-aardwolf.install(maintenance, '.aardwolf')
+aardwolf.install('maintenance', '.aardwolf')  # nopep8
+
+from maintenance import Entity, process
 
 
 def make_standardized(standard, name):

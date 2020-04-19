@@ -62,8 +62,12 @@ impl<'data> FromRawData<'data> for Tests<'data> {
         for item in data.dynamic_data.trace.iter() {
             match item {
                 TraceItem::Statement(id) => {
-                    // Stmts are built from dynamic trace so a statement with this id certainly exists.
-                    trace.push(stmts.get(id).unwrap());
+                    // Even though stmts are built from dynamic trace as well,
+                    // traced statements without accompanied "external" element
+                    // are discarded from it.
+                    if let Some(id) = stmts.get(id) {
+                        trace.push(id);
+                    }
                 }
                 TraceItem::External(new_test) => {
                     if let Some(test) = test {

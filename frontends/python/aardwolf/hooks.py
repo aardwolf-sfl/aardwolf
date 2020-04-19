@@ -92,6 +92,8 @@ def install(package, outdir=None):
         spec = find_spec(package)
         reload_package = False
     elif isinstance(package, types.ModuleType):
+        # IMPORTANT: Reloading does not reload previously imported objects using
+        # from <module> import <object>
         spec = find_spec(package.__name__)
         reload_package = True
 
