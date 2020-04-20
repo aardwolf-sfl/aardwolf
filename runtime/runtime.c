@@ -156,3 +156,13 @@ void aardwolf_write_data_bool(uint8_t value)
 {
     __aardwolf_write_data(TOKEN_DATA_BOOL, &value, sizeof(uint8_t));
 }
+
+void aardwolf_write_data_named(const char *value)
+{
+    __aardwolf_write_data(TOKEN_DATA_NAMED, value, sizeof(char) * (strlen(value) + 1));
+}
+
+void aardwolf_write_data_null()
+{
+    __aardwolf_write_data(TOKEN_DATA_NULL, NULL, 0);
+}

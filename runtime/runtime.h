@@ -17,6 +17,8 @@
 #define TOKEN_DATA_F32 0x19
 #define TOKEN_DATA_F64 0x20
 #define TOKEN_DATA_BOOL 0x21
+#define TOKEN_DATA_NAMED 0x28
+#define TOKEN_DATA_NULL 0x29
 
 typedef uint64_t file_ref_t;
 typedef uint64_t statement_ref_t;
@@ -53,6 +55,8 @@ void aardwolf_write_data_u64(uint64_t value);
 void aardwolf_write_data_f32(float value);
 void aardwolf_write_data_f64(double value);
 void aardwolf_write_data_bool(uint8_t value);
+void aardwolf_write_data_named(const char *value);
+void aardwolf_write_data_null();
 // TODO: Others
 
 #endif // AARDWOLF_RUNTIME_H
