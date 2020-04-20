@@ -2,10 +2,10 @@
 #include "StatementDetection.h"
 #include "StaticData.h"
 
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/IR/LegacyPassManager.h"
 
 using namespace aardwolf;
 

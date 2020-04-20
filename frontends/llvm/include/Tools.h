@@ -1,10 +1,10 @@
 #ifndef AARDWOLF_TOOLS_H
 #define AARDWOLF_TOOLS_H
 
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 namespace aardwolf {
 

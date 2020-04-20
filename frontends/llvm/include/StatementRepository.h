@@ -28,7 +28,8 @@ public:
 
   // Mapping from aardwolf statements (represented by llvm instructions
   // themselves) to assigned numeric id.
-  std::unordered_map<const llvm::Instruction *, std::pair<uint64_t, uint64_t>> StmtsIdMap;
+  std::unordered_map<const llvm::Instruction *, std::pair<uint64_t, uint64_t>>
+      StmtsIdMap;
 
   // Mapping from llvm values (used for variables) to assigned numeric id.
   std::unordered_map<const llvm::Value *, uint64_t> ValuesIdMap;

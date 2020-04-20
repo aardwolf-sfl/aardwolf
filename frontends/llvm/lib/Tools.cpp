@@ -1,9 +1,9 @@
 #include "Tools.h"
 
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #include "Exceptions.h"
 
@@ -53,8 +53,8 @@ uint64_t aardwolf::getFileUniqueId(const std::string &File) {
 #endif
 
 #ifdef unix
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 uint64_t aardwolf::getFileUniqueId(const std::string &File) {
