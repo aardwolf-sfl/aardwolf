@@ -1,0 +1,13 @@
+diff --git a/examples/python/maintenance/__init__.py b/examples/python/maintenance/__init__.py
+index c39f3a9..dfff31a 100644
+--- a/examples/python/maintenance/__init__.py
++++ b/examples/python/maintenance/__init__.py
+@@ -52,7 +52,7 @@ class Entity:
+         return counter >= self.tasks_threshold
+ 
+     def prioritized_tasks(self):
+-        if self.waiting_ >= self.waiting_threshold:
++        if self.waiting_ >= self.tasks_threshold:
+             self.waiting_ = 0
+             return self.tasks_
+         else:

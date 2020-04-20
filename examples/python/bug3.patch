@@ -1,0 +1,15 @@
+diff --git a/examples/python/maintenance/__init__.py b/examples/python/maintenance/__init__.py
+index c39f3a9..c678030 100644
+--- a/examples/python/maintenance/__init__.py
++++ b/examples/python/maintenance/__init__.py
+@@ -44,9 +44,7 @@ class Entity:
+             return True
+ 
+         for task in self.tasks_:
+-            if task.priority_ == 0:
+-                return True
+-            elif task.priority_ < self.priority_threshold:
++            if task.priority_ < self.priority_threshold:
+                 counter += 1
+ 
+         return counter >= self.tasks_threshold
