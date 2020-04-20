@@ -1,7 +1,7 @@
 import sys
 
 from .view import parse as parse_file
-from .test import run_driver
+from .test import run_driver, find_tests
 
 __version__ = "0.1.0"
 

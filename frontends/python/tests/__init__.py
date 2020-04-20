@@ -38,4 +38,9 @@ def process(filename):
     return parsed
 
 
-aardwolf_tools.run_driver(test_files=find_tests(), process_source=process)
+root = os.path.realpath(os.path.dirname(__file__))
+
+aardwolf_tools.run_driver(
+    test_files=aardwolf_tools.find_tests(root, '.py', ignore=['__init__.py']),
+    process_source=process,
+    annotations_prefix='# ')

@@ -1,5 +1,11 @@
 # General for C/C++ projects
 build
+*.o
+
+# General for Python projects
+__pycache__/
+pip-wheel-metadata
+*.egg-info
 
 # General for Rust projects
 target/

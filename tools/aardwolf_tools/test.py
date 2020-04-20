@@ -4,8 +4,23 @@ import re
 import difflib
 
 
-def extract_annotations(filename):
-    prefix = '# AARD: '
+def find_tests(root, extension, ignore=None):
+    if ignore is None:
+        ignore = []
+
+    tests = []
+    for filename in os.listdir(root):
+        fullpath = os.path.join(root, filename)
+        _, ext = os.path.splitext(filename)
+
+        if os.path.isfile(fullpath) and ext == extension and filename not in ignore:
+            tests.append(fullpath)
+
+    return tests
+
+
+def extract_annotations(filename, annotations_prefix):
+    prefix = annotations_prefix + 'AARD: '
 
     with open(filename) as fh:
         annotations = []
@@ -14,7 +29,7 @@ def extract_annotations(filename):
             if line.startswith(prefix):
                 annotations.append(line[len(prefix):])
 
-            if line.startswith('# AARD: SKIP'):
+            if line.startswith(annotations_prefix + 'AARD: SKIP'):
                 return None
 
         return ''.join(annotations)[:-1]
@@ -41,7 +56,7 @@ def compare(actual, expected):
     return diff == '', diff
 
 
-def run_driver(test_files, process_source):
+def run_driver(test_files, process_source, annotations_prefix):
     passed = 0
     failed = 0
     skipped = 0
@@ -53,7 +68,7 @@ def run_driver(test_files, process_source):
         basename = os.path.basename(filename)
 
         actual = normalize_data(process_source(filename))
-        expected = extract_annotations(filename)
+        expected = extract_annotations(filename, annotations_prefix)
 
         if expected is None:
             skipped += 1
