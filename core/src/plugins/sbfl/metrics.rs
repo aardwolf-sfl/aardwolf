@@ -38,14 +38,50 @@ impl Metric for DStar {
     }
 }
 
+fn jaccard(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
+    aef / (aef + anf + aep + SAFE_DENOMINATOR)
+}
+
+fn op(aep: f32, anp: f32, aef: f32, _anf: f32) -> f32 {
+    aef - aep / (aep + anp + SAFE_DENOMINATOR)
+}
+
 fn ochiai(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
     aef / (((aef + anf) * (aef + aep)).sqrt() + SAFE_DENOMINATOR)
+}
+
+fn overlap(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
+    fn min(a: f32, b: f32, c: f32) -> f32 {
+        if a <= b {
+            if a <= c {
+                a
+            } else {
+                c
+            }
+        } else {
+            if b <= c {
+                b
+            } else {
+                c
+            }
+        }
+    }
+
+    aef / (min(aef, anf, aep) + SAFE_DENOMINATOR)
 }
 
 fn tarantula(aep: f32, anp: f32, aef: f32, anf: f32) -> f32 {
     let expr1 = aef / (aef + anf + SAFE_DENOMINATOR);
     let expr2 = aep / (aep + anp + SAFE_DENOMINATOR);
     expr1 / (expr1 + expr2 + SAFE_DENOMINATOR)
+}
+
+fn wong1(_aep: f32, _anp: f32, aef: f32, _anf: f32) -> f32 {
+    aef
+}
+
+fn zoltar(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
+    aef / (aef + anf + aep + (10_000.0 * anf * aep / (aef + SAFE_DENOMINATOR))) + SAFE_DENOMINATOR
 }
 
 pub fn from_opts(opts: &HashMap<String, Yaml>) -> Result<Box<dyn Metric>, PluginInitError> {
@@ -75,8 +111,13 @@ pub fn from_opts(opts: &HashMap<String, Yaml>) -> Result<Box<dyn Metric>, Plugin
                 wrap!(DStar::default())
             }
         }
+        Some("jaccard") => wrap!(jaccard),
+        Some("op") => wrap!(op),
         Some("ochiai") => wrap!(ochiai),
+        Some("overlap") => wrap!(overlap),
         Some("tarantula") => wrap!(tarantula),
+        Some("wong1") => wrap!(wong1),
+        Some("zoltar") => wrap!(zoltar),
         None => wrap!(DStar::default()),
         Some(unknown) => Err(format!("Unknown metric '{}'.", unknown)),
     }
