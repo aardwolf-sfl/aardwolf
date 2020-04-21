@@ -4,9 +4,9 @@ script:
   # Do all the stuff inside output directory
   - cd ${OUTPUT_DIR}
   # Analyse, instrument and compile sources
-  - clang -Xclang -load -Xclang ${FRONTEND} -c -g -o maintenance.o ../src/*.c
+  - clang -Xclang -load -Xclang ${AARDWOLF_DIR}/libAardwolfLLVM.so -c -g -o maintenance.o ../src/*.c
   # Compile test runner and link it with the compiled source
-  - clang -o run ../tests/test.c maintenance.o ${RUNTIME_LIB}
+  - clang -o run ../tests/test.c maintenance.o ${AARDWOLF_DIR}/libaardwolf_runtime.a
   # Execute the test runner
   - ./run > ${RESULT_FILE}
 

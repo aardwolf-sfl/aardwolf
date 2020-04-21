@@ -28,21 +28,6 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("runtime")
-                .short("r")
-                .long("runtime")
-                .value_name("FILE")
-                .help("")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("frontend")
-                .long("frontend")
-                .value_name("EXECUTABLE")
-                .help("")
-                .takes_value(true),
-        )
-        .arg(
             Arg::with_name("ui")
                 .long("ui")
                 .takes_value(true)
@@ -51,24 +36,18 @@ fn main() {
         )
         .get_matches();
 
-    let args = DriverArgs::new(
-        matches
-            .value_of("runtime")
-            // Default path to runtime library expects it to be in a system path.
-            .unwrap_or("libaardwolf_runtime.a"),
-    )
-    .with_config_path(matches.value_of("config"))
-    .with_frontend_path(matches.value_of("frontend"))
-    .with_ui(
-        matches
-            .value_of("ui")
-            .map(|ui| match ui {
-                "cli" => UiName::Cli,
-                "json" => UiName::Json,
-                _ => unreachable!(),
-            })
-            .unwrap_or_default(),
-    );
+    let args = DriverArgs::new()
+        .with_config_path(matches.value_of("config"))
+        .with_ui(
+            matches
+                .value_of("ui")
+                .map(|ui| match ui {
+                    "cli" => UiName::Cli,
+                    "json" => UiName::Json,
+                    _ => unreachable!(),
+                })
+                .unwrap_or_default(),
+        );
 
     Driver::run(&args);
 }

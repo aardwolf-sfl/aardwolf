@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs::{self, File};
-use std::io::{BufReader, Write};
+use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
@@ -26,55 +26,35 @@ pub const DEFAULT_SHELL: &'static str = "bash";
 pub struct DriverPaths {
     pub output_dir: PathBuf,
     pub work_dir: PathBuf,
-    pub runtime_lib: PathBuf,
-    pub frontend: PathBuf,
+    pub aardwolf_dir: PathBuf,
     pub trace_file: PathBuf,
     pub result_file: PathBuf,
 }
 
 impl DriverPaths {
-    pub fn new<P1: AsRef<Path>, P2: AsRef<Path>>(
-        config: &Config,
-        config_path: P1,
-        args: &DriverArgs<P2>,
-    ) -> Self {
+    pub fn new<P: AsRef<Path>>(config: &Config, config_path: P) -> io::Result<Self> {
         let output_dir = config_path.as_ref().join(&config.output_dir);
+        let current_exe = env::current_exe()?;
 
-        DriverPaths {
+        Ok(DriverPaths {
             trace_file: output_dir.join(TRACE_FILE),
             result_file: output_dir.join(RESULT_FILE),
             output_dir,
             work_dir: config_path.as_ref().to_path_buf(),
-            runtime_lib: args
-                .runtime_path
-                .as_ref()
-                // FIXME: Handle canonicalization error.
-                .canonicalize()
-                .unwrap()
-                .to_path_buf(),
-            frontend: args
-                .frontend_path
-                .as_ref()
-                // FIXME: Handle canonicalization error.
-                .map(|path| path.as_ref().canonicalize().unwrap().to_path_buf())
-                .unwrap_or_default(),
-        }
+            aardwolf_dir: current_exe.parent().unwrap().to_path_buf(),
+        })
     }
 }
 
 pub struct DriverArgs<P: AsRef<Path>> {
-    runtime_path: P,
     config_path: Option<P>,
-    frontend_path: Option<P>,
     ui: UiName,
 }
 
 impl<P: AsRef<Path>> DriverArgs<P> {
-    pub fn new(runtime_path: P) -> Self {
+    pub fn new() -> Self {
         DriverArgs {
-            runtime_path: runtime_path,
             config_path: None,
-            frontend_path: None,
             ui: UiName::default(),
         }
     }
@@ -82,13 +62,6 @@ impl<P: AsRef<Path>> DriverArgs<P> {
     pub fn with_config_path(self, config_path: Option<P>) -> Self {
         Self {
             config_path,
-            ..self
-        }
-    }
-
-    pub fn with_frontend_path(self, frontend_path: Option<P>) -> Self {
-        Self {
-            frontend_path,
             ..self
         }
     }
@@ -132,7 +105,7 @@ pub struct Driver;
 impl Driver {
     pub fn run<P: AsRef<Path>>(args: &DriverArgs<P>) {
         let (config, config_path) = Self::load_config(args.config_path.as_ref()).unwrap();
-        let driver_paths = DriverPaths::new(&config, &config_path, args);
+        let driver_paths = DriverPaths::new(&config, &config_path).unwrap();
 
         fs::create_dir_all(&driver_paths.output_dir).unwrap();
 
@@ -171,8 +144,7 @@ impl Driver {
             .env("OUTPUT_DIR", &driver_paths.output_dir)
             .env("AARDWOLF_DATA_DEST", &driver_paths.output_dir)
             .env("WORK_DIR", &driver_paths.work_dir)
-            .env("RUNTIME_LIB", &driver_paths.runtime_lib)
-            .env("FRONTEND", &driver_paths.frontend)
+            .env("AARDWOLF_DIR", &driver_paths.aardwolf_dir)
             .env("TRACE_FILE", &driver_paths.trace_file)
             .env("RESULT_FILE", &driver_paths.result_file)
             .spawn()

@@ -2,22 +2,7 @@
 
 ## Usage
 
-**Compilation:**
-
-```
-mkdir build && cd build
-cmake ..
-make
-```
-
-**Running:**
-
-```
-clang -c -emit-llvm -g -o source.bc source.c
-opt -load-pass-plugin path/to/libAardwolfLLVM.so -passes=aardwolf-static-data,aardwolf-dynamic-data source.bc > instrumented.bc
-clang -o instrumented instrumented.bc path/to/libaardwolf_runtime.a
-./instrumented
-```
+We refer to [project readme](../../README.md) and corresponding [example](../../examples/c) for the information.
 
 ## Note on coding style
 

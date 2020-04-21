@@ -3,12 +3,9 @@ output_dir: aardwolf
 script:
   - rm -rf ${OUTPUT_DIR}/*
   - make clean
-  - make CC=clang CFLAGS='-g -O0 -Xclang -load -Xclang ${FRONTEND}' LDFLAGS=${RUNTIME_LIB}
-  - AARDWOLF_EXTERNAL=../../../runtime/build/aardwolf_external make test > ${RESULT_FILE}
+  - make CC=clang CFLAGS='-g -O0 -Xclang -load -Xclang ${AARDWOLF_DIR}/libAardwolfLLVM.so' LDFLAGS=${AARDWOLF_DIR}/libaardwolf_runtime.a
+  - AARDWOLF_EXTERNAL=${AARDWOLF_DIR}/aardwolf_external make test > ${RESULT_FILE}
 
 plugins:
   - sbfl
   - prob-graph
-
-# runtime: bare
-# frontend: llvm-clang

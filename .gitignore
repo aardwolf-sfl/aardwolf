@@ -3,6 +3,7 @@ build
 *.o
 
 # General for Python projects
+dist/
 __pycache__/
 pip-wheel-metadata
 *.egg-info
