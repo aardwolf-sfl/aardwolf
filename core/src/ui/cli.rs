@@ -6,6 +6,7 @@ use unicode_width::UnicodeWidthChar;
 
 use super::Ui;
 use crate::api::Api;
+use crate::data::statement::Loc;
 use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
 
 const NEWLINE: &'static str = "\n";
@@ -114,7 +115,7 @@ impl<'data> CliUi<'data> {
             self.write(" --> ");
 
             self.bold();
-            self.write(anchor.to_string(self.api));
+            self.write_loc(anchor);
             self.reset_style();
         }
 
@@ -165,6 +166,23 @@ impl<'data> CliUi<'data> {
             bar
         })
     }
+
+    fn write_loc(&mut self, loc: &Loc) {
+        self.write(
+            self.api
+                .get_filepath(&loc.file_id)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+        );
+        self.write(":");
+
+        if loc.line_begin == loc.line_end && loc.col_begin == loc.col_end {
+            self.write(&format!("{}:{}", loc.line_begin, loc.col_begin));
+        } else {
+            self.write(&format!("{}-{}", loc.line_begin, loc.line_end));
+        }
+    }
 }
 
 impl<'data> Ui<'data> for CliUi<'data> {
@@ -201,7 +219,7 @@ impl<'data> Ui<'data> for CliUi<'data> {
 
         self.write("at ");
         self.bold();
-        self.write(item.loc.to_string(self.api));
+        self.write_loc(&item.loc);
         self.reset_style();
         self.write("\twith suspiciousness ");
         self.bold();

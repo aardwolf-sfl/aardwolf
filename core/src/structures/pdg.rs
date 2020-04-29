@@ -4,27 +4,27 @@ use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
 use crate::api::Api;
+use crate::data::{access::AccessChain, statement::Statement, types::FuncName, RawData};
 use crate::graph_ext::DominatorsExt;
-use crate::raw::data::{Data, Statement};
 use crate::structures::{Cfg, FromRawData, FromRawDataError, EXIT};
 
 pub type Pdg<'data> = DiGraph<&'data Statement, EdgeType>;
 
-pub struct Pdgs<'data>(HashMap<&'data str, Pdg<'data>>);
+pub struct Pdgs<'data>(HashMap<FuncName, Pdg<'data>>);
 
 impl<'data> Pdgs<'data> {
-    pub fn get(&'data self, func: &str) -> Option<&'data Pdg<'data>> {
+    pub fn get(&'data self, func: &FuncName) -> Option<&'data Pdg<'data>> {
         self.0.get(func)
     }
 }
 
 impl<'data> FromRawData<'data> for Pdgs<'data> {
-    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
         let cfgs = api.get_cfgs();
 
-        for (func_name, _) in data.static_data.functions.iter() {
-            result.insert(func_name.as_str(), create_pdg(cfgs.get(func_name).unwrap()));
+        for (func_name, _) in data.modules.functions.iter() {
+            result.insert(func_name.clone(), create_pdg(cfgs.get(func_name).unwrap()));
         }
 
         Ok(Pdgs(result))
@@ -106,11 +106,7 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         // It's important to run this before changing the context with statement's defined variables
         // because of statements that use the variables that they also define.
 
-        let vars = self
-            .stmt
-            .uses
-            .iter()
-            .flat_map(|access| access.get_scalars_for_use());
+        let vars = self.stmt.uses.iter().flat_map(AccessChain::from_uses);
 
         for var in vars {
             if let Some(defs) = self.data_ctx.get(&var).map(|defs| defs.iter().copied()) {
@@ -121,11 +117,7 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         }
 
         // For all variables that this statement defines, replace the current definition with this statement.
-        let vars = self
-            .stmt
-            .defs
-            .iter()
-            .flat_map(|access| access.get_scalars_for_def());
+        let vars = self.stmt.defs.iter().flat_map(AccessChain::from_defs);
 
         for var in vars {
             let defs = self.data_ctx.entry(var).or_insert(HashSet::new());
@@ -236,7 +228,7 @@ pub mod tests {
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
-    use crate::raw::data::{Access, Statement, StmtId};
+    use crate::data::{access::Access, statement::Statement, types::StmtId};
     use crate::structures::{ENTRY, EXIT};
 
     pub struct StatementFactory(HashMap<StmtId, Statement>);
@@ -290,45 +282,45 @@ pub mod tests {
         // Example program from "The probabilistic program dependence graph and its application to fault diagnosis"
         let mut cfg = DiGraph::new();
 
-        factory.add_many((1..=10).map(|stmt| (0, stmt)));
+        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
 
         let var_i = 1;
         let var_n = 2;
         let var_max = 3;
         let var_v = 4;
 
-        factory.add_def((0, 1), Access::Scalar(var_i));
-        factory.add_def((0, 2), Access::Scalar(var_n));
-        factory.add_def((0, 3), Access::Scalar(var_max));
-        factory.add_def((0, 5), Access::Scalar(var_v));
-        factory.add_def((0, 7), Access::Scalar(var_max));
-        factory.add_def((0, 8), Access::Scalar(var_i));
+        factory.add_def(StmtId::dummy(1), Access::Scalar(var_i));
+        factory.add_def(StmtId::dummy(2), Access::Scalar(var_n));
+        factory.add_def(StmtId::dummy(3), Access::Scalar(var_max));
+        factory.add_def(StmtId::dummy(5), Access::Scalar(var_v));
+        factory.add_def(StmtId::dummy(7), Access::Scalar(var_max));
+        factory.add_def(StmtId::dummy(8), Access::Scalar(var_i));
 
-        factory.add_use((0, 4), Access::Scalar(var_i));
-        factory.add_use((0, 4), Access::Scalar(var_n));
-        factory.add_use((0, 6), Access::Scalar(var_v));
-        factory.add_use((0, 6), Access::Scalar(var_max));
-        factory.add_use((0, 7), Access::Scalar(var_v));
-        factory.add_use((0, 8), Access::Scalar(var_i));
-        factory.add_use((0, 4), Access::Scalar(var_i));
-        factory.add_use((0, 10), Access::Scalar(var_max));
+        factory.add_use(StmtId::dummy(4), Access::Scalar(var_i));
+        factory.add_use(StmtId::dummy(4), Access::Scalar(var_n));
+        factory.add_use(StmtId::dummy(6), Access::Scalar(var_v));
+        factory.add_use(StmtId::dummy(6), Access::Scalar(var_max));
+        factory.add_use(StmtId::dummy(7), Access::Scalar(var_v));
+        factory.add_use(StmtId::dummy(8), Access::Scalar(var_i));
+        factory.add_use(StmtId::dummy(4), Access::Scalar(var_i));
+        factory.add_use(StmtId::dummy(10), Access::Scalar(var_max));
 
         // Add only successors of predicates which is needed for is_predicate method of the statement.
-        factory.add_succ((0, 4), (0, 5));
-        factory.add_succ((0, 4), (0, 10));
-        factory.add_succ((0, 6), (0, 7));
-        factory.add_succ((0, 6), (0, 8));
+        factory.add_succ(StmtId::dummy(4), StmtId::dummy(5));
+        factory.add_succ(StmtId::dummy(4), StmtId::dummy(10));
+        factory.add_succ(StmtId::dummy(6), StmtId::dummy(7));
+        factory.add_succ(StmtId::dummy(6), StmtId::dummy(8));
 
         let entry = cfg.add_node(ENTRY);
-        let n1 = cfg.add_node(factory.get((0, 1)));
-        let n2 = cfg.add_node(factory.get((0, 2)));
-        let n3 = cfg.add_node(factory.get((0, 3)));
-        let n4 = cfg.add_node(factory.get((0, 4)));
-        let n5 = cfg.add_node(factory.get((0, 5)));
-        let n6 = cfg.add_node(factory.get((0, 6)));
-        let n7 = cfg.add_node(factory.get((0, 7)));
-        let n8 = cfg.add_node(factory.get((0, 8)));
-        let n10 = cfg.add_node(factory.get((0, 10)));
+        let n1 = cfg.add_node(factory.get(StmtId::dummy(1)));
+        let n2 = cfg.add_node(factory.get(StmtId::dummy(2)));
+        let n3 = cfg.add_node(factory.get(StmtId::dummy(3)));
+        let n4 = cfg.add_node(factory.get(StmtId::dummy(4)));
+        let n5 = cfg.add_node(factory.get(StmtId::dummy(5)));
+        let n6 = cfg.add_node(factory.get(StmtId::dummy(6)));
+        let n7 = cfg.add_node(factory.get(StmtId::dummy(7)));
+        let n8 = cfg.add_node(factory.get(StmtId::dummy(8)));
+        let n10 = cfg.add_node(factory.get(StmtId::dummy(10)));
         let exit = cfg.add_node(EXIT);
 
         cfg.add_edge(entry, n1, ());
@@ -355,20 +347,20 @@ pub mod tests {
         let actual = create_pdg(&cfg);
 
         let mut factory = StatementFactory::new();
-        factory.add_many((1..=10).map(|stmt| (0, stmt)));
+        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
 
         let mut expected = DiGraph::new();
 
         let _ = expected.add_node(ENTRY);
-        let n1 = expected.add_node(factory.get((0, 1)));
-        let n2 = expected.add_node(factory.get((0, 2)));
-        let n3 = expected.add_node(factory.get((0, 3)));
-        let n4 = expected.add_node(factory.get((0, 4)));
-        let n5 = expected.add_node(factory.get((0, 5)));
-        let n6 = expected.add_node(factory.get((0, 6)));
-        let n7 = expected.add_node(factory.get((0, 7)));
-        let n8 = expected.add_node(factory.get((0, 8)));
-        let n10 = expected.add_node(factory.get((0, 10)));
+        let n1 = expected.add_node(factory.get(StmtId::dummy(1)));
+        let n2 = expected.add_node(factory.get(StmtId::dummy(2)));
+        let n3 = expected.add_node(factory.get(StmtId::dummy(3)));
+        let n4 = expected.add_node(factory.get(StmtId::dummy(4)));
+        let n5 = expected.add_node(factory.get(StmtId::dummy(5)));
+        let n6 = expected.add_node(factory.get(StmtId::dummy(6)));
+        let n7 = expected.add_node(factory.get(StmtId::dummy(7)));
+        let n8 = expected.add_node(factory.get(StmtId::dummy(8)));
+        let n10 = expected.add_node(factory.get(StmtId::dummy(10)));
         let _ = expected.add_node(EXIT);
 
         expected.add_edge(n1, n4, EdgeType::DataDep);

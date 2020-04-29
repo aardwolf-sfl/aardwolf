@@ -2,12 +2,18 @@ use std::collections::hash_map::{HashMap, Iter, Keys};
 use std::mem;
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TestData, TestName, TestStatus, TraceItem};
+use crate::data::{
+    statement::Statement,
+    tests::{TestStatus, TestSuite},
+    trace::TraceItem,
+    types::TestName,
+    RawData,
+};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Tests<'data> {
-    raw: &'data TestData,
-    traces: HashMap<&'data TestName, Vec<&'data Statement>>,
+    raw: &'data TestSuite,
+    traces: HashMap<TestName, Vec<&'data Statement>>,
 }
 
 impl<'data> Tests<'data> {
@@ -19,7 +25,10 @@ impl<'data> Tests<'data> {
         self.raw.tests.iter()
     }
 
-    pub fn iter_stmts(&'data self, test: &'data TestName) -> Option<impl Iterator<Item = &'data Statement>> {
+    pub fn iter_stmts(
+        &'data self,
+        test: &'data TestName,
+    ) -> Option<impl Iterator<Item = &'data Statement>> {
         self.traces.get(test).map(|stmts| stmts.iter().copied())
     }
 
@@ -51,25 +60,25 @@ impl<'data> Tests<'data> {
 }
 
 impl<'data> FromRawData<'data> for Tests<'data> {
-    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
-        let mut traces = HashMap::with_capacity(data.test_data.tests.len());
+        let mut traces = HashMap::with_capacity(data.test_suite.tests.len());
 
         let mut test = None;
         let mut trace = Vec::new();
 
-        for item in data.dynamic_data.trace.iter() {
+        for item in data.trace.trace.iter() {
             match item {
                 TraceItem::Statement(id) => {
                     // Even though stmts are built from dynamic trace as well,
                     // traced statements without accompanied "external" element
                     // are discarded from it.
-                    if let Some(id) = stmts.get(id) {
+                    if let Some(id) = stmts.get(&id) {
                         trace.push(id);
                     }
                 }
-                TraceItem::External(new_test) => {
+                TraceItem::Test(new_test) => {
                     if let Some(test) = test {
                         // Insert the trace and clear reset the trace variable in one step.
                         traces.insert(test, mem::take(&mut trace));
@@ -79,9 +88,9 @@ impl<'data> FromRawData<'data> for Tests<'data> {
                         traces.clear();
                     }
 
-                    test = Some(new_test);
+                    test = Some(new_test.clone());
                 }
-                TraceItem::Data(_) => {} // Ignore
+                TraceItem::Value(_) => {} // Ignore
             }
         }
 
@@ -91,7 +100,7 @@ impl<'data> FromRawData<'data> for Tests<'data> {
         }
 
         Ok(Tests {
-            raw: &data.test_data,
+            raw: &data.test_suite,
             traces,
         })
     }

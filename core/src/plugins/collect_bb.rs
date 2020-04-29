@@ -7,10 +7,10 @@ use petgraph::{
 use yaml_rust::Yaml;
 
 use crate::api::Api;
+use crate::data::statement::{Loc, Statement};
 use crate::plugins::{
     AardwolfPlugin, LocalizationItem, NormalizedResults, PluginError, PluginInitError, Results,
 };
-use crate::raw::data::{Loc, Statement};
 
 pub struct CollectBb {
     plugin: String,

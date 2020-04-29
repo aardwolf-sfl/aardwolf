@@ -7,7 +7,7 @@ mod tests;
 mod vars;
 
 use crate::api::Api;
-use crate::raw::data::Data;
+use crate::data::RawData;
 
 pub use cfg::{Cfg, Cfgs, ENTRY, EXIT};
 pub use def_use::DefUse;
@@ -22,13 +22,13 @@ pub enum FromRawDataError {
     Inner(String),
 }
 
-// Plugins can register their own high-level data structures that implement this trait.
-// Implementing this trait is the only way how to access the raw data. Plugins themselves
-// must use only registered high-level data structures. Data structure registration is
-// separate call in plugin interface. This design pattern should enforce clean separation
-// of concerns.
+// Plugins can register their own high-level data queries that implement this
+// trait. Implementing this trait is the only way how to access the raw data.
+// Plugins themselves must use only registered high-level data queries. Data
+// structure registration is separate call in plugin interface. This design
+// pattern should enforce clean separation of concerns.
 pub trait FromRawData<'data> {
-    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError>
+    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError>
     where
         Self: Sized;
 }

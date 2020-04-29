@@ -4,7 +4,10 @@ use std::fmt;
 use yaml_rust::Yaml;
 
 use crate::api::Api;
-use crate::raw::data::{Loc, Statement, TestName, StmtId};
+use crate::data::{
+    statement::{Loc, Statement},
+    types::{StmtId, TestName},
+};
 
 pub mod collect_bb;
 pub mod invariants;
@@ -12,18 +15,18 @@ pub mod irrelevant;
 pub mod prob_graph;
 pub mod sbfl;
 
-pub struct IrrelevantItems<'data> {
+pub struct IrrelevantItems {
     // Store relevant items and remove them if they are marked as irrelevant.
     pub stmts: HashSet<StmtId>,
-    pub tests: HashSet<&'data TestName>,
+    pub tests: HashSet<TestName>,
 }
 
-impl<'data> IrrelevantItems<'data> {
+impl<'data> IrrelevantItems {
     pub fn new(api: &'data Api<'data>) -> Self {
         // By default, all items are relevant.
         IrrelevantItems {
             stmts: api.get_stmts().iter_ids().copied().collect(),
-            tests: api.get_tests().iter_names().collect(),
+            tests: api.get_tests().iter_names().cloned().collect(),
         }
     }
 
@@ -295,7 +298,7 @@ pub trait AardwolfPlugin {
     fn run_pre<'data, 'out>(
         &'out self,
         _api: &'data Api<'data>,
-        _irrelevant: &'out mut IrrelevantItems<'data>,
+        _irrelevant: &'out mut IrrelevantItems,
     ) -> Result<(), PluginError> {
         Ok(())
     }
@@ -304,7 +307,7 @@ pub trait AardwolfPlugin {
         &self,
         _api: &'data Api<'data>,
         _results: &'param mut Results<'data>,
-        _irrelevant: &'param IrrelevantItems<'data>,
+        _irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         Ok(())
     }

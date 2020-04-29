@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use yaml_rust::{ScanError, Yaml, YamlLoader};
 
+pub const DEFAULT_OUTPUT_DIR: &'static str = ".aardwolf";
 pub const DEFAULT_N_RESULTS: usize = 10;
 
 #[derive(Debug)]
@@ -82,7 +83,7 @@ impl Config {
             })?;
 
         let mut script = Vec::new();
-        let mut output_dir = PathBuf::from(filepath.as_ref().parent().unwrap());
+        let mut output_dir = filepath.as_ref().parent().unwrap().join(DEFAULT_OUTPUT_DIR);
         let mut n_results = DEFAULT_N_RESULTS;
         let mut plugins = Vec::new();
 
@@ -104,7 +105,7 @@ impl Config {
                     }
                 }
                 "output_dir" => {
-                    output_dir.push(
+                    output_dir = filepath.as_ref().parent().unwrap().join(
                         value
                             .as_str()
                             .ok_or(LoadConfigError::Invalid("Invalid format".to_string()))?,

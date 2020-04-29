@@ -4,12 +4,17 @@ use std::collections::{
 };
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TraceItem, StmtId};
+use crate::data::{
+    statement::Statement,
+    trace::TraceItem,
+    types::{FuncName, StmtId},
+    RawData,
+};
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Stmts<'data> {
     mapping: HashMap<StmtId, &'data Statement>,
-    functions: HashMap<StmtId, &'data String>,
+    functions: HashMap<StmtId, FuncName>,
     n_total: usize,
     n_executed: usize,
 }
@@ -27,8 +32,8 @@ impl<'data> Stmts<'data> {
         self.mapping.get(id).map(|stmt| *stmt)
     }
 
-    pub fn find_fn(&self, stmt: &Statement) -> Option<&'data String> {
-        self.functions.get(&stmt.id).copied()
+    pub fn find_fn(&self, stmt: &Statement) -> Option<&FuncName> {
+        self.functions.get(&stmt.id)
     }
 
     pub fn get_n_total(&self) -> usize {
@@ -41,7 +46,7 @@ impl<'data> Stmts<'data> {
 }
 
 impl<'data> FromRawData<'data> for Stmts<'data> {
-    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
         let mut functions = HashMap::new();
@@ -49,14 +54,14 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
         let mut n_total = 0;
         let mut n_executed = 0;
 
-        for item in data.dynamic_data.trace.iter() {
+        for item in data.trace.trace.iter() {
             match item {
                 TraceItem::Statement(stmt) => {
                     executed.insert(*stmt);
 
-                    for (name, stmts) in data.static_data.functions.iter() {
+                    for (name, stmts) in data.modules.functions.iter() {
                         if stmts.contains_key(stmt) {
-                            functions.insert(*stmt, name);
+                            functions.insert(*stmt, name.clone());
                         }
                     }
                 }
@@ -64,7 +69,7 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
             }
         }
 
-        for (_, stmts) in data.static_data.functions.iter() {
+        for (_, stmts) in data.modules.functions.iter() {
             for (id, stmt) in stmts.iter() {
                 n_total += 1;
 

@@ -7,7 +7,7 @@ use petgraph::Direction;
 
 use super::models::{Model, Node, NodeType};
 use crate::api::Api;
-use crate::raw::data::Statement;
+use crate::data::{access::AccessChain, statement::Statement, types::FuncName};
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
@@ -127,11 +127,7 @@ impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
     pub fn get_data_state(&self, stmt: &'data Statement) -> NodeState<'data> {
         let mut state = BTreeSet::new();
 
-        for var in stmt
-            .uses
-            .iter()
-            .flat_map(|access| access.get_scalars_for_use())
-        {
+        for var in stmt.uses.iter().flat_map(AccessChain::from_uses) {
             if let Some(def) = self.current_defs.get(&var) {
                 state.insert((var, *def));
             }
@@ -144,11 +140,7 @@ impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
         // TODO: A data structure that tries to model data dependencies of pointers should be used.
         //       At least on a level, when a pointer is sent to a function and the function modifies it (or its child),
         //       then it should be added as a definition of the function call.
-        for var in stmt
-            .defs
-            .iter()
-            .flat_map(|access| access.get_scalars_for_def())
-        {
+        for var in stmt.defs.iter().flat_map(AccessChain::from_defs) {
             self.current_defs.insert(var, stmt);
         }
     }
@@ -179,7 +171,7 @@ pub struct Trace<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> {
     trace: Peekable<I>,
     next_items: VecDeque<TraceItem<'data>>,
     api: &'data Api<'data>,
-    models: HashMap<&'data String, M>,
+    models: HashMap<FuncName, M>,
 }
 
 impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Trace<'data, I, M> {
@@ -216,7 +208,7 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
         // Get (or initialize) model for the function which the statement comes from.
         let model = self
             .models
-            .entry(func)
+            .entry(func.clone())
             .or_insert_with(|| M::from_pdg(&pdgs.get(func).unwrap()))
             .get_graph();
 
@@ -259,7 +251,7 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
                 .push_back(TraceItem::new(node, state, parents.canonicalize()));
         }
 
-        if stmt.is_ret() {
+        if stmt.metadata.is_ret() {
             // This statement returns from a function,
             // hence we can throw associated stack frame away.
             self.stack_frames.pop();

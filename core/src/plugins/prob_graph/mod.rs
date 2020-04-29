@@ -42,7 +42,7 @@ impl AardwolfPlugin for ProbGraph {
         &self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data>,
-        _irrelevant: &'param IrrelevantItems<'data>,
+        _irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         match self.model {
             ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),

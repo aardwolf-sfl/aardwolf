@@ -1,10 +1,10 @@
 pub mod api;
 pub mod config;
+pub mod data;
 mod driver;
 mod graph_ext;
 mod logger;
 pub mod plugins;
-pub mod raw;
 pub mod structures;
 mod ui;
 

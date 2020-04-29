@@ -3,8 +3,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
-use crate::raw::data::{Access, TestName, VariableData, VariableDataType};
+use crate::data::{
+    access::Access,
+    types::TestName,
+    values::{Value, ValueType},
+};
 
+// REFACTOR: Implement multiple detectors with different trade-offs (time and space efficiency).
 pub struct Stats<'data> {
     samples: HashSet<&'data TestName>,
     data: HashMap<AccessView<'data>, AccessState<'data>>,
@@ -18,23 +23,14 @@ impl<'data> Stats<'data> {
         }
     }
 
-    pub fn learn(
-        &mut self,
-        access: &'data Access,
-        data: &'data VariableData,
-        test: &'data TestName,
-    ) {
+    pub fn learn(&mut self, access: &'data Access, data: &'data Value, test: &'data TestName) {
         self.samples.insert(test);
 
         let view = AccessView::new(access);
         self.data.entry(view).or_default().learn(data, test);
     }
 
-    pub fn check(
-        &self,
-        data: &'data VariableData,
-        access: &'data Access,
-    ) -> Vec<InvariantInfo<'data>> {
+    pub fn check(&self, data: &'data Value, access: &'data Access) -> Vec<InvariantInfo<'data>> {
         let view = AccessView::new(access);
 
         if let Some(state) = self.data.get(&view) {
@@ -46,11 +42,11 @@ impl<'data> Stats<'data> {
 }
 
 pub enum Invariant<'data> {
-    Constant(&'data VariableData),
-    Range(Option<&'data VariableData>, Option<&'data VariableData>),
-    TypeStable(VariableDataType),
+    Constant(&'data Value),
+    Range(Option<&'data Value>, Option<&'data Value>),
+    TypeStable(ValueType),
     // NaN, +Inf, -Inf, NULL
-    NonExceptionalValue(VariableDataType),
+    NonExceptionalValue(ValueType),
 }
 
 pub struct InvariantInfo<'data> {
@@ -68,7 +64,7 @@ impl<'data> InvariantInfo<'data> {
         }
     }
 
-    pub fn explain(&self, data: &'data VariableData) -> String {
+    pub fn explain(&self, data: &'data Value) -> String {
         match &self.inv {
             Invariant::Constant(cst) => {
                 format!("expected to be constantly {}, but is {}", cst, data)
@@ -161,10 +157,10 @@ impl<T: PartialOrd + PartialEq + Eq> Ord for UnsafeOrd<T> {
     }
 }
 
-impl<'data> UnsafeOrd<&'data VariableData> {
-    pub fn wrap(value: &'data VariableData) -> Option<Self> {
+impl<'data> UnsafeOrd<&'data Value> {
+    pub fn wrap(value: &'data Value) -> Option<Self> {
         match value {
-            VariableData::Floating(value) if !(***value).is_finite() => None,
+            Value::Floating(value) if !(***value).is_finite() => None,
             other => Some(UnsafeOrd(other)),
         }
     }
@@ -192,10 +188,10 @@ impl<'data> Default for AccessState<'data> {
 }
 
 impl<'data> AccessState<'data> {
-    pub fn new(data: &'data VariableData, test: &'data TestName) -> Self {
+    pub fn new(data: &'data Value, test: &'data TestName) -> Self {
         if data.is_unsupported() {
             AccessState::None(NoneAccessState::typed(
-                VariableDataType::Unsupported,
+                ValueType::Unsupported,
                 vec![test].into_iter().collect(),
             ))
         } else if data.is_exceptional_value() {
@@ -209,7 +205,7 @@ impl<'data> AccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
         // TODO: When creating "none" state, put there all happened violations
         // (ie., both type changed and exceptional value if they happened), not just one.
         match self {
@@ -260,7 +256,7 @@ impl<'data> AccessState<'data> {
 
     pub fn check(
         &self,
-        data: &'data VariableData,
+        data: &'data Value,
         access: &'data Access,
         stats: &Stats<'data>,
     ) -> Vec<InvariantInfo<'data>> {
@@ -274,13 +270,13 @@ impl<'data> AccessState<'data> {
 }
 
 struct SingleValueAccessState<'data> {
-    data: &'data VariableData,
+    data: &'data Value,
     count: usize,
     in_tests: HashSet<&'data TestName>,
 }
 
 impl<'data> SingleValueAccessState<'data> {
-    pub fn new(data: &'data VariableData, test: &'data TestName) -> Self {
+    pub fn new(data: &'data Value, test: &'data TestName) -> Self {
         SingleValueAccessState {
             data,
             count: 1,
@@ -295,7 +291,7 @@ impl<'data> SingleValueAccessState<'data> {
 
     pub fn check(
         &self,
-        data: &'data VariableData,
+        data: &'data Value,
         access: &'data Access,
         stats: &Stats<'data>,
     ) -> Vec<InvariantInfo<'data>> {
@@ -330,14 +326,14 @@ impl<'data> SingleValueAccessState<'data> {
 }
 
 struct RangeAccessState<'data> {
-    data: BTreeMap<UnsafeOrd<&'data VariableData>, usize>,
-    typ: VariableDataType,
+    data: BTreeMap<UnsafeOrd<&'data Value>, usize>,
+    typ: ValueType,
     in_tests: HashSet<&'data TestName>,
 }
 
 impl<'data> RangeAccessState<'data> {
     pub fn new(
-        mut values: impl Iterator<Item = (&'data VariableData, usize)>,
+        mut values: impl Iterator<Item = (&'data Value, usize)>,
         in_tests: HashSet<&'data TestName>,
     ) -> Option<Self> {
         let mut data = BTreeMap::new();
@@ -367,7 +363,7 @@ impl<'data> RangeAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
         self.in_tests.insert(test);
 
         if data.get_type() == self.typ {
@@ -379,7 +375,7 @@ impl<'data> RangeAccessState<'data> {
 
     pub fn check(
         &self,
-        data: &'data VariableData,
+        data: &'data Value,
         access: &'data Access,
         stats: &Stats<'data>,
     ) -> Vec<InvariantInfo<'data>> {
@@ -425,13 +421,13 @@ enum NoInvariantReason {
 }
 
 struct NoneAccessState<'data> {
-    typ: Option<VariableDataType>,
+    typ: Option<ValueType>,
     reasons: HashSet<NoInvariantReason>,
     in_tests: HashSet<&'data TestName>,
 }
 
 impl<'data> NoneAccessState<'data> {
-    pub fn typed(typ: VariableDataType, in_tests: HashSet<&'data TestName>) -> Self {
+    pub fn typed(typ: ValueType, in_tests: HashSet<&'data TestName>) -> Self {
         NoneAccessState {
             typ: Some(typ),
             reasons: HashSet::new(),
@@ -440,7 +436,7 @@ impl<'data> NoneAccessState<'data> {
     }
 
     pub fn typed_with_reason(
-        typ: VariableDataType,
+        typ: ValueType,
         reason: NoInvariantReason,
         in_tests: HashSet<&'data TestName>,
     ) -> Self {
@@ -459,7 +455,7 @@ impl<'data> NoneAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data VariableData, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
         self.in_tests.insert(test);
 
         if let Some(typ) = self.typ {
@@ -475,7 +471,7 @@ impl<'data> NoneAccessState<'data> {
 
     pub fn check(
         &self,
-        data: &'data VariableData,
+        data: &'data Value,
         access: &'data Access,
         stats: &Stats<'data>,
     ) -> Vec<InvariantInfo<'data>> {

@@ -1,14 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement, TestName, TraceItem, StmtId};
+use crate::data::{
+    statement::Statement,
+    trace::TraceItem,
+    types::{StmtId, TestName},
+    RawData,
+};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Spectra<'data> {
-    spectra: HashMap<&'data TestName, HashSet<StmtId>>,
+pub struct Spectra {
+    spectra: HashMap<TestName, HashSet<StmtId>>,
 }
 
-impl<'data> Spectra<'data> {
+impl Spectra {
     pub fn is_executed_in(&self, test: &TestName, stmt: &Statement) -> bool {
         if let Some(stmts) = self.spectra.get(test) {
             stmts.contains(&stmt.id)
@@ -18,26 +23,26 @@ impl<'data> Spectra<'data> {
     }
 }
 
-impl<'data> FromRawData<'data> for Spectra<'data> {
-    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl<'data> FromRawData<'data> for Spectra {
+    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut spectra = HashMap::new();
         let mut stmts = HashSet::new();
         let mut test_case = None;
 
-        for item in data.dynamic_data.trace.iter() {
+        for item in data.trace.trace.iter() {
             match item {
-                TraceItem::External(name) => {
+                TraceItem::Test(name) => {
                     if !stmts.is_empty() && test_case.is_some() {
                         spectra.insert(test_case.unwrap(), stmts.clone());
                     }
 
-                    test_case = Some(name);
+                    test_case = Some(name.clone());
                     stmts.clear();
                 }
                 TraceItem::Statement(stmt) => {
                     stmts.insert(*stmt);
                 }
-                TraceItem::Data(_) => {} // Ignore
+                TraceItem::Value(_) => {} // Ignore
             }
         }
 

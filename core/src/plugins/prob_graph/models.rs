@@ -6,9 +6,9 @@ use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
 use crate::api::Api;
+use crate::data::statement::Statement;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
 use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
-use crate::raw::data::Statement;
 use crate::structures::{EdgeType as PdgEdgeType, Pdg};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -348,6 +348,7 @@ mod tests {
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
+    use crate::data::types::StmtId;
     use crate::structures::{ENTRY, EXIT};
 
     #[test]
@@ -359,23 +360,57 @@ mod tests {
         let (actual, _) = create_dependency_network(&pdg);
 
         let mut factory = StatementFactory::new();
-        factory.add_many((1..=10).map(|stmt| (0, stmt)));
+        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
 
         let mut expected = DiGraph::new();
 
         let _ = expected.add_node(Node::new(ENTRY, NodeType::NonPredicate));
-        let n1 = expected.add_node(Node::new(factory.get((0, 1)), NodeType::NonPredicate));
-        let n2 = expected.add_node(Node::new(factory.get((0, 2)), NodeType::NonPredicate));
-        let n3 = expected.add_node(Node::new(factory.get((0, 3)), NodeType::NonPredicate));
-        let n4 = expected.add_node(Node::new(factory.get((0, 4)), NodeType::Predicate));
-        let n4_data = expected.add_node(Node::new(factory.get((0, 4)), NodeType::NonPredicate));
-        let n5 = expected.add_node(Node::new(factory.get((0, 5)), NodeType::NonPredicate));
-        let n6 = expected.add_node(Node::new(factory.get((0, 6)), NodeType::Predicate));
-        let n6_data = expected.add_node(Node::new(factory.get((0, 6)), NodeType::NonPredicate));
-        let n7 = expected.add_node(Node::new(factory.get((0, 7)), NodeType::NonPredicate));
-        let n8 = expected.add_node(Node::new(factory.get((0, 8)), NodeType::NonPredicate));
-        let n8_loop = expected.add_node(Node::new(factory.get((0, 8)), NodeType::SelfLoop));
-        let n10 = expected.add_node(Node::new(factory.get((0, 10)), NodeType::NonPredicate));
+        let n1 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(1)),
+            NodeType::NonPredicate,
+        ));
+        let n2 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(2)),
+            NodeType::NonPredicate,
+        ));
+        let n3 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(3)),
+            NodeType::NonPredicate,
+        ));
+        let n4 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(4)),
+            NodeType::Predicate,
+        ));
+        let n4_data = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(4)),
+            NodeType::NonPredicate,
+        ));
+        let n5 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(5)),
+            NodeType::NonPredicate,
+        ));
+        let n6 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(6)),
+            NodeType::Predicate,
+        ));
+        let n6_data = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(6)),
+            NodeType::NonPredicate,
+        ));
+        let n7 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(7)),
+            NodeType::NonPredicate,
+        ));
+        let n8 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(8)),
+            NodeType::NonPredicate,
+        ));
+        let n8_loop =
+            expected.add_node(Node::new(factory.get(StmtId::dummy(8)), NodeType::SelfLoop));
+        let n10 = expected.add_node(Node::new(
+            factory.get(StmtId::dummy(10)),
+            NodeType::NonPredicate,
+        ));
         let _ = expected.add_node(Node::new(EXIT, NodeType::NonPredicate));
 
         expected.add_edge(n1, n4_data, EdgeType::DataDep);

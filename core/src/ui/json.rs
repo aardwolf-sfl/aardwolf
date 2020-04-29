@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::Ui;
 use crate::api::Api;
 use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
-use crate::raw::data::Loc;
+use crate::data::statement::Loc;
 
 #[derive(Serialize, Deserialize)]
 struct Output {
@@ -84,7 +84,7 @@ impl<'data> JsonUi<'data> {
         Location {
             file: self
                 .api
-                .get_filepath(loc.file_id)
+                .get_filepath(&loc.file_id)
                 .unwrap()
                 .to_str()
                 .unwrap()

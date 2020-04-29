@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
 use crate::api::Api;
-use crate::raw::data::{Access, Data, Statement, StmtId};
+use crate::data::{access::Access, statement::Statement, types::StmtId, RawData};
 use crate::structures::{FromRawData, FromRawDataError};
 
 struct DefUseItem<'data> {
@@ -23,10 +23,10 @@ impl<'data> DefUse<'data> {
 }
 
 impl<'data> FromRawData<'data> for DefUse<'data> {
-    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
 
-        for (_, func_body) in data.static_data.functions.iter() {
+        for (_, func_body) in data.modules.functions.iter() {
             for (id, stmt) in func_body.iter() {
                 result.insert(
                     *id,

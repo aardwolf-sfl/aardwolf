@@ -2,25 +2,25 @@ use std::collections::hash_map::HashMap;
 use std::mem;
 
 use crate::api::Api;
-use crate::raw::data::{Access, Data, Statement, TestName, TraceItem, VariableData};
+use crate::data::{
+    access::Access, statement::Statement, trace::TraceItem, types::TestName, values::Value, RawData,
+};
 use crate::structures::{FromRawData, FromRawDataError};
 
 #[derive(Debug)]
 pub struct VarItem<'data> {
     pub stmt: &'data Statement,
-    pub defs: Vec<VariableData>,
-    // TODO:
-    // pub uses: Vec<VariableData>,
+    pub defs: Vec<Value>,
 }
 
 impl<'data> VarItem<'data> {
-    pub fn zip(&self) -> impl Iterator<Item = (&Access, &VariableData)> {
+    pub fn zip(&self) -> impl Iterator<Item = (&Access, &Value)> {
         self.stmt.defs.iter().zip(self.defs.iter())
     }
 }
 
 pub struct Vars<'data> {
-    traces: HashMap<&'data TestName, Vec<VarItem<'data>>>,
+    traces: HashMap<TestName, Vec<VarItem<'data>>>,
 }
 
 impl<'data> Vars<'data> {
@@ -33,10 +33,10 @@ impl<'data> Vars<'data> {
 }
 
 impl<'data> FromRawData<'data> for Vars<'data> {
-    fn from_raw(data: &'data Data, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
-        let mut traces = HashMap::with_capacity(data.test_data.tests.len());
+        let mut traces = HashMap::with_capacity(data.test_suite.tests.len());
 
         let mut test = None;
         let mut trace = Vec::new();
@@ -48,7 +48,7 @@ impl<'data> FromRawData<'data> for Vars<'data> {
         let mut stack = Vec::new();
         let mut defs = Vec::new();
 
-        for item in data.dynamic_data.trace.iter() {
+        for item in data.trace.trace.iter() {
             match item {
                 TraceItem::Statement(id) => {
                     // Stmts are built from dynamic trace so a statement with this id certainly exists.
@@ -57,7 +57,7 @@ impl<'data> FromRawData<'data> for Vars<'data> {
                         stack.push(stmt);
                     }
                 }
-                TraceItem::External(new_test) => {
+                TraceItem::Test(new_test) => {
                     if let Some(test) = test {
                         // Insert the trace and clear reset the trace variable in one step.
                         traces.insert(test, mem::take(&mut trace));
@@ -67,10 +67,10 @@ impl<'data> FromRawData<'data> for Vars<'data> {
                         traces.clear();
                     }
 
-                    test = Some(new_test);
+                    test = Some(new_test.clone());
                 }
-                TraceItem::Data(data) => {
-                    defs.push(*data);
+                TraceItem::Value(value) => {
+                    defs.push(*value);
 
                     if let Some(stmt) = stack.last() {
                         // We collected all definitions of the last statement.
@@ -82,8 +82,7 @@ impl<'data> FromRawData<'data> for Vars<'data> {
                             stack.pop();
                         }
                     } else {
-                        // TODO: Return Err(...)
-                        panic!("invalid input");
+                        return Err(FromRawDataError::Inner(format!("Invalid trace file.")));
                     }
                 }
             }

@@ -54,7 +54,7 @@ impl AardwolfPlugin for Sbfl {
         &self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data>,
-        irrelevant: &'param IrrelevantItems<'data>,
+        irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
         let tests = api.get_tests();

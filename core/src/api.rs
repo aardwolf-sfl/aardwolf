@@ -3,14 +3,14 @@ use std::path::PathBuf;
 
 use lazycell::LazyCell;
 
-use crate::raw::data::Data;
+use crate::data::{types::FileId, RawData};
 use crate::structures::*;
 
 #[derive(Debug)]
 pub enum EmptyDataReason {
     Static,
-    Dynamic,
-    Tests,
+    Runtime,
+    TestSuite,
 }
 
 #[derive(Debug)]
@@ -20,11 +20,11 @@ pub enum InvalidData {
 }
 
 pub struct Api<'data> {
-    data: Data,
+    data: RawData,
     stmts: LazyCell<Stmts<'data>>,
     tests: LazyCell<Tests<'data>>,
     def_use: LazyCell<DefUse<'data>>,
-    spectra: LazyCell<Spectra<'data>>,
+    spectra: LazyCell<Spectra>,
     cfgs: LazyCell<Cfgs<'data>>,
     pdgs: LazyCell<Pdgs<'data>>,
     vars: LazyCell<Vars<'data>>,
@@ -57,15 +57,15 @@ macro_rules! get_lazy_infallible {
 }
 
 impl<'data> Api<'data> {
-    pub(crate) fn new(data: Data) -> Result<Self, InvalidData> {
-        if data.static_data.files.is_empty() || data.static_data.functions.is_empty() {
+    pub(crate) fn new(data: RawData) -> Result<Self, InvalidData> {
+        if data.modules.files.is_empty() || data.modules.functions.is_empty() {
             Err(InvalidData::Empty(EmptyDataReason::Static))
-        } else if data.dynamic_data.trace.is_empty() {
-            Err(InvalidData::Empty(EmptyDataReason::Dynamic))
-        } else if data.test_data.tests.is_empty() {
-            Err(InvalidData::Empty(EmptyDataReason::Tests))
+        } else if data.trace.trace.is_empty() {
+            Err(InvalidData::Empty(EmptyDataReason::Runtime))
+        } else if data.test_suite.tests.is_empty() {
+            Err(InvalidData::Empty(EmptyDataReason::TestSuite))
         } else if data
-            .test_data
+            .test_suite
             .tests
             .values()
             .all(|status| status.is_passed())
@@ -101,7 +101,7 @@ impl<'data> Api<'data> {
         get_lazy_infallible!(self, def_use)
     }
 
-    pub fn get_spectra(&'data self) -> &Spectra<'data> {
+    pub fn get_spectra(&'data self) -> &Spectra {
         get_lazy_infallible!(self, spectra)
     }
 
@@ -117,8 +117,8 @@ impl<'data> Api<'data> {
         get_lazy_fallible!(self, vars)
     }
 
-    pub fn get_filepath(&self, file_id: u64) -> Option<PathBuf> {
-        let raw = PathBuf::from(self.data.static_data.files.get(&file_id)?);
+    pub fn get_filepath(&self, file_id: &FileId) -> Option<PathBuf> {
+        let raw = PathBuf::from(self.data.modules.files.get(file_id)?);
         raw.canonicalize()
             .ok()?
             .strip_prefix(env::current_dir().ok()?)

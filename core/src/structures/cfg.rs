@@ -4,27 +4,31 @@ use petgraph::graph::DiGraph;
 use petgraph::Direction;
 
 use crate::api::Api;
-use crate::raw::data::{Data, Statement};
+use crate::data::{
+    statement::Statement,
+    types::{FuncName, StmtId},
+    RawData,
+};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub const ENTRY: &'static Statement = &Statement::dummy((0, std::u64::MAX - 1));
-pub const EXIT: &'static Statement = &Statement::dummy((0, std::u64::MAX));
+pub const ENTRY: &'static Statement = &Statement::dummy(StmtId::dummy(std::u64::MAX - 1));
+pub const EXIT: &'static Statement = &Statement::dummy(StmtId::dummy(std::u64::MAX));
 
 pub type Cfg<'data> = DiGraph<&'data Statement, ()>;
 
-pub struct Cfgs<'data>(HashMap<&'data str, Cfg<'data>>);
+pub struct Cfgs<'data>(HashMap<FuncName, Cfg<'data>>);
 
 impl<'data> Cfgs<'data> {
-    pub fn get(&'data self, func: &str) -> Option<&'data Cfg<'data>> {
+    pub fn get(&'data self, func: &FuncName) -> Option<&'data Cfg<'data>> {
         self.0.get(func)
     }
 }
 
 impl<'data> FromRawData<'data> for Cfgs<'data> {
-    fn from_raw(data: &'data Data, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
 
-        for (func_name, func_body) in data.static_data.functions.iter() {
+        for (func_name, func_body) in data.modules.functions.iter() {
             let mut graph = DiGraph::with_capacity(func_body.len() + 1, func_body.len() + 1);
             let mut id_map = HashMap::new();
 
@@ -55,7 +59,7 @@ impl<'data> FromRawData<'data> for Cfgs<'data> {
                 graph.add_edge(entry, node, ());
             }
 
-            result.insert(func_name.as_str(), graph);
+            result.insert(func_name.clone(), graph);
         }
 
         Ok(Cfgs(result))

@@ -8,12 +8,12 @@ use std::process::{self, Command};
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
+use crate::data::RawData;
 use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
     sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, NormalizedResults, Results,
 };
-use crate::raw::Data;
 use crate::ui::{CliUi, JsonUi, Ui, UiName};
 
 pub const TRACE_FILE: &'static str = "aard.trace";
@@ -155,12 +155,12 @@ impl Driver {
         Ok(())
     }
 
-    fn load_data(driver_paths: &DriverPaths) -> Data {
+    fn load_data(driver_paths: &DriverPaths) -> RawData {
         let mut static_files = Self::find_static_files(driver_paths);
         let mut dynamic_file = BufReader::new(File::open(&driver_paths.trace_file).unwrap());
         let mut test_file = BufReader::new(File::open(&driver_paths.result_file).unwrap());
 
-        Data::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file).unwrap()
+        RawData::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file).unwrap()
     }
 
     fn find_static_files(driver_paths: &DriverPaths) -> Vec<BufReader<File>> {

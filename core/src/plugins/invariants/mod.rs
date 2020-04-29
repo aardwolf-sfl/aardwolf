@@ -39,7 +39,7 @@ impl AardwolfPlugin for Invariants {
         &self,
         api: &'data Api<'data>,
         results: &'param mut Results<'data>,
-        irrelevant: &'param IrrelevantItems<'data>,
+        irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
         let vars = required!(api.get_vars(), MissingApi::Vars);
@@ -83,9 +83,9 @@ impl AardwolfPlugin for Invariants {
                         let mut rationale = Rationale::new();
 
                         // NOTE: Could be configurable to disable args, calls, etc.
-                        if item.stmt.is_arg() {
+                        if item.stmt.metadata.is_arg() {
                             rationale.add_text("The value of this argument violates some invariants inferred from passing runs.");
-                        } else if item.stmt.is_call() {
+                        } else if item.stmt.metadata.is_call() {
                             rationale.add_text("The result of this function call violates some invariants inferred from passing runs.");
                         } else {
                             rationale.add_text("The result of this statement violates some invariants inferred from passing runs.");

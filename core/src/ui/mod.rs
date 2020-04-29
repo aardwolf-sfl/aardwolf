@@ -1,6 +1,9 @@
 mod cli;
 mod json;
 
+use std::fmt;
+
+use crate::api::Api;
 use crate::plugins::LocalizationItem;
 
 pub use cli::CliUi;
@@ -23,4 +26,8 @@ impl Default for UiName {
     fn default() -> Self {
         UiName::Cli
     }
+}
+
+pub trait UiDisplay<'data> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>, api: &'data Api<'data>) -> fmt::Result;
 }
