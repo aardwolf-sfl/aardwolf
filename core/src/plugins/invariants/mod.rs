@@ -53,7 +53,7 @@ impl AardwolfPlugin for Invariants {
                 .filter(|item| irrelevant.is_stmt_relevant(item.stmt))
             {
                 for (access, data) in item.zip() {
-                    stats.learn(access, data, test);
+                    stats.learn(access, data, test.clone());
                 }
             }
         }

@@ -1,18 +1,18 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::ops::Deref;
 
 use crate::data::{
-    access::Access,
+    access::{Access, AccessChain},
     types::TestName,
     values::{Value, ValueType},
 };
 
 // REFACTOR: Implement multiple detectors with different trade-offs (time and space efficiency).
 pub struct Stats<'data> {
-    samples: HashSet<&'data TestName>,
-    data: HashMap<AccessView<'data>, AccessState<'data>>,
+    samples: HashSet<TestName>,
+    data: HashMap<AccessChain, AccessState<'data>>,
 }
 
 impl<'data> Stats<'data> {
@@ -23,15 +23,15 @@ impl<'data> Stats<'data> {
         }
     }
 
-    pub fn learn(&mut self, access: &'data Access, data: &'data Value, test: &'data TestName) {
-        self.samples.insert(test);
+    pub fn learn(&mut self, access: &'data Access, data: &'data Value, test: TestName) {
+        self.samples.insert(test.clone());
 
-        let view = AccessView::new(access);
+        let view = AccessChain::from_defs(access);
         self.data.entry(view).or_default().learn(data, test);
     }
 
     pub fn check(&self, data: &'data Value, access: &'data Access) -> Vec<InvariantInfo<'data>> {
-        let view = AccessView::new(access);
+        let view = AccessChain::from_defs(access);
 
         if let Some(state) = self.data.get(&view) {
             state.check(data, access, self)
@@ -93,60 +93,60 @@ impl<'data> InvariantInfo<'data> {
     }
 }
 
-#[derive(Debug)]
-struct AccessView<'data>(&'data Access);
+// #[derive(Debug)]
+// struct AccessView<'data>(&'data Access);
 
-impl<'data> AccessView<'data> {
-    pub fn new(access: &'data Access) -> Self {
-        AccessView(access)
-    }
+// impl<'data> AccessView<'data> {
+//     pub fn new(access: &'data Access) -> Self {
+//         AccessView(access)
+//     }
 
-    fn view_hash<H: Hasher>(&self, state: &mut H, access: &Access) {
-        match access {
-            Access::Scalar(scalar) => scalar.hash(state),
-            Access::Structural(obj, field) => {
-                self.view_hash(state, obj);
-                self.view_hash(state, field);
-            }
-            // Ignore index variables.
-            Access::ArrayLike(array, _) => self.view_hash(state, array),
-        }
-    }
+//     fn view_hash<H: Hasher>(&self, state: &mut H, access: &Access) {
+//         match access {
+//             Access::Scalar(scalar) => scalar.hash(state),
+//             Access::Structural(obj, field) => {
+//                 self.view_hash(state, obj);
+//                 self.view_hash(state, field);
+//             }
+//             // Ignore index variables.
+//             Access::ArrayLike(array, _) => self.view_hash(state, array),
+//         }
+//     }
 
-    fn view_eq(&self, lhs: &Access, rhs: &Access) -> bool {
-        match (lhs, rhs) {
-            (Access::Scalar(scalar_lhs), Access::Scalar(scalar_rhs)) => scalar_lhs == scalar_rhs,
-            (Access::Structural(obj_lhs, field_lhs), Access::Structural(obj_rhs, field_rhs)) => {
-                self.view_eq(obj_lhs, obj_rhs) && self.view_eq(field_lhs, field_rhs)
-            }
-            // Ignore index variables.
-            (Access::ArrayLike(array_lhs, _), Access::ArrayLike(array_rhs, _)) => {
-                self.view_eq(array_lhs, array_rhs)
-            }
-            _ => false,
-        }
-    }
-}
+//     fn view_eq(&self, lhs: &Access, rhs: &Access) -> bool {
+//         match (lhs, rhs) {
+//             (Access::Scalar(scalar_lhs), Access::Scalar(scalar_rhs)) => scalar_lhs == scalar_rhs,
+//             (Access::Structural(obj_lhs, field_lhs), Access::Structural(obj_rhs, field_rhs)) => {
+//                 self.view_eq(obj_lhs, obj_rhs) && self.view_eq(field_lhs, field_rhs)
+//             }
+//             // Ignore index variables.
+//             (Access::ArrayLike(array_lhs, _), Access::ArrayLike(array_rhs, _)) => {
+//                 self.view_eq(array_lhs, array_rhs)
+//             }
+//             _ => false,
+//         }
+//     }
+// }
 
-impl<'data> Hash for AccessView<'data> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.view_hash(state, self.0);
-    }
-}
+// impl<'data> Hash for AccessView<'data> {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.view_hash(state, self.0);
+//     }
+// }
 
-impl<'data> PartialEq for AccessView<'data> {
-    fn eq(&self, other: &Self) -> bool {
-        self.view_eq(self.0, other.0)
-    }
-}
+// impl<'data> PartialEq for AccessView<'data> {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.view_eq(self.0, other.0)
+//     }
+// }
 
-impl<'data> Eq for AccessView<'data> {}
+// impl<'data> Eq for AccessView<'data> {}
 
-impl<'data> AsRef<Access> for AccessView<'data> {
-    fn as_ref(&self) -> &Access {
-        &self.0
-    }
-}
+// impl<'data> AsRef<Access> for AccessView<'data> {
+//     fn as_ref(&self) -> &Access {
+//         &self.0
+//     }
+// }
 
 #[derive(PartialOrd, PartialEq, Eq)]
 struct UnsafeOrd<T: PartialOrd + PartialEq + Eq>(T);
@@ -178,7 +178,7 @@ enum AccessState<'data> {
     Empty,
     SingleValue(SingleValueAccessState<'data>),
     Range(RangeAccessState<'data>),
-    None(NoneAccessState<'data>),
+    None(NoneAccessState),
 }
 
 impl<'data> Default for AccessState<'data> {
@@ -188,7 +188,7 @@ impl<'data> Default for AccessState<'data> {
 }
 
 impl<'data> AccessState<'data> {
-    pub fn new(data: &'data Value, test: &'data TestName) -> Self {
+    pub fn new(data: &'data Value, test: TestName) -> Self {
         if data.is_unsupported() {
             AccessState::None(NoneAccessState::typed(
                 ValueType::Unsupported,
@@ -205,7 +205,7 @@ impl<'data> AccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: TestName) {
         // TODO: When creating "none" state, put there all happened violations
         // (ie., both type changed and exceptional value if they happened), not just one.
         match self {
@@ -272,11 +272,11 @@ impl<'data> AccessState<'data> {
 struct SingleValueAccessState<'data> {
     data: &'data Value,
     count: usize,
-    in_tests: HashSet<&'data TestName>,
+    in_tests: HashSet<TestName>,
 }
 
 impl<'data> SingleValueAccessState<'data> {
-    pub fn new(data: &'data Value, test: &'data TestName) -> Self {
+    pub fn new(data: &'data Value, test: TestName) -> Self {
         SingleValueAccessState {
             data,
             count: 1,
@@ -284,7 +284,7 @@ impl<'data> SingleValueAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, test: &'data TestName) {
+    pub fn learn(&mut self, test: TestName) {
         self.count += 1;
         self.in_tests.insert(test);
     }
@@ -328,13 +328,13 @@ impl<'data> SingleValueAccessState<'data> {
 struct RangeAccessState<'data> {
     data: BTreeMap<UnsafeOrd<&'data Value>, usize>,
     typ: ValueType,
-    in_tests: HashSet<&'data TestName>,
+    in_tests: HashSet<TestName>,
 }
 
 impl<'data> RangeAccessState<'data> {
     pub fn new(
         mut values: impl Iterator<Item = (&'data Value, usize)>,
-        in_tests: HashSet<&'data TestName>,
+        in_tests: HashSet<TestName>,
     ) -> Option<Self> {
         let mut data = BTreeMap::new();
 
@@ -363,7 +363,7 @@ impl<'data> RangeAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: TestName) {
         self.in_tests.insert(test);
 
         if data.get_type() == self.typ {
@@ -420,14 +420,14 @@ enum NoInvariantReason {
     ExceptionalValue,
 }
 
-struct NoneAccessState<'data> {
+struct NoneAccessState {
     typ: Option<ValueType>,
     reasons: HashSet<NoInvariantReason>,
-    in_tests: HashSet<&'data TestName>,
+    in_tests: HashSet<TestName>,
 }
 
-impl<'data> NoneAccessState<'data> {
-    pub fn typed(typ: ValueType, in_tests: HashSet<&'data TestName>) -> Self {
+impl<'data> NoneAccessState {
+    pub fn typed(typ: ValueType, in_tests: HashSet<TestName>) -> Self {
         NoneAccessState {
             typ: Some(typ),
             reasons: HashSet::new(),
@@ -438,7 +438,7 @@ impl<'data> NoneAccessState<'data> {
     pub fn typed_with_reason(
         typ: ValueType,
         reason: NoInvariantReason,
-        in_tests: HashSet<&'data TestName>,
+        in_tests: HashSet<TestName>,
     ) -> Self {
         NoneAccessState {
             typ: Some(typ),
@@ -447,7 +447,7 @@ impl<'data> NoneAccessState<'data> {
         }
     }
 
-    pub fn type_changed(in_tests: HashSet<&'data TestName>) -> Self {
+    pub fn type_changed(in_tests: HashSet<TestName>) -> Self {
         NoneAccessState {
             typ: None,
             reasons: HashSet::new(),
@@ -455,7 +455,7 @@ impl<'data> NoneAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: &'data TestName) {
+    pub fn learn(&mut self, data: &'data Value, test: TestName) {
         self.in_tests.insert(test);
 
         if let Some(typ) = self.typ {
