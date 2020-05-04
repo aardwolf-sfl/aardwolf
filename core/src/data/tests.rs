@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use super::types::TestName;
+use crate::arena::S;
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TestStatus {
     Failed,
     Passed,
@@ -19,7 +20,7 @@ impl TestStatus {
 }
 
 pub struct TestSuite {
-    pub tests: HashMap<TestName, TestStatus>,
+    pub tests: HashMap<S<TestName>, TestStatus>,
 }
 
 impl TestSuite {

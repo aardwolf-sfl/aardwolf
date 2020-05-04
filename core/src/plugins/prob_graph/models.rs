@@ -6,6 +6,7 @@ use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
 use crate::api::Api;
+use crate::arena::P;
 use crate::data::statement::Statement;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
 use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
@@ -49,13 +50,13 @@ impl EdgeType {
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Node<'data> {
-    pub stmt: &'data Statement,
+pub struct Node {
+    pub stmt: P<Statement>,
     pub typ: NodeType,
 }
 
-impl<'data> Node<'data> {
-    pub fn new(stmt: &'data Statement, typ: NodeType) -> Self {
+impl Node {
+    pub fn new(stmt: P<Statement>, typ: NodeType) -> Self {
         Node { stmt, typ }
     }
 
@@ -81,14 +82,14 @@ impl<'data> Node<'data> {
     }
 }
 
-pub trait Model<'data> {
-    fn get_graph(&self) -> &ModelGraph<'data>;
-    fn from_pdg(pdg: &Pdg<'data>) -> Self;
-    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
-        trace: Trace<'data, I, Self>,
+pub trait Model {
+    fn get_graph(&self) -> &ModelGraph;
+    fn from_pdg(pdg: &Pdg) -> Self;
+    fn run_loc<'param, I: Iterator<Item = P<Statement>>>(
+        trace: Trace<I, Self>,
         ppdg: &Ppdg,
-        api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        api: &Api,
+        results: &'param mut Results,
     ) -> Result<(), PluginError>
     where
         Self: Sized;
@@ -123,65 +124,62 @@ impl StmtNodes {
     }
 }
 
-pub struct ModelGraph<'data> {
-    graph: DiGraph<Node<'data>, EdgeType>,
-    mapping: HashMap<&'data Statement, StmtNodes>,
+pub struct ModelGraph {
+    graph: DiGraph<Node, EdgeType>,
+    mapping: HashMap<P<Statement>, StmtNodes>,
 }
 
-impl<'data> ModelGraph<'data> {
-    pub fn new(
-        graph: DiGraph<Node<'data>, EdgeType>,
-        mapping: HashMap<&'data Statement, StmtNodes>,
-    ) -> Self {
+impl ModelGraph {
+    pub fn new(graph: DiGraph<Node, EdgeType>, mapping: HashMap<P<Statement>, StmtNodes>) -> Self {
         ModelGraph { graph, mapping }
     }
 }
 
-impl<'data> AsRef<DiGraph<Node<'data>, EdgeType>> for ModelGraph<'data> {
-    fn as_ref(&self) -> &DiGraph<Node<'data>, EdgeType> {
+impl AsRef<DiGraph<Node, EdgeType>> for ModelGraph {
+    fn as_ref(&self) -> &DiGraph<Node, EdgeType> {
         &self.graph
     }
 }
 
-impl<'data> AsMut<DiGraph<Node<'data>, EdgeType>> for ModelGraph<'data> {
-    fn as_mut(&mut self) -> &mut DiGraph<Node<'data>, EdgeType> {
+impl AsMut<DiGraph<Node, EdgeType>> for ModelGraph {
+    fn as_mut(&mut self) -> &mut DiGraph<Node, EdgeType> {
         &mut self.graph
     }
 }
 
-impl<'data> Index<&Statement> for ModelGraph<'data> {
+impl Index<&P<Statement>> for ModelGraph {
     type Output = StmtNodes;
 
-    fn index(&self, stmt: &Statement) -> &Self::Output {
+    fn index(&self, stmt: &P<Statement>) -> &Self::Output {
         &self.mapping[stmt]
     }
 }
 
-impl<'data> Index<NodeIndex> for ModelGraph<'data> {
-    type Output = Node<'data>;
+impl Index<NodeIndex> for ModelGraph {
+    type Output = Node;
 
     fn index(&self, index: NodeIndex) -> &Self::Output {
         &self.graph[index]
     }
 }
 
-pub struct DependencyNetwork<'data>(ModelGraph<'data>);
+pub struct DependencyNetwork(ModelGraph);
 
-impl<'data> Model<'data> for DependencyNetwork<'data> {
-    fn get_graph(&self) -> &ModelGraph<'data> {
+impl Model for DependencyNetwork {
+    fn get_graph(&self) -> &ModelGraph {
         &self.0
     }
 
-    fn from_pdg(pdg: &Pdg<'data>) -> Self {
+    fn from_pdg(pdg: &Pdg) -> Self {
         let (graph, mapping) = create_dependency_network(pdg);
         DependencyNetwork(ModelGraph::new(graph, mapping))
     }
 
-    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
-        trace: Trace<'data, I, Self>,
+    fn run_loc<'param, I: Iterator<Item = P<Statement>>>(
+        trace: Trace<I, Self>,
         ppdg: &Ppdg,
-        _api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        _api: &Api,
+        results: &'param mut Results,
     ) -> Result<(), PluginError>
     where
         Self: Sized,
@@ -192,7 +190,7 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
             let prob = ppdg.get_prob(&item);
 
             let lowest_prob = probs
-                .get(item.node.stmt)
+                .get(&item.node.stmt)
                 .map(|(prob, _)| *prob)
                 .unwrap_or(std::f32::MAX);
 
@@ -214,8 +212,13 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
 
         for (stmt, (prob, _)) in probs {
             results.add(
-                LocalizationItem::new(stmt.loc, stmt, 1.0 - prob, default_rationale.clone())
-                    .unwrap(),
+                LocalizationItem::new(
+                    stmt.as_ref().loc,
+                    stmt,
+                    1.0 - prob,
+                    default_rationale.clone(),
+                )
+                .unwrap(),
             );
         }
 
@@ -223,23 +226,23 @@ impl<'data> Model<'data> for DependencyNetwork<'data> {
     }
 }
 
-pub struct BayesianNetwork<'data>(ModelGraph<'data>);
+pub struct BayesianNetwork(ModelGraph);
 
-impl<'data> Model<'data> for BayesianNetwork<'data> {
-    fn get_graph(&self) -> &ModelGraph<'data> {
+impl Model for BayesianNetwork {
+    fn get_graph(&self) -> &ModelGraph {
         &self.0
     }
 
-    fn from_pdg(pdg: &Pdg<'data>) -> Self {
+    fn from_pdg(pdg: &Pdg) -> Self {
         let (graph, mapping) = create_bayesian_network(pdg);
         BayesianNetwork(ModelGraph::new(graph, mapping))
     }
 
-    fn run_loc<'param, I: Iterator<Item = &'data Statement>>(
-        _trace: Trace<'data, I, Self>,
+    fn run_loc<'param, I: Iterator<Item = P<Statement>>>(
+        _trace: Trace<I, Self>,
         _ppdg: &Ppdg,
-        _api: &'data Api<'data>,
-        _results: &'param mut Results<'data>,
+        _api: &Api,
+        _results: &'param mut Results,
     ) -> Result<(), PluginError>
     where
         Self: Sized,
@@ -250,17 +253,14 @@ impl<'data> Model<'data> for BayesianNetwork<'data> {
     }
 }
 
-fn create_dependency_network<'data>(
-    pdg: &Pdg<'data>,
-) -> (
-    DiGraph<Node<'data>, EdgeType>,
-    HashMap<&'data Statement, StmtNodes>,
-) {
+fn create_dependency_network(
+    pdg: &Pdg,
+) -> (DiGraph<Node, EdgeType>, HashMap<P<Statement>, StmtNodes>) {
     let mut dn = pdg.map(
         |_, node| {
             Node::new(
-                node,
-                if node.is_predicate() {
+                *node,
+                if node.as_ref().is_predicate() {
                     NodeType::Predicate
                 } else {
                     NodeType::NonPredicate
@@ -327,12 +327,9 @@ fn create_dependency_network<'data>(
     (dn, mapping)
 }
 
-pub fn create_bayesian_network<'data>(
-    pdg: &Pdg<'data>,
-) -> (
-    DiGraph<Node<'data>, EdgeType>,
-    HashMap<&'data Statement, StmtNodes>,
-) {
+pub fn create_bayesian_network(
+    pdg: &Pdg,
+) -> (DiGraph<Node, EdgeType>, HashMap<P<Statement>, StmtNodes>) {
     let (dn, mapping) = create_dependency_network(pdg);
 
     // TODO: Transform to Bayesian network.
@@ -349,69 +346,67 @@ mod tests {
     use petgraph::graph::DiGraph;
 
     use crate::data::types::StmtId;
-    use crate::structures::{ENTRY, EXIT};
+    use crate::structures::Cfgs;
 
     #[test]
     fn dependency_network_basic() {
-        let mut factory = StatementFactory::new();
-        let cfg = create_basic_cfg(&mut factory);
+        let (cfg, factory) = create_basic_cfg();
 
         let pdg = create_pdg(&cfg);
         let (actual, _) = create_dependency_network(&pdg);
 
-        let mut factory = StatementFactory::new();
-        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
-
         let mut expected = DiGraph::new();
 
-        let _ = expected.add_node(Node::new(ENTRY, NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(Cfgs::entry(), NodeType::NonPredicate));
         let n1 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(1)),
+            factory.get(StmtId::new_test(1)),
             NodeType::NonPredicate,
         ));
         let n2 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(2)),
+            factory.get(StmtId::new_test(2)),
             NodeType::NonPredicate,
         ));
         let n3 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(3)),
+            factory.get(StmtId::new_test(3)),
             NodeType::NonPredicate,
         ));
         let n4 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(4)),
+            factory.get(StmtId::new_test(4)),
             NodeType::Predicate,
         ));
         let n4_data = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(4)),
+            factory.get(StmtId::new_test(4)),
             NodeType::NonPredicate,
         ));
         let n5 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(5)),
+            factory.get(StmtId::new_test(5)),
             NodeType::NonPredicate,
         ));
         let n6 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(6)),
+            factory.get(StmtId::new_test(6)),
             NodeType::Predicate,
         ));
         let n6_data = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(6)),
+            factory.get(StmtId::new_test(6)),
             NodeType::NonPredicate,
         ));
         let n7 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(7)),
+            factory.get(StmtId::new_test(7)),
             NodeType::NonPredicate,
         ));
         let n8 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(8)),
+            factory.get(StmtId::new_test(8)),
             NodeType::NonPredicate,
         ));
-        let n8_loop =
-            expected.add_node(Node::new(factory.get(StmtId::dummy(8)), NodeType::SelfLoop));
+        let n8_loop = expected.add_node(Node::new(
+            factory.get(StmtId::new_test(8)),
+            NodeType::SelfLoop,
+        ));
         let n10 = expected.add_node(Node::new(
-            factory.get(StmtId::dummy(10)),
+            factory.get(StmtId::new_test(10)),
             NodeType::NonPredicate,
         ));
-        let _ = expected.add_node(Node::new(EXIT, NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(Cfgs::exit(), NodeType::NonPredicate));
 
         expected.add_edge(n1, n4_data, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);

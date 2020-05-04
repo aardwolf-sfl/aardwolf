@@ -3,6 +3,8 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
+use crate::arena::{Dummy, DummyValue};
+
 #[derive(Clone, Copy, PartialOrd)]
 pub struct FpWrapper(f64);
 
@@ -222,6 +224,14 @@ impl PartialOrd for Value {
         }
     }
 }
+
+impl DummyValue for Value {
+    fn dummy(_dummy: Dummy) -> Self {
+        Value::Unsupported
+    }
+}
+
+impl_arena_p!(Value);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ValueType {

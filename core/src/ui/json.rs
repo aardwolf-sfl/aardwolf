@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use super::Ui;
 use crate::api::Api;
-use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
 use crate::data::statement::Loc;
+use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
 
 #[derive(Serialize, Deserialize)]
 struct Output {
@@ -41,13 +41,13 @@ struct Location {
 }
 
 pub struct JsonUi<'data> {
-    api: &'data Api<'data>,
+    api: &'data Api,
     terminal: Stdout,
     output: Output,
 }
 
 impl<'data> JsonUi<'data> {
-    pub fn new(api: &'data Api<'data>) -> Self {
+    pub fn new(api: &'data Api) -> Self {
         JsonUi {
             api,
             terminal: io::stdout(),
@@ -105,7 +105,7 @@ impl<'data> Ui<'data> for JsonUi<'data> {
         });
     }
 
-    fn result(&mut self, item: &LocalizationItem<'data>) {
+    fn result(&mut self, item: &LocalizationItem) {
         let (rationale, anchors) = self.rationale(&item.rationale);
         let location = self.location(&item.loc);
 

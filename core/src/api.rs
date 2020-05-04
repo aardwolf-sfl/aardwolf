@@ -19,15 +19,15 @@ pub enum InvalidData {
     Empty(EmptyDataReason),
 }
 
-pub struct Api<'data> {
+pub struct Api {
     data: RawData,
-    stmts: LazyCell<Stmts<'data>>,
-    tests: LazyCell<Tests<'data>>,
-    def_use: LazyCell<DefUse<'data>>,
+    stmts: LazyCell<Stmts>,
+    tests: LazyCell<Tests>,
+    def_use: LazyCell<DefUse>,
     spectra: LazyCell<Spectra>,
-    cfgs: LazyCell<Cfgs<'data>>,
-    pdgs: LazyCell<Pdgs<'data>>,
-    vars: LazyCell<Vars<'data>>,
+    cfgs: LazyCell<Cfgs>,
+    pdgs: LazyCell<Pdgs>,
+    vars: LazyCell<Vars>,
 }
 
 macro_rules! get_lazy_fallible {
@@ -56,7 +56,7 @@ macro_rules! get_lazy_infallible {
     }};
 }
 
-impl<'data> Api<'data> {
+impl Api {
     pub(crate) fn new(data: RawData) -> Result<Self, InvalidData> {
         if data.modules.files.is_empty() || data.modules.functions.is_empty() {
             Err(InvalidData::Empty(EmptyDataReason::Static))
@@ -85,40 +85,42 @@ impl<'data> Api<'data> {
         }
     }
 
-    pub fn make<T: FromRawData<'data>>(&'data self) -> Result<T, FromRawDataError> {
+    pub fn make<T: FromRawData>(&self) -> Result<T, FromRawDataError> {
         T::from_raw(&self.data, &self)
     }
 
-    pub fn get_stmts(&'data self) -> &Stmts<'data> {
+    pub fn get_stmts(&self) -> &Stmts {
         get_lazy_infallible!(self, stmts)
     }
 
-    pub fn get_tests(&'data self) -> &Tests<'data> {
+    pub fn get_tests(&self) -> &Tests {
         get_lazy_infallible!(self, tests)
     }
 
-    pub fn get_def_use(&'data self) -> &DefUse<'data> {
+    pub fn get_def_use(&self) -> &DefUse {
         get_lazy_infallible!(self, def_use)
     }
 
-    pub fn get_spectra(&'data self) -> &Spectra {
+    pub fn get_spectra(&self) -> &Spectra {
         get_lazy_infallible!(self, spectra)
     }
 
-    pub fn get_cfgs(&'data self) -> &Cfgs<'data> {
+    pub fn get_cfgs(&self) -> &Cfgs {
         get_lazy_infallible!(self, cfgs)
     }
 
-    pub fn get_pdgs(&'data self) -> &Pdgs<'data> {
+    pub fn get_pdgs(&self) -> &Pdgs {
         get_lazy_infallible!(self, pdgs)
     }
 
-    pub fn get_vars(&'data self) -> Option<&Vars<'data>> {
+    pub fn get_vars(&self) -> Option<&Vars> {
         get_lazy_fallible!(self, vars)
     }
 
     pub fn get_filepath(&self, file_id: &FileId) -> Option<PathBuf> {
-        let raw = PathBuf::from(self.data.modules.files.get(file_id)?);
+        let ptr = self.data.modules.files.get(file_id)?;
+        let raw = PathBuf::from(ptr.as_ref());
+
         raw.canonicalize()
             .ok()?
             .strip_prefix(env::current_dir().ok()?)

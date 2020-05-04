@@ -4,6 +4,7 @@ use std::fmt;
 use yaml_rust::Yaml;
 
 use crate::api::Api;
+use crate::arena::{P, S};
 use crate::data::{
     statement::{Loc, Statement},
     types::{StmtId, TestName},
@@ -18,15 +19,15 @@ pub mod sbfl;
 pub struct IrrelevantItems {
     // Store relevant items and remove them if they are marked as irrelevant.
     pub stmts: HashSet<StmtId>,
-    pub tests: HashSet<TestName>,
+    pub tests: HashSet<S<TestName>>,
 }
 
 impl<'data> IrrelevantItems {
-    pub fn new(api: &'data Api<'data>) -> Self {
+    pub fn new(api: &'data Api) -> Self {
         // By default, all items are relevant.
         IrrelevantItems {
             stmts: api.get_stmts().iter_ids().copied().collect(),
-            tests: api.get_tests().iter_names().cloned().collect(),
+            tests: api.get_tests().iter_names().copied().collect(),
         }
     }
 
@@ -34,7 +35,7 @@ impl<'data> IrrelevantItems {
         self.stmts.remove(&stmt.id);
     }
 
-    pub fn mark_test(&mut self, test: &TestName) {
+    pub fn mark_test(&mut self, test: &S<TestName>) {
         self.tests.remove(test);
     }
 
@@ -42,25 +43,25 @@ impl<'data> IrrelevantItems {
         self.stmts.contains(&stmt.id)
     }
 
-    pub fn is_test_relevant(&self, test: &TestName) -> bool {
+    pub fn is_test_relevant(&self, test: &S<TestName>) -> bool {
         self.tests.contains(test)
     }
 }
 
 #[derive(Clone)]
-pub struct Results<'data> {
+pub struct Results {
     // TODO: Make a specialized data structure which combines HashMap and BinaryHeap
     //       (maybe custom implementation of binary heap is necessary).
     // TODO: Make two variants of the results (enum)
     //         - first, which just blindly adds all new items up to set limit and keeps them sorted,
     //         - second, which will also check if an existing item is added again and keeps only the most suspicious.
     //       Plugins can then switch between these variants using a method (they get mutable reference).
-    items: HashMap<Loc, LocalizationItem<'data>>,
+    items: HashMap<Loc, LocalizationItem>,
     n_results: usize,
     max_score: f32,
 }
 
-impl<'data> Results<'data> {
+impl Results {
     pub fn new(n_results: usize) -> Self {
         Results {
             items: HashMap::with_capacity(n_results),
@@ -69,7 +70,7 @@ impl<'data> Results<'data> {
         }
     }
 
-    pub fn add(&mut self, item: LocalizationItem<'data>) {
+    pub fn add(&mut self, item: LocalizationItem) {
         if item.score > self.max_score {
             self.max_score = item.score;
         }
@@ -113,7 +114,7 @@ impl<'data> Results<'data> {
         !self.items.is_empty()
     }
 
-    pub fn normalize(self) -> NormalizedResults<'data> {
+    pub fn normalize(self) -> NormalizedResults {
         let max_score = self.max_score;
         let mut items = self
             .items
@@ -130,23 +131,23 @@ impl<'data> Results<'data> {
         NormalizedResults { items }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &LocalizationItem<'data>> {
+    pub fn iter(&self) -> impl Iterator<Item = &LocalizationItem> {
         self.items.values()
     }
 }
 
-pub struct NormalizedResults<'data> {
-    items: Vec<LocalizationItem<'data>>,
+pub struct NormalizedResults {
+    items: Vec<LocalizationItem>,
 }
 
-impl<'data> NormalizedResults<'data> {
-    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &LocalizationItem<'data>> {
+impl NormalizedResults {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &LocalizationItem> {
         self.items.iter()
     }
 }
 
-impl<'data> IntoIterator for NormalizedResults<'data> {
-    type Item = LocalizationItem<'data>;
+impl IntoIterator for NormalizedResults {
+    type Item = LocalizationItem;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -243,9 +244,9 @@ impl fmt::Debug for Rationale {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct LocalizationItem<'data> {
+pub struct LocalizationItem {
     pub loc: Loc,
-    pub root_stmt: &'data Statement,
+    pub root_stmt: P<Statement>,
     pub score: f32,
     pub rationale: Rationale,
 }
@@ -256,10 +257,10 @@ pub enum InvalidLocalizationItem {
     EmptyRationale,
 }
 
-impl<'data> LocalizationItem<'data> {
+impl LocalizationItem {
     pub fn new(
         loc: Loc,
-        root_stmt: &'data Statement,
+        root_stmt: P<Statement>,
         score: f32,
         rationale: Rationale,
     ) -> Result<Self, InvalidLocalizationItem> {
@@ -287,17 +288,14 @@ impl<'data> LocalizationItem<'data> {
 pub type PluginInitError = String;
 
 pub trait AardwolfPlugin {
-    fn init<'data>(
-        api: &'data Api<'data>,
-        opts: &HashMap<String, Yaml>,
-    ) -> Result<Self, PluginInitError>
+    fn init<'data>(api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized;
 
     // TODO: Make general structure Preprocessing instead of IrrelevantItems.
     fn run_pre<'data, 'out>(
         &'out self,
-        _api: &'data Api<'data>,
+        _api: &'data Api,
         _irrelevant: &'out mut IrrelevantItems,
     ) -> Result<(), PluginError> {
         Ok(())
@@ -305,8 +303,8 @@ pub trait AardwolfPlugin {
 
     fn run_loc<'data, 'param>(
         &self,
-        _api: &'data Api<'data>,
-        _results: &'param mut Results<'data>,
+        _api: &'data Api,
+        _results: &'param mut Results,
         _irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         Ok(())
@@ -314,9 +312,9 @@ pub trait AardwolfPlugin {
 
     fn run_post<'data, 'param>(
         &self,
-        _api: &'data Api<'data>,
-        _base: &'param HashMap<&'param str, &'param NormalizedResults<'data>>,
-        _results: &'param mut Results<'data>,
+        _api: &'data Api,
+        _base: &'param HashMap<&'param str, &'param NormalizedResults>,
+        _results: &'param mut Results,
     ) -> Result<(), PluginError> {
         Ok(())
     }

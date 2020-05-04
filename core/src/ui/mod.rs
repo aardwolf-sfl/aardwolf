@@ -12,7 +12,7 @@ pub use json::JsonUi;
 pub trait Ui<'data> {
     fn prolog(&mut self) {}
     fn plugin(&mut self, id: &str);
-    fn result(&mut self, item: &LocalizationItem<'data>);
+    fn result(&mut self, item: &LocalizationItem);
     fn epilog(&mut self) {}
 }
 
@@ -28,6 +28,6 @@ impl Default for UiName {
     }
 }
 
-pub trait UiDisplay<'data> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>, api: &'data Api<'data>) -> fmt::Result;
+pub trait UiDisplay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>, api: &Api) -> fmt::Result;
 }

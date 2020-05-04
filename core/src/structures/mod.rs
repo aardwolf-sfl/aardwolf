@@ -9,7 +9,7 @@ mod vars;
 use crate::api::Api;
 use crate::data::RawData;
 
-pub use cfg::{Cfg, Cfgs, ENTRY, EXIT};
+pub use cfg::{Cfg, Cfgs};
 pub use def_use::DefUse;
 pub use pdg::{EdgeType, Pdg, Pdgs};
 pub use spectra::Spectra;
@@ -27,8 +27,8 @@ pub enum FromRawDataError {
 // Plugins themselves must use only registered high-level data queries. Data
 // structure registration is separate call in plugin interface. This design
 // pattern should enforce clean separation of concerns.
-pub trait FromRawData<'data> {
-    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError>
+pub trait FromRawData {
+    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError>
     where
         Self: Sized;
 }

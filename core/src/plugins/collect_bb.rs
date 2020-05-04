@@ -7,6 +7,7 @@ use petgraph::{
 use yaml_rust::Yaml;
 
 use crate::api::Api;
+use crate::arena::P;
 use crate::data::statement::{Loc, Statement};
 use crate::plugins::{
     AardwolfPlugin, LocalizationItem, NormalizedResults, PluginError, PluginInitError, Results,
@@ -17,10 +18,7 @@ pub struct CollectBb {
 }
 
 impl AardwolfPlugin for CollectBb {
-    fn init<'data>(
-        _api: &'data Api<'data>,
-        opts: &HashMap<String, Yaml>,
-    ) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -39,9 +37,9 @@ impl AardwolfPlugin for CollectBb {
 
     fn run_post<'data, 'param>(
         &self,
-        api: &'data Api<'data>,
-        base: &'param HashMap<&'param str, &'param NormalizedResults<'data>>,
-        results: &'param mut Results<'data>,
+        api: &'data Api,
+        base: &'param HashMap<&'param str, &'param NormalizedResults>,
+        results: &'param mut Results,
     ) -> Result<(), PluginError> {
         let mut original = base
             .get(self.plugin.as_str())
@@ -59,8 +57,8 @@ impl AardwolfPlugin for CollectBb {
 
         while let Some(item) = original.pop() {
             if let Some(cfg) = stmts
-                .find_fn(item.root_stmt)
-                .and_then(|func| cfgs.get(func))
+                .find_fn(item.root_stmt.as_ref())
+                .and_then(|func| cfgs.get(&func))
             {
                 // Find index in CFG corresponding to the statement.
                 let index = cfg
@@ -142,12 +140,12 @@ impl AardwolfPlugin for CollectBb {
 }
 
 impl CollectBb {
-    fn extend_loc<'data>(
+    fn extend_loc(
         &self,
         loc: &mut Loc,
-        original: &mut Vec<&LocalizationItem<'data>>,
-        cfg: &DiGraph<&Statement, ()>,
-        item: &LocalizationItem<'data>,
+        original: &mut Vec<&LocalizationItem>,
+        cfg: &DiGraph<P<Statement>, ()>,
+        item: &LocalizationItem,
         index: NodeIndex,
     ) -> bool {
         let len = original.len();
@@ -156,12 +154,12 @@ impl CollectBb {
         original.retain(|other| {
             // The localization item must include neighbor's location,
             // Merge only items which have equal score and the same rationale.
-            if other.loc.contains(&cfg[index].loc)
+            if other.loc.contains(&cfg[index].as_ref().loc)
                 && other.score == item.score
                 && other.rationale == item.rationale
             {
                 // Extend the location.
-                *loc = loc.merge(&cfg[index].loc);
+                *loc = loc.merge(&cfg[index].as_ref().loc);
                 false
             } else {
                 true

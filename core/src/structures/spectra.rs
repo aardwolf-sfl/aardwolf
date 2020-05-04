@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::api::Api;
+use crate::arena::S;
 use crate::data::{
     statement::Statement,
     trace::TraceItem,
@@ -10,11 +11,11 @@ use crate::data::{
 use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Spectra {
-    spectra: HashMap<TestName, HashSet<StmtId>>,
+    spectra: HashMap<S<TestName>, HashSet<StmtId>>,
 }
 
 impl Spectra {
-    pub fn is_executed_in(&self, test: &TestName, stmt: &Statement) -> bool {
+    pub fn is_executed_in(&self, test: &S<TestName>, stmt: &Statement) -> bool {
         if let Some(stmts) = self.spectra.get(test) {
             stmts.contains(&stmt.id)
         } else {
@@ -23,8 +24,8 @@ impl Spectra {
     }
 }
 
-impl<'data> FromRawData<'data> for Spectra {
-    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Spectra {
+    fn from_raw(data: &RawData, _api: &Api) -> Result<Self, FromRawDataError> {
         let mut spectra = HashMap::new();
         let mut stmts = HashSet::new();
         let mut test_case = None;

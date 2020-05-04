@@ -38,10 +38,7 @@ pub struct Sbfl {
 }
 
 impl AardwolfPlugin for Sbfl {
-    fn init<'data>(
-        _api: &'data Api<'data>,
-        opts: &HashMap<String, Yaml>,
-    ) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -52,8 +49,8 @@ impl AardwolfPlugin for Sbfl {
 
     fn run_loc<'data, 'param>(
         &self,
-        api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        api: &'data Api,
+        results: &'param mut Results,
         irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         let stmts = api.get_stmts();
@@ -68,12 +65,15 @@ impl AardwolfPlugin for Sbfl {
 
         for stmt in stmts
             .iter_stmts()
-            .filter(|stmt| irrelevant.is_stmt_relevant(stmt))
+            .filter(|stmt| irrelevant.is_stmt_relevant(stmt.as_ref()))
         {
             let stmt_counters = counters.entry(stmt).or_insert(Counters::new());
 
             for test in tests.iter_names() {
-                match (spectra.is_executed_in(test, stmt), tests.is_passed(test)) {
+                match (
+                    spectra.is_executed_in(test, stmt.as_ref()),
+                    tests.is_passed(test),
+                ) {
                     (false, false) => stmt_counters.anf += 1.0,
                     (false, true) => stmt_counters.anp += 1.0,
                     (true, false) => stmt_counters.aef += 1.0,
@@ -85,8 +85,8 @@ impl AardwolfPlugin for Sbfl {
 
             results.add(
                 LocalizationItem::new(
-                    stmt.loc,
-                    stmt,
+                    stmt.as_ref().loc,
+                    *stmt,
                     self.metric
                         .calc(spectrum.0, spectrum.1, spectrum.2, spectrum.3),
                     rationale.clone(),

@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::arena::{Dummy, DummyValue};
+
 pub type VarId = u64;
 
 #[derive(Hash, PartialEq, Eq)]
@@ -28,6 +30,14 @@ impl fmt::Debug for Access {
         }
     }
 }
+
+impl DummyValue for Access {
+    fn dummy(dummy: Dummy) -> Self {
+        Access::Scalar(VarId::MAX - (dummy.as_num() as VarId))
+    }
+}
+
+impl_arena_p!(Access);
 
 #[derive(Hash, PartialEq, Eq)]
 pub struct AccessChain(Vec<VarId>);

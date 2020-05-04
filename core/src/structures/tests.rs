@@ -2,65 +2,59 @@ use std::collections::hash_map::{HashMap, Iter, Keys};
 use std::mem;
 
 use crate::api::Api;
+use crate::arena::{P, S};
 use crate::data::{
-    statement::Statement,
-    tests::{TestStatus, TestSuite},
-    trace::TraceItem,
-    types::TestName,
-    RawData,
+    statement::Statement, tests::TestStatus, trace::TraceItem, types::TestName, RawData,
 };
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Tests<'data> {
-    raw: &'data TestSuite,
-    traces: HashMap<TestName, Vec<&'data Statement>>,
+pub struct Tests {
+    tests: HashMap<S<TestName>, TestStatus>,
+    traces: HashMap<S<TestName>, Vec<P<Statement>>>,
 }
 
-impl<'data> Tests<'data> {
-    pub fn iter_names(&self) -> Keys<TestName, TestStatus> {
-        self.raw.tests.keys()
+impl Tests {
+    pub fn iter_names(&self) -> Keys<S<TestName>, TestStatus> {
+        self.tests.keys()
     }
 
-    pub fn iter_statuses(&self) -> Iter<TestName, TestStatus> {
-        self.raw.tests.iter()
+    pub fn iter_statuses(&self) -> Iter<S<TestName>, TestStatus> {
+        self.tests.iter()
     }
 
-    pub fn iter_stmts(
-        &'data self,
-        test: &'data TestName,
-    ) -> Option<impl Iterator<Item = &'data Statement>> {
-        self.traces.get(test).map(|stmts| stmts.iter().copied())
+    pub fn iter_stmts(&self, test: &S<TestName>) -> Option<impl Iterator<Item = &P<Statement>>> {
+        self.traces.get(test).map(|stmts| stmts.iter())
     }
 
-    pub fn is_passed(&self, test: &TestName) -> bool {
-        if let Some(status) = self.raw.tests.get(test) {
+    pub fn is_passed(&self, test: &S<TestName>) -> bool {
+        if let Some(status) = self.tests.get(test) {
             *status == TestStatus::Passed
         } else {
             false
         }
     }
 
-    pub fn iter_passed(&self) -> impl Iterator<Item = &TestName> {
+    pub fn iter_passed(&self) -> impl Iterator<Item = &S<TestName>> {
         self.iter_statuses()
             .filter(|(_, status)| **status == TestStatus::Passed)
             .map(|(name, _)| name)
     }
 
-    pub fn iter_failed(&self) -> impl Iterator<Item = &TestName> {
+    pub fn iter_failed(&self) -> impl Iterator<Item = &S<TestName>> {
         self.iter_statuses()
             .filter(|(_, status)| **status == TestStatus::Failed)
             .map(|(name, _)| name)
     }
 
-    pub fn get_failed(&self) -> &TestName {
+    pub fn get_failed(&self) -> &S<TestName> {
         // Aardwolf performs validation whether there is at least one failed test.
         // We can therefore unwrap the first value of the iterator.
         self.iter_failed().next().unwrap()
     }
 }
 
-impl<'data> FromRawData<'data> for Tests<'data> {
-    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Tests {
+    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
         let mut traces = HashMap::with_capacity(data.test_suite.tests.len());
@@ -100,7 +94,7 @@ impl<'data> FromRawData<'data> for Tests<'data> {
         }
 
         Ok(Tests {
-            raw: &data.test_suite,
+            tests: data.test_suite.tests.clone(),
             traces,
         })
     }

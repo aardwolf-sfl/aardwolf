@@ -4,28 +4,31 @@ use petgraph::graph::DiGraph;
 use petgraph::Direction;
 
 use crate::api::Api;
-use crate::data::{
-    statement::Statement,
-    types::{FuncName, StmtId},
-    RawData,
-};
+use crate::arena::{Arena, Dummy};
+use crate::arena::{P, S};
+use crate::data::{statement::Statement, types::FuncName, RawData};
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub const ENTRY: &'static Statement = &Statement::dummy(StmtId::dummy(std::u64::MAX - 1));
-pub const EXIT: &'static Statement = &Statement::dummy(StmtId::dummy(std::u64::MAX));
+pub type Cfg = DiGraph<P<Statement>, ()>;
 
-pub type Cfg<'data> = DiGraph<&'data Statement, ()>;
+pub struct Cfgs(HashMap<S<FuncName>, Cfg>);
 
-pub struct Cfgs<'data>(HashMap<FuncName, Cfg<'data>>);
-
-impl<'data> Cfgs<'data> {
-    pub fn get(&'data self, func: &FuncName) -> Option<&'data Cfg<'data>> {
+impl Cfgs {
+    pub fn get(&self, func: &S<FuncName>) -> Option<&Cfg> {
         self.0.get(func)
+    }
+
+    pub fn entry() -> P<Statement> {
+        Arena::dummy(Dummy::D1)
+    }
+
+    pub fn exit() -> P<Statement> {
+        Arena::dummy(Dummy::D2)
     }
 }
 
-impl<'data> FromRawData<'data> for Cfgs<'data> {
-    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Cfgs {
+    fn from_raw(data: &RawData, _api: &Api) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
 
         for (func_name, func_body) in data.modules.functions.iter() {
@@ -33,13 +36,15 @@ impl<'data> FromRawData<'data> for Cfgs<'data> {
             let mut id_map = HashMap::new();
 
             for (id, stmt) in func_body.iter() {
-                id_map.insert(id, graph.add_node(stmt));
+                id_map.insert(id, graph.add_node(*stmt));
             }
 
-            let entry = graph.add_node(ENTRY);
-            let exit = graph.add_node(EXIT);
+            let entry = graph.add_node(Cfgs::entry());
+            let exit = graph.add_node(Cfgs::exit());
 
             for (id, stmt) in func_body.iter() {
+                let stmt = stmt.as_ref();
+
                 for succ in stmt.succ.iter() {
                     graph.add_edge(id_map[id], id_map[succ], ());
                 }
@@ -59,7 +64,7 @@ impl<'data> FromRawData<'data> for Cfgs<'data> {
                 graph.add_edge(entry, node, ());
             }
 
-            result.insert(func_name.clone(), graph);
+            result.insert(*func_name, graph);
         }
 
         Ok(Cfgs(result))

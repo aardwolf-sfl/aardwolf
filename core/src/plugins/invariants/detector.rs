@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash;
 use std::ops::Deref;
 
+use crate::arena::{P, S};
 use crate::data::{
     access::{Access, AccessChain},
     types::TestName,
@@ -10,12 +11,12 @@ use crate::data::{
 };
 
 // REFACTOR: Implement multiple detectors with different trade-offs (time and space efficiency).
-pub struct Stats<'data> {
-    samples: HashSet<TestName>,
-    data: HashMap<AccessChain, AccessState<'data>>,
+pub struct Stats {
+    samples: HashSet<S<TestName>>,
+    data: HashMap<AccessChain, AccessState>,
 }
 
-impl<'data> Stats<'data> {
+impl Stats {
     pub fn new() -> Self {
         Stats {
             samples: HashSet::new(),
@@ -23,15 +24,15 @@ impl<'data> Stats<'data> {
         }
     }
 
-    pub fn learn(&mut self, access: &'data Access, data: &'data Value, test: TestName) {
-        self.samples.insert(test.clone());
+    pub fn learn(&mut self, access: P<Access>, data: P<Value>, test: S<TestName>) {
+        self.samples.insert(test);
 
-        let view = AccessChain::from_defs(access);
+        let view = AccessChain::from_defs(access.as_ref());
         self.data.entry(view).or_default().learn(data, test);
     }
 
-    pub fn check(&self, data: &'data Value, access: &'data Access) -> Vec<InvariantInfo<'data>> {
-        let view = AccessChain::from_defs(access);
+    pub fn check(&self, data: &P<Value>, access: &P<Access>) -> Vec<InvariantInfo> {
+        let view = AccessChain::from_defs(access.as_ref());
 
         if let Some(state) = self.data.get(&view) {
             state.check(data, access, self)
@@ -41,22 +42,22 @@ impl<'data> Stats<'data> {
     }
 }
 
-pub enum Invariant<'data> {
-    Constant(&'data Value),
-    Range(Option<&'data Value>, Option<&'data Value>),
+pub enum Invariant {
+    Constant(P<Value>),
+    Range(Option<P<Value>>, Option<P<Value>>),
     TypeStable(ValueType),
     // NaN, +Inf, -Inf, NULL
     NonExceptionalValue(ValueType),
 }
 
-pub struct InvariantInfo<'data> {
-    pub inv: Invariant<'data>,
-    pub access: &'data Access,
+pub struct InvariantInfo {
+    pub inv: Invariant,
+    pub access: P<Access>,
     pub confidence: f32,
 }
 
-impl<'data> InvariantInfo<'data> {
-    pub fn new(inv: Invariant<'data>, access: &'data Access, confidence: f32) -> Self {
+impl InvariantInfo {
+    pub fn new(inv: Invariant, access: P<Access>, confidence: f32) -> Self {
         InvariantInfo {
             inv,
             access,
@@ -64,89 +65,38 @@ impl<'data> InvariantInfo<'data> {
         }
     }
 
-    pub fn explain(&self, data: &'data Value) -> String {
+    pub fn explain(&self, data: &P<Value>) -> String {
         match &self.inv {
-            Invariant::Constant(cst) => {
-                format!("expected to be constantly {}, but is {}", cst, data)
-            }
+            Invariant::Constant(cst) => format!(
+                "expected to be constantly {}, but is {}",
+                cst.as_ref(),
+                data.as_ref()
+            ),
             Invariant::Range(Some(min), Some(max)) => format!(
                 "expected to be in range [{}, {}], but is {}",
-                min, max, data
+                min.as_ref(),
+                max.as_ref(),
+                data.as_ref()
             ),
             Invariant::Range(Some(min), None) => {
-                format!("expected to be ≥{}, but is {}", min, data)
+                format!("expected to be ≥{}, but is {}", min.as_ref(), data.as_ref())
             }
             Invariant::Range(None, Some(max)) => {
-                format!("expected to be ≤{}, but is {}", max, data)
+                format!("expected to be ≤{}, but is {}", max.as_ref(), data.as_ref())
             }
             Invariant::Range(None, None) => panic!("internal error"),
             Invariant::TypeStable(typ) => format!(
                 "expected to have a stable type {}, but is of type {}",
                 typ,
-                data.get_type()
+                data.as_ref().get_type()
             ),
             // TODO: Make better description based on the actual type.
             Invariant::NonExceptionalValue(_) => {
-                format!("expected to have a normal value, but is {}", data)
+                format!("expected to have a normal value, but is {}", data.as_ref())
             }
         }
     }
 }
-
-// #[derive(Debug)]
-// struct AccessView<'data>(&'data Access);
-
-// impl<'data> AccessView<'data> {
-//     pub fn new(access: &'data Access) -> Self {
-//         AccessView(access)
-//     }
-
-//     fn view_hash<H: Hasher>(&self, state: &mut H, access: &Access) {
-//         match access {
-//             Access::Scalar(scalar) => scalar.hash(state),
-//             Access::Structural(obj, field) => {
-//                 self.view_hash(state, obj);
-//                 self.view_hash(state, field);
-//             }
-//             // Ignore index variables.
-//             Access::ArrayLike(array, _) => self.view_hash(state, array),
-//         }
-//     }
-
-//     fn view_eq(&self, lhs: &Access, rhs: &Access) -> bool {
-//         match (lhs, rhs) {
-//             (Access::Scalar(scalar_lhs), Access::Scalar(scalar_rhs)) => scalar_lhs == scalar_rhs,
-//             (Access::Structural(obj_lhs, field_lhs), Access::Structural(obj_rhs, field_rhs)) => {
-//                 self.view_eq(obj_lhs, obj_rhs) && self.view_eq(field_lhs, field_rhs)
-//             }
-//             // Ignore index variables.
-//             (Access::ArrayLike(array_lhs, _), Access::ArrayLike(array_rhs, _)) => {
-//                 self.view_eq(array_lhs, array_rhs)
-//             }
-//             _ => false,
-//         }
-//     }
-// }
-
-// impl<'data> Hash for AccessView<'data> {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.view_hash(state, self.0);
-//     }
-// }
-
-// impl<'data> PartialEq for AccessView<'data> {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.view_eq(self.0, other.0)
-//     }
-// }
-
-// impl<'data> Eq for AccessView<'data> {}
-
-// impl<'data> AsRef<Access> for AccessView<'data> {
-//     fn as_ref(&self) -> &Access {
-//         &self.0
-//     }
-// }
 
 #[derive(PartialOrd, PartialEq, Eq)]
 struct UnsafeOrd<T: PartialOrd + PartialEq + Eq>(T);
@@ -157,11 +107,11 @@ impl<T: PartialOrd + PartialEq + Eq> Ord for UnsafeOrd<T> {
     }
 }
 
-impl<'data> UnsafeOrd<&'data Value> {
-    pub fn wrap(value: &'data Value) -> Option<Self> {
-        match value {
+impl UnsafeOrd<P<Value>> {
+    pub fn wrap(value: P<Value>) -> Option<Self> {
+        match value.as_ref() {
             Value::Floating(value) if !(***value).is_finite() => None,
-            other => Some(UnsafeOrd(other)),
+            _ => Some(UnsafeOrd(value)),
         }
     }
 }
@@ -174,29 +124,31 @@ impl<T: PartialOrd + PartialEq + Eq> Deref for UnsafeOrd<T> {
     }
 }
 
-enum AccessState<'data> {
+enum AccessState {
     Empty,
-    SingleValue(SingleValueAccessState<'data>),
-    Range(RangeAccessState<'data>),
+    SingleValue(SingleValueAccessState),
+    Range(RangeAccessState),
     None(NoneAccessState),
 }
 
-impl<'data> Default for AccessState<'data> {
+impl Default for AccessState {
     fn default() -> Self {
         AccessState::Empty
     }
 }
 
-impl<'data> AccessState<'data> {
-    pub fn new(data: &'data Value, test: TestName) -> Self {
-        if data.is_unsupported() {
+impl AccessState {
+    pub fn new(data: P<Value>, test: S<TestName>) -> Self {
+        let data_ref = data.as_ref();
+
+        if data_ref.is_unsupported() {
             AccessState::None(NoneAccessState::typed(
                 ValueType::Unsupported,
                 vec![test].into_iter().collect(),
             ))
-        } else if data.is_exceptional_value() {
+        } else if data_ref.is_exceptional_value() {
             AccessState::None(NoneAccessState::typed_with_reason(
-                data.get_type(),
+                data_ref.get_type(),
                 NoInvariantReason::ExceptionalValue,
                 vec![test].into_iter().collect(),
             ))
@@ -205,7 +157,9 @@ impl<'data> AccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: TestName) {
+    pub fn learn(&mut self, data: P<Value>, test: S<TestName>) {
+        let data_ref = data.as_ref();
+
         // TODO: When creating "none" state, put there all happened violations
         // (ie., both type changed and exceptional value if they happened), not just one.
         match self {
@@ -215,13 +169,13 @@ impl<'data> AccessState<'data> {
             AccessState::SingleValue(single_value) => {
                 if single_value.data == data {
                     single_value.learn(test);
-                } else if single_value.data.get_type() != data.get_type() {
+                } else if single_value.data.as_ref().get_type() != data_ref.get_type() {
                     *self = AccessState::None(NoneAccessState::type_changed(
                         single_value.in_tests.clone(),
                     ))
-                } else if data.is_exceptional_value() {
+                } else if data_ref.is_exceptional_value() {
                     *self = AccessState::None(NoneAccessState::typed_with_reason(
-                        data.get_type(),
+                        data_ref.get_type(),
                         NoInvariantReason::ExceptionalValue,
                         single_value.in_tests.clone(),
                     ))
@@ -236,11 +190,11 @@ impl<'data> AccessState<'data> {
                 }
             }
             AccessState::Range(range) => {
-                if range.typ != data.get_type() {
+                if range.typ != data_ref.get_type() {
                     *self = AccessState::None(NoneAccessState::type_changed(range.in_tests.clone()))
-                } else if data.is_exceptional_value() {
+                } else if data_ref.is_exceptional_value() {
                     *self = AccessState::None(NoneAccessState::typed_with_reason(
-                        data.get_type(),
+                        data_ref.get_type(),
                         NoInvariantReason::ExceptionalValue,
                         range.in_tests.clone(),
                     ))
@@ -254,12 +208,7 @@ impl<'data> AccessState<'data> {
         }
     }
 
-    pub fn check(
-        &self,
-        data: &'data Value,
-        access: &'data Access,
-        stats: &Stats<'data>,
-    ) -> Vec<InvariantInfo<'data>> {
+    pub fn check(&self, data: &P<Value>, access: &P<Access>, stats: &Stats) -> Vec<InvariantInfo> {
         match self {
             AccessState::Empty => Vec::new(),
             AccessState::SingleValue(single_value) => single_value.check(data, access, stats),
@@ -269,14 +218,14 @@ impl<'data> AccessState<'data> {
     }
 }
 
-struct SingleValueAccessState<'data> {
-    data: &'data Value,
+struct SingleValueAccessState {
+    data: P<Value>,
     count: usize,
-    in_tests: HashSet<TestName>,
+    in_tests: HashSet<S<TestName>>,
 }
 
-impl<'data> SingleValueAccessState<'data> {
-    pub fn new(data: &'data Value, test: TestName) -> Self {
+impl SingleValueAccessState {
+    pub fn new(data: P<Value>, test: S<TestName>) -> Self {
         SingleValueAccessState {
             data,
             count: 1,
@@ -284,39 +233,37 @@ impl<'data> SingleValueAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, test: TestName) {
+    pub fn learn(&mut self, test: S<TestName>) {
         self.count += 1;
         self.in_tests.insert(test);
     }
 
-    pub fn check(
-        &self,
-        data: &'data Value,
-        access: &'data Access,
-        stats: &Stats<'data>,
-    ) -> Vec<InvariantInfo<'data>> {
+    pub fn check(&self, data: &P<Value>, access: &P<Access>, stats: &Stats) -> Vec<InvariantInfo> {
+        let data_ref = data.as_ref();
+        let self_data_ref = self.data.as_ref();
+
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 
-        if data.is_exceptional_value() {
+        if data_ref.is_exceptional_value() {
             violations.push(InvariantInfo::new(
-                Invariant::NonExceptionalValue(self.data.get_type()),
-                access,
+                Invariant::NonExceptionalValue(self_data_ref.get_type()),
+                *access,
                 confidence,
             ));
         }
 
-        if data.get_type() != self.data.get_type() {
+        if data_ref.get_type() != self_data_ref.get_type() {
             violations.push(InvariantInfo::new(
-                Invariant::TypeStable(self.data.get_type()),
-                access,
+                Invariant::TypeStable(self_data_ref.get_type()),
+                *access,
                 confidence,
             ));
-        } else if data != self.data {
+        } else if data != &self.data {
             // Equal types.
             violations.push(InvariantInfo::new(
                 Invariant::Constant(self.data),
-                access,
+                *access,
                 confidence,
             ));
         }
@@ -325,27 +272,27 @@ impl<'data> SingleValueAccessState<'data> {
     }
 }
 
-struct RangeAccessState<'data> {
-    data: BTreeMap<UnsafeOrd<&'data Value>, usize>,
+struct RangeAccessState {
+    data: BTreeMap<UnsafeOrd<P<Value>>, usize>,
     typ: ValueType,
-    in_tests: HashSet<TestName>,
+    in_tests: HashSet<S<TestName>>,
 }
 
-impl<'data> RangeAccessState<'data> {
+impl RangeAccessState {
     pub fn new(
-        mut values: impl Iterator<Item = (&'data Value, usize)>,
-        in_tests: HashSet<TestName>,
+        mut values: impl Iterator<Item = (P<Value>, usize)>,
+        in_tests: HashSet<S<TestName>>,
     ) -> Option<Self> {
         let mut data = BTreeMap::new();
 
         if let Some(first) = values.next() {
-            let typ = first.0.get_type();
+            let typ = first.0.as_ref().get_type();
             let key = UnsafeOrd::wrap(first.0)?;
 
             data.insert(key, first.1);
 
             while let Some(item) = values.next() {
-                if item.0.get_type() != typ {
+                if item.0.as_ref().get_type() != typ {
                     return None;
                 } else {
                     let key = UnsafeOrd::wrap(item.0)?;
@@ -363,37 +310,34 @@ impl<'data> RangeAccessState<'data> {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: TestName) {
+    pub fn learn(&mut self, data: P<Value>, test: S<TestName>) {
         self.in_tests.insert(test);
 
-        if data.get_type() == self.typ {
+        if data.as_ref().get_type() == self.typ {
             if let Some(key) = UnsafeOrd::wrap(data) {
                 *self.data.entry(key).or_insert(0) += 1;
             }
         }
     }
 
-    pub fn check(
-        &self,
-        data: &'data Value,
-        access: &'data Access,
-        stats: &Stats<'data>,
-    ) -> Vec<InvariantInfo<'data>> {
+    pub fn check(&self, data: &P<Value>, access: &P<Access>, stats: &Stats) -> Vec<InvariantInfo> {
+        let data_ref = data.as_ref();
+
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 
-        if data.is_exceptional_value() {
+        if data_ref.is_exceptional_value() {
             violations.push(InvariantInfo::new(
                 Invariant::NonExceptionalValue(self.typ),
-                access,
+                *access,
                 confidence,
             ));
         }
 
-        if data.get_type() != self.typ {
+        if data_ref.get_type() != self.typ {
             violations.push(InvariantInfo::new(
                 Invariant::TypeStable(self.typ),
-                access,
+                *access,
                 confidence,
             ));
         } else {
@@ -402,10 +346,10 @@ impl<'data> RangeAccessState<'data> {
             let max = **self.data.iter().rev().next().unwrap().0;
 
             // TODO: Statistical testing.
-            if data < min || data > max {
+            if data_ref < min.as_ref() || data_ref > max.as_ref() {
                 violations.push(InvariantInfo::new(
                     Invariant::Range(Some(min), Some(max)),
-                    access,
+                    *access,
                     confidence,
                 ));
             }
@@ -423,11 +367,11 @@ enum NoInvariantReason {
 struct NoneAccessState {
     typ: Option<ValueType>,
     reasons: HashSet<NoInvariantReason>,
-    in_tests: HashSet<TestName>,
+    in_tests: HashSet<S<TestName>>,
 }
 
-impl<'data> NoneAccessState {
-    pub fn typed(typ: ValueType, in_tests: HashSet<TestName>) -> Self {
+impl NoneAccessState {
+    pub fn typed(typ: ValueType, in_tests: HashSet<S<TestName>>) -> Self {
         NoneAccessState {
             typ: Some(typ),
             reasons: HashSet::new(),
@@ -438,7 +382,7 @@ impl<'data> NoneAccessState {
     pub fn typed_with_reason(
         typ: ValueType,
         reason: NoInvariantReason,
-        in_tests: HashSet<TestName>,
+        in_tests: HashSet<S<TestName>>,
     ) -> Self {
         NoneAccessState {
             typ: Some(typ),
@@ -447,7 +391,7 @@ impl<'data> NoneAccessState {
         }
     }
 
-    pub fn type_changed(in_tests: HashSet<TestName>) -> Self {
+    pub fn type_changed(in_tests: HashSet<S<TestName>>) -> Self {
         NoneAccessState {
             typ: None,
             reasons: HashSet::new(),
@@ -455,44 +399,43 @@ impl<'data> NoneAccessState {
         }
     }
 
-    pub fn learn(&mut self, data: &'data Value, test: TestName) {
+    pub fn learn(&mut self, data: P<Value>, test: S<TestName>) {
+        let data_ref = data.as_ref();
+
         self.in_tests.insert(test);
 
         if let Some(typ) = self.typ {
-            if typ != data.get_type() {
+            if typ != data_ref.get_type() {
                 self.typ = None;
             }
         }
 
-        if data.is_exceptional_value() {
+        if data_ref.is_exceptional_value() {
             self.reasons.insert(NoInvariantReason::ExceptionalValue);
         }
     }
 
-    pub fn check(
-        &self,
-        data: &'data Value,
-        access: &'data Access,
-        stats: &Stats<'data>,
-    ) -> Vec<InvariantInfo<'data>> {
+    pub fn check(&self, data: &P<Value>, access: &P<Access>, stats: &Stats) -> Vec<InvariantInfo> {
+        let data_ref = data.as_ref();
+
         let mut violations = Vec::new();
         let confidence = (self.in_tests.len() as f32) / (stats.samples.len() as f32);
 
         if let Some(typ) = self.typ {
-            if data.get_type() != typ {
+            if data_ref.get_type() != typ {
                 violations.push(InvariantInfo::new(
                     Invariant::TypeStable(typ),
-                    access,
+                    *access,
                     confidence,
                 ));
             }
 
-            if data.is_exceptional_value()
+            if data_ref.is_exceptional_value()
                 && !self.reasons.contains(&NoInvariantReason::ExceptionalValue)
             {
                 violations.push(InvariantInfo::new(
                     Invariant::NonExceptionalValue(typ),
-                    access,
+                    *access,
                     confidence,
                 ));
             }

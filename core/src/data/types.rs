@@ -1,36 +1,24 @@
 use std::fmt;
-use std::rc::Rc;
 
-// String-like types (FuncName, TestName) encapsulate string which are cheap to
-// clone. At the moment, we use reference counting, but might use techniques
-// like string interning or similar.
-macro_rules! impl_encapsulate_string {
-    ($container:ident) => {
-        #[derive(Clone, PartialEq, Eq, Hash, Default, Debug)]
-        pub struct $container(Rc<String>);
+use crate::arena::{Dummy, DummyValue};
 
-        impl $container {
-            pub(crate) fn new<T: Into<String>>(func_name: T) -> Self {
-                $container(Rc::new(func_name.into()))
-            }
-        }
+// String-like types (FuncName, TestName, FileName) act only as a distinguishing
+// opaque type for `StringArena`s.
 
-        impl fmt::Display for $container {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{}", self.0.as_str())
-            }
-        }
+#[derive(PartialEq, Eq, Hash)]
+pub struct FuncName(());
 
-        impl PartialEq<str> for $container {
-            fn eq(&self, other: &str) -> bool {
-                self.0.as_str() == other
-            }
-        }
-    };
-}
+impl_arena_s!(FuncName);
 
-impl_encapsulate_string!(FuncName);
-impl_encapsulate_string!(TestName);
+#[derive(PartialEq, Eq, Hash)]
+pub struct TestName(());
+
+impl_arena_s!(TestName);
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct FileName(());
+
+impl_arena_s!(FileName);
 
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Default, Debug)]
 pub struct FileId(u64);
@@ -39,15 +27,17 @@ impl FileId {
     pub(crate) const fn new(file_id: u64) -> Self {
         FileId(file_id)
     }
-
-    pub const fn dummy(file_id: u64) -> Self {
-        FileId(file_id)
-    }
 }
 
 impl fmt::Display for FileId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl DummyValue for FileId {
+    fn dummy(dummy: Dummy) -> Self {
+        FileId(u64::MAX - (dummy.as_num() as u64))
     }
 }
 
@@ -59,13 +49,20 @@ impl StmtId {
         StmtId((file_id, stmt_id))
     }
 
-    pub const fn dummy(stmt_id: u64) -> Self {
-        StmtId((FileId::dummy(0), stmt_id))
+    #[cfg(test)]
+    pub const fn new_test(stmt_id: u64) -> Self {
+        StmtId((FileId(0), stmt_id))
     }
 }
 
 impl fmt::Display for StmtId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", (self.0).0, (self.0).1)
+    }
+}
+
+impl DummyValue for StmtId {
+    fn dummy(dummy: Dummy) -> Self {
+        StmtId((FileId::dummy(dummy), u64::MAX - (dummy.as_num() as u64)))
     }
 }

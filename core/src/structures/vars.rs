@@ -2,38 +2,36 @@ use std::collections::hash_map::HashMap;
 use std::mem;
 
 use crate::api::Api;
+use crate::arena::{P, S};
 use crate::data::{
     access::Access, statement::Statement, trace::TraceItem, types::TestName, values::Value, RawData,
 };
 use crate::structures::{FromRawData, FromRawDataError};
 
 #[derive(Debug)]
-pub struct VarItem<'data> {
-    pub stmt: &'data Statement,
-    pub defs: Vec<Value>,
+pub struct VarItem {
+    pub stmt: P<Statement>,
+    pub defs: Vec<P<Value>>,
 }
 
-impl<'data> VarItem<'data> {
-    pub fn zip(&self) -> impl Iterator<Item = (&Access, &Value)> {
-        self.stmt.defs.iter().zip(self.defs.iter())
+impl VarItem {
+    pub fn zip(&self) -> impl Iterator<Item = (&P<Access>, &P<Value>)> {
+        self.stmt.as_ref().defs.iter().zip(self.defs.iter())
     }
 }
 
-pub struct Vars<'data> {
-    traces: HashMap<TestName, Vec<VarItem<'data>>>,
+pub struct Vars {
+    traces: HashMap<S<TestName>, Vec<VarItem>>,
 }
 
-impl<'data> Vars<'data> {
-    pub fn iter_vars(
-        &'data self,
-        test: &'data TestName,
-    ) -> Option<impl Iterator<Item = &'data VarItem<'data>>> {
+impl Vars {
+    pub fn iter_vars(&self, test: &S<TestName>) -> Option<impl Iterator<Item = &VarItem>> {
         self.traces.get(test).map(|stmts| stmts.iter())
     }
 }
 
-impl<'data> FromRawData<'data> for Vars<'data> {
-    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Vars {
+    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
         let stmts = api.get_stmts();
 
         let mut traces = HashMap::with_capacity(data.test_suite.tests.len());
@@ -53,7 +51,7 @@ impl<'data> FromRawData<'data> for Vars<'data> {
                 TraceItem::Statement(id) => {
                     // Stmts are built from dynamic trace so a statement with this id certainly exists.
                     let stmt = stmts.get(id).unwrap();
-                    if !stmt.defs.is_empty() {
+                    if !stmt.as_ref().defs.is_empty() {
                         stack.push(stmt);
                     }
                 }
@@ -74,9 +72,9 @@ impl<'data> FromRawData<'data> for Vars<'data> {
 
                     if let Some(stmt) = stack.last() {
                         // We collected all definitions of the last statement.
-                        if stmt.defs.len() == defs.len() {
+                        if stmt.as_ref().defs.len() == defs.len() {
                             trace.push(VarItem {
-                                stmt,
+                                stmt: *stmt,
                                 defs: mem::take(&mut defs),
                             });
                             stack.pop();

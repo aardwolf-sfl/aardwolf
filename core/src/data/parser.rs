@@ -7,8 +7,10 @@ use super::module::Modules;
 use super::statement::{Loc, Metadata, Statement};
 use super::tests::{TestStatus, TestSuite};
 use super::trace::{Trace, TraceItem};
-use super::types::{FileId, FuncName, StmtId, TestName};
+use super::types::{FileId, StmtId};
 use super::values::Value;
+use super::Arenas;
+use crate::arena::P;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -92,6 +94,30 @@ impl<'a, R: BufRead> Source<'a, R> {
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
+struct Parser<'a, 'b, R> {
+    source: Source<'a, R>,
+    arenas: &'b mut Arenas,
+    buffer: Vec<u8>,
+}
+
+impl<'a, 'b, R> Parser<'a, 'b, R> {
+    pub fn new(source: &'a mut R, arenas: &'b mut Arenas) -> Self {
+        Parser {
+            source: Source::new(source),
+            arenas,
+            buffer: Vec::with_capacity(64),
+        }
+    }
+}
+
+macro_rules! extend_buffer {
+    ($parser:expr, $num:expr) => {{
+        let value = $num;
+        $parser.buffer.extend_from_slice(&value.to_ne_bytes());
+        value
+    }};
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FormatKind {
     Static,
@@ -103,25 +129,16 @@ pub struct Format {
     version: u8,
 }
 
-fn version_from_ascii(byte: u8) -> u8 {
-    byte.overflowing_sub('0' as u8).0
-}
-
-// Can be implemented as a normal function after const generics get stabilized.
-// Tracking issue: https://github.com/rust-lang/rust/issues/44580.
-macro_rules! read_n {
-    ($source:expr, $n:expr) => {{
-        let mut buf = [0u8; $n];
-        $source.read_exact(&mut buf).map(|_| buf)
-    }};
-}
-
-pub fn parse_module<'a, R: BufRead>(source: &'a mut R, modules: &mut Modules) -> ParseResult<()> {
-    let source = &mut Source::new(source);
+pub(crate) fn parse_module<'a, 'b, R: BufRead>(
+    source: &'a mut R,
+    modules: &mut Modules,
+    arenas: &'b mut Arenas,
+) -> ParseResult<()> {
+    let mut parser = Parser::new(source, arenas);
     let mut statements = HashMap::new();
     let mut function = String::new();
 
-    match parse_header(source)? {
+    match parser.parse_header()? {
         Format {
             kind: FormatKind::Static,
             version: 1,
@@ -136,32 +153,34 @@ pub fn parse_module<'a, R: BufRead>(source: &'a mut R, modules: &mut Modules) ->
         } => return Err(ParseError::InvalidFormat),
     }
 
-    while let Ok(token) = parse_u8(source) {
+    while let Ok(token) = parser.parse_u8() {
         match token {
             consts::TOKEN_STATEMENT => {
-                let stmt = parse_stmt(source)?;
-                statements.insert(stmt.id, stmt);
+                let (id, stmt) = parser.parse_stmt()?;
+                statements.insert(id, stmt);
             }
             consts::TOKEN_FUNCTION => {
-                let previous_function = std::mem::replace(&mut function, parse_cstr(source)?);
+                let previous_function = std::mem::replace(&mut function, parser.parse_cstr()?);
                 if !statements.is_empty() {
                     modules.functions.insert(
-                        FuncName::new(previous_function),
+                        parser.arenas.func.alloc(previous_function),
                         std::mem::replace(&mut statements, HashMap::new()),
                     );
                 }
             }
             consts::TOKEN_FILENAMES => {
-                let n_files = parse_u32(source)?;
+                let n_files = parser.parse_u32()?;
                 for _ in 0..n_files {
-                    let file_id = parse_file_id(source)?;
-                    let filepath = parse_cstr(source)?;
-                    modules.files.insert(file_id, filepath);
+                    let file_id = parser.parse_file_id()?;
+                    let filepath = parser.parse_cstr()?;
+                    modules
+                        .files
+                        .insert(file_id, parser.arenas.file.alloc(filepath));
                 }
             }
             byte => {
                 return Err(ParseError::UnexpectedByte {
-                    pos: source.byte_pos(),
+                    pos: parser.source.byte_pos(),
                     byte,
                     expected: vec![
                         consts::TOKEN_STATEMENT,
@@ -176,16 +195,20 @@ pub fn parse_module<'a, R: BufRead>(source: &'a mut R, modules: &mut Modules) ->
     if !statements.is_empty() {
         modules
             .functions
-            .insert(FuncName::new(function), statements);
+            .insert(parser.arenas.func.alloc(function), statements);
     }
 
     Ok(())
 }
 
-pub fn parse_trace<'a, R: BufRead>(source: &'a mut R, trace: &mut Trace) -> ParseResult<()> {
-    let source = &mut Source::new(source);
+pub(crate) fn parse_trace<'a, 'b, R: BufRead>(
+    source: &'a mut R,
+    trace: &mut Trace,
+    arenas: &'b mut Arenas,
+) -> ParseResult<()> {
+    let mut parser = Parser::new(source, arenas);
 
-    match parse_header(source)? {
+    match parser.parse_header()? {
         Format {
             kind: FormatKind::Runtime,
             version: 1,
@@ -200,25 +223,28 @@ pub fn parse_trace<'a, R: BufRead>(source: &'a mut R, trace: &mut Trace) -> Pars
         } => return Err(ParseError::InvalidFormat),
     }
 
-    while let Ok(token) = parse_u8(source) {
+    while let Ok(token) = parser.parse_u8() {
         let trace_item = match token {
-            consts::TOKEN_STATEMENT => TraceItem::Statement(parse_stmt_id(source)?),
-            consts::TOKEN_EXTERNAL => TraceItem::Test(TestName::new(parse_cstr(source)?)),
-            consts::TOKEN_DATA_UNSUPPORTED => TraceItem::Value(Value::unsupported()),
-            consts::TOKEN_DATA_I8 => TraceItem::Value(Value::signed(parse_i8(source)?)),
-            consts::TOKEN_DATA_I16 => TraceItem::Value(Value::signed(parse_i16(source)?)),
-            consts::TOKEN_DATA_I32 => TraceItem::Value(Value::signed(parse_i32(source)?)),
-            consts::TOKEN_DATA_I64 => TraceItem::Value(Value::signed(parse_i64(source)?)),
-            consts::TOKEN_DATA_U8 => TraceItem::Value(Value::unsigned(parse_u8(source)?)),
-            consts::TOKEN_DATA_U16 => TraceItem::Value(Value::unsigned(parse_u16(source)?)),
-            consts::TOKEN_DATA_U32 => TraceItem::Value(Value::unsigned(parse_u32(source)?)),
-            consts::TOKEN_DATA_U64 => TraceItem::Value(Value::unsigned(parse_u64(source)?)),
-            consts::TOKEN_DATA_F32 => TraceItem::Value(Value::floating(parse_f32(source)?)),
-            consts::TOKEN_DATA_F64 => TraceItem::Value(Value::floating(parse_f64(source)?)),
-            consts::TOKEN_DATA_BOOL => TraceItem::Value(Value::boolean(parse_boolean(source)?)),
+            consts::TOKEN_STATEMENT => TraceItem::Statement(parser.parse_stmt_id()?),
+            consts::TOKEN_EXTERNAL => {
+                let parsed = parser.parse_cstr()?;
+                TraceItem::Test(parser.arenas.test.alloc(parsed))
+            }
+            consts::TOKEN_DATA_UNSUPPORTED
+            | consts::TOKEN_DATA_I8
+            | consts::TOKEN_DATA_I16
+            | consts::TOKEN_DATA_I32
+            | consts::TOKEN_DATA_I64
+            | consts::TOKEN_DATA_U8
+            | consts::TOKEN_DATA_U16
+            | consts::TOKEN_DATA_U32
+            | consts::TOKEN_DATA_U64
+            | consts::TOKEN_DATA_F32
+            | consts::TOKEN_DATA_F64
+            | consts::TOKEN_DATA_BOOL => TraceItem::Value(parser.parse_value(token)?),
             byte => {
                 return Err(ParseError::UnexpectedByte {
-                    pos: source.byte_pos(),
+                    pos: parser.source.byte_pos(),
                     byte,
                     expected: vec![
                         consts::TOKEN_STATEMENT,
@@ -246,23 +272,26 @@ pub fn parse_trace<'a, R: BufRead>(source: &'a mut R, trace: &mut Trace) -> Pars
     Ok(())
 }
 
-pub fn parse_test_suite<'a, R: BufRead>(
+pub(crate) fn parse_test_suite<'a, 'b, R: BufRead>(
     source: &'a mut R,
     test_suite: &mut TestSuite,
+    arenas: &'b mut Arenas,
 ) -> ParseResult<()> {
-    let source = &mut Source::new(source);
+    let mut parser = Parser::new(source, arenas);
 
     loop {
         let mut line = String::new();
-        match source.read_line(&mut line)? {
+        match parser.source.read_line(&mut line)? {
             0 => return Ok(()),
             _ => match &line[0..6] {
-                "PASS: " => test_suite
-                    .tests
-                    .insert(TestName::new(line[6..].trim()), TestStatus::Passed),
-                "FAIL: " => test_suite
-                    .tests
-                    .insert(TestName::new(line[6..].trim()), TestStatus::Failed),
+                "PASS: " => test_suite.tests.insert(
+                    parser.arenas.test.alloc(line[6..].trim()),
+                    TestStatus::Passed,
+                ),
+                "FAIL: " => test_suite.tests.insert(
+                    parser.arenas.test.alloc(line[6..].trim()),
+                    TestStatus::Failed,
+                ),
                 result => {
                     return Err(ParseError::InvalidTestResult {
                         value: result.to_owned(),
@@ -273,164 +302,278 @@ pub fn parse_test_suite<'a, R: BufRead>(
     }
 }
 
-fn parse_header<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<Format> {
-    let buf = read_n!(source, 7).map_err(|_| ParseError::InvalidFormat)?;
-    if &buf[0..6] == "AARD/S".as_bytes() {
-        Ok(Format {
-            kind: FormatKind::Static,
-            version: version_from_ascii(buf[6]),
-        })
-    } else if &buf[0..6] == "AARD/D".as_bytes() {
-        Ok(Format {
-            kind: FormatKind::Runtime,
-            version: version_from_ascii(buf[6]),
-        })
-    } else {
-        Err(ParseError::InvalidFormat)
-    }
+fn version_from_ascii(byte: u8) -> u8 {
+    byte.overflowing_sub('0' as u8).0
 }
 
-fn parse_stmt<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<Statement> {
-    let id = parse_stmt_id(source)?;
-
-    let n_succ = parse_u8(source)?;
-    let succ = parse_vec(source, n_succ, parse_stmt_id)?;
-
-    let n_defs = parse_u8(source)?;
-    let defs = parse_vec(source, n_defs, parse_access)?;
-
-    let n_uses = parse_u8(source)?;
-    let uses = parse_vec(source, n_uses, parse_access)?;
-
-    let loc = parse_loc(source)?;
-    let metadata = parse_metadata(source)?;
-
-    Ok(Statement {
-        id,
-        succ,
-        defs,
-        uses,
-        loc,
-        metadata,
-    })
+// Can be implemented as a normal function after const generics get stabilized.
+// Tracking issue: https://github.com/rust-lang/rust/issues/44580.
+macro_rules! read_n {
+    ($parser:expr, $n:expr) => {{
+        let mut buf = [0u8; $n];
+        $parser.source.read_exact(&mut buf).map(|_| buf)
+    }};
 }
 
-fn parse_stmt_id<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<StmtId> {
-    Ok(StmtId::new(parse_file_id(source)?, parse_u64(source)?))
-}
-
-fn parse_file_id<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<FileId> {
-    Ok(FileId::new(parse_u64(source)?))
-}
-
-fn parse_access<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<Access> {
-    match parse_u8(source)? {
-        consts::TOKEN_VALUE_SCALAR => Ok(Access::Scalar(parse_u64(source)?)),
-        consts::TOKEN_VALUE_STRUCTURAL => Ok(Access::Structural(
-            Box::new(parse_access(source)?),
-            Box::new(parse_access(source)?),
-        )),
-        consts::TOKEN_VALUE_ARRAY_LIKE => {
-            let base = parse_access(source)?;
-            let index_count = parse_u32(source)?;
-            let index = parse_vec(source, index_count, parse_access)?;
-            Ok(Access::ArrayLike(Box::new(base), index))
+impl<'a, 'b, R: BufRead> Parser<'a, 'b, R> {
+    fn parse_header(&mut self) -> ParseResult<Format> {
+        let buf = read_n!(self, 7).map_err(|_| ParseError::InvalidFormat)?;
+        if &buf[0..6] == "AARD/S".as_bytes() {
+            Ok(Format {
+                kind: FormatKind::Static,
+                version: version_from_ascii(buf[6]),
+            })
+        } else if &buf[0..6] == "AARD/D".as_bytes() {
+            Ok(Format {
+                kind: FormatKind::Runtime,
+                version: version_from_ascii(buf[6]),
+            })
+        } else {
+            Err(ParseError::InvalidFormat)
         }
-        byte => Err(ParseError::UnexpectedByte {
-            pos: source.byte_pos(),
-            byte,
-            expected: vec![
-                consts::TOKEN_VALUE_SCALAR,
-                consts::TOKEN_VALUE_STRUCTURAL,
-                consts::TOKEN_VALUE_ARRAY_LIKE,
-            ],
-        }),
     }
-}
 
-fn parse_loc<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<Loc> {
-    Ok(Loc {
-        file_id: parse_file_id(source)?,
-        line_begin: parse_u32(source)?,
-        col_begin: parse_u32(source)?,
-        line_end: parse_u32(source)?,
-        col_end: parse_u32(source)?,
-    })
-}
+    fn parse_stmt(&mut self) -> ParseResult<(StmtId, P<Statement>)> {
+        self.buffer.clear();
+        let id = self.parse_stmt_id()?;
+        let buffer = self.buffer.clone();
 
-fn parse_metadata<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<Metadata> {
-    Ok(Metadata::new(parse_u8(source)?))
-}
+        let n_succ = self.parse_u8()?;
+        let succ = self.parse_vec(n_succ, Self::parse_stmt_id)?;
 
-fn parse_vec<'a, R: BufRead, T, C, F>(
-    source: &mut Source<'a, R>,
-    count: C,
-    parser: F,
-) -> ParseResult<Vec<T>>
-where
-    C: Into<u64>,
-    F: Fn(&mut Source<'a, R>) -> ParseResult<T>,
-{
-    let mut result = Vec::new();
-    for _ in 0..count.into() {
-        result.push(parser(source)?);
+        let n_defs = self.parse_u8()?;
+        let defs = self.parse_vec(n_defs, Self::parse_access)?;
+        let defs = defs.into_iter().collect();
+
+        let n_uses = self.parse_u8()?;
+        let uses = self.parse_vec(n_uses, Self::parse_access)?;
+        let uses = uses.into_iter().collect();
+
+        let loc = self.parse_loc()?;
+        let metadata = self.parse_metadata()?;
+
+        let ptr = self.arenas.stmt.alloc(
+            Statement {
+                id,
+                succ,
+                defs,
+                uses,
+                loc,
+                metadata,
+            },
+            &buffer,
+        );
+
+        Ok((id, ptr))
     }
-    Ok(result)
-}
 
-fn parse_i8<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<i8> {
-    Ok(i8::from_ne_bytes(read_n!(source, 1)?))
-}
+    fn parse_stmt_id(&mut self) -> ParseResult<StmtId> {
+        Ok(StmtId::new(
+            self.parse_file_id()?,
+            extend_buffer!(self, self.parse_u64()?),
+        ))
+    }
 
-fn parse_i16<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<i16> {
-    Ok(i16::from_ne_bytes(read_n!(source, 2)?))
-}
+    fn parse_file_id(&mut self) -> ParseResult<FileId> {
+        Ok(FileId::new(extend_buffer!(self, self.parse_u64()?)))
+    }
 
-fn parse_i32<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<i32> {
-    Ok(i32::from_ne_bytes(read_n!(source, 4)?))
-}
+    fn parse_access(&mut self) -> ParseResult<P<Access>> {
+        self.buffer.clear();
+        let access = self.parse_access_impl()?;
+        Ok(self.arenas.access.alloc(access, &self.buffer))
+    }
 
-fn parse_i64<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<i64> {
-    Ok(i64::from_ne_bytes(read_n!(source, 8)?))
-}
+    fn parse_access_impl(&mut self) -> ParseResult<Access> {
+        match extend_buffer!(self, self.parse_u8()?) {
+            consts::TOKEN_VALUE_SCALAR => {
+                Ok(Access::Scalar(extend_buffer!(self, self.parse_u64()?)))
+            }
+            consts::TOKEN_VALUE_STRUCTURAL => Ok(Access::Structural(
+                Box::new(self.parse_access_impl()?),
+                Box::new(self.parse_access_impl()?),
+            )),
+            consts::TOKEN_VALUE_ARRAY_LIKE => {
+                let base = self.parse_access_impl()?;
+                let index_count = extend_buffer!(self, self.parse_u32()?);
+                let index = self.parse_vec(index_count, Self::parse_access_impl)?;
+                Ok(Access::ArrayLike(Box::new(base), index))
+            }
+            byte => Err(ParseError::UnexpectedByte {
+                pos: self.source.byte_pos(),
+                byte,
+                expected: vec![
+                    consts::TOKEN_VALUE_SCALAR,
+                    consts::TOKEN_VALUE_STRUCTURAL,
+                    consts::TOKEN_VALUE_ARRAY_LIKE,
+                ],
+            }),
+        }
+    }
 
-fn parse_u8<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<u8> {
-    Ok(u8::from_ne_bytes(read_n!(source, 1)?))
-}
+    fn parse_loc(&mut self) -> ParseResult<Loc> {
+        Ok(Loc {
+            file_id: self.parse_file_id()?,
+            line_begin: self.parse_u32()?,
+            col_begin: self.parse_u32()?,
+            line_end: self.parse_u32()?,
+            col_end: self.parse_u32()?,
+        })
+    }
 
-fn parse_u16<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<u16> {
-    Ok(u16::from_ne_bytes(read_n!(source, 2)?))
-}
+    fn parse_metadata(&mut self) -> ParseResult<Metadata> {
+        Ok(Metadata::new(self.parse_u8()?))
+    }
 
-fn parse_u32<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<u32> {
-    Ok(u32::from_ne_bytes(read_n!(source, 4)?))
-}
+    fn parse_value(&mut self, token: u8) -> ParseResult<P<Value>> {
+        self.buffer.clear();
+        self.buffer.push(token);
 
-fn parse_u64<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<u64> {
-    Ok(u64::from_ne_bytes(read_n!(source, 8)?))
-}
+        let value = match token {
+            consts::TOKEN_DATA_UNSUPPORTED => {
+                self.arenas.value.alloc(Value::unsupported(), &self.buffer)
+            }
+            consts::TOKEN_DATA_I8 => {
+                let parsed = self.parse_i8()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_I16 => {
+                let parsed = self.parse_i16()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_I32 => {
+                let parsed = self.parse_i32()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_I64 => {
+                let parsed = self.parse_i64()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_U8 => {
+                let parsed = self.parse_u8()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::unsigned(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_U16 => {
+                let parsed = self.parse_u16()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::unsigned(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_U32 => {
+                let parsed = self.parse_u32()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::unsigned(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_U64 => {
+                let parsed = self.parse_u64()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::unsigned(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_F32 => {
+                let parsed = self.parse_f32()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::floating(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_F64 => {
+                let parsed = self.parse_f64()?;
+                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::floating(parsed), &self.buffer)
+            }
+            consts::TOKEN_DATA_BOOL => {
+                let parsed = self.parse_boolean()?;
+                self.buffer.extend_from_slice(&(parsed as u8).to_ne_bytes());
+                self.arenas
+                    .value
+                    .alloc(Value::boolean(parsed), &self.buffer)
+            }
+            _ => unreachable!(),
+        };
 
-fn parse_f32<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<f32> {
-    Ok(f32::from_ne_bytes(read_n!(source, 4)?))
-}
+        Ok(value)
+    }
 
-fn parse_f64<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<f64> {
-    Ok(f64::from_ne_bytes(read_n!(source, 8)?))
-}
+    fn parse_vec<T, C, F>(&mut self, count: C, parser: F) -> ParseResult<Vec<T>>
+    where
+        C: Into<u64>,
+        F: Fn(&mut Self) -> ParseResult<T>,
+    {
+        let mut result = Vec::new();
+        for _ in 0..count.into() {
+            result.push(parser(self)?);
+        }
+        Ok(result)
+    }
 
-fn parse_boolean<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<bool> {
-    let buf = read_n!(source, 1)?;
-    Ok(buf[0] > 0)
-}
+    fn parse_i8(&mut self) -> ParseResult<i8> {
+        Ok(i8::from_ne_bytes(read_n!(self, 1)?))
+    }
 
-fn parse_cstr<'a, R: BufRead>(source: &mut Source<'a, R>) -> ParseResult<String> {
-    let mut buf = Vec::new();
-    source.read_until(0x0, &mut buf)?;
+    fn parse_i16(&mut self) -> ParseResult<i16> {
+        Ok(i16::from_ne_bytes(read_n!(self, 2)?))
+    }
 
-    // Remove null terminator
-    buf.pop();
+    fn parse_i32(&mut self) -> ParseResult<i32> {
+        Ok(i32::from_ne_bytes(read_n!(self, 4)?))
+    }
 
-    String::from_utf8(buf).map_err(|err| ParseError::InvalidUtf {
-        value: err.into_bytes(),
-    })
+    fn parse_i64(&mut self) -> ParseResult<i64> {
+        Ok(i64::from_ne_bytes(read_n!(self, 8)?))
+    }
+
+    fn parse_u8(&mut self) -> ParseResult<u8> {
+        Ok(u8::from_ne_bytes(read_n!(self, 1)?))
+    }
+
+    fn parse_u16(&mut self) -> ParseResult<u16> {
+        Ok(u16::from_ne_bytes(read_n!(self, 2)?))
+    }
+
+    fn parse_u32(&mut self) -> ParseResult<u32> {
+        Ok(u32::from_ne_bytes(read_n!(self, 4)?))
+    }
+
+    fn parse_u64(&mut self) -> ParseResult<u64> {
+        Ok(u64::from_ne_bytes(read_n!(self, 8)?))
+    }
+
+    fn parse_f32(&mut self) -> ParseResult<f32> {
+        Ok(f32::from_ne_bytes(read_n!(self, 4)?))
+    }
+
+    fn parse_f64(&mut self) -> ParseResult<f64> {
+        Ok(f64::from_ne_bytes(read_n!(self, 8)?))
+    }
+
+    fn parse_boolean(&mut self) -> ParseResult<bool> {
+        let buf = read_n!(self, 1)?;
+        Ok(buf[0] > 0)
+    }
+
+    fn parse_cstr(&mut self) -> ParseResult<String> {
+        let mut buf = Vec::new();
+        self.source.read_until(0x0, &mut buf)?;
+
+        // Remove null terminator
+        buf.pop();
+
+        String::from_utf8(buf).map_err(|err| ParseError::InvalidUtf {
+            value: err.into_bytes(),
+        })
+    }
 }

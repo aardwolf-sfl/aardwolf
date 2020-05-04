@@ -1,4 +1,6 @@
 pub mod api;
+#[macro_use]
+pub mod arena;
 pub mod config;
 pub mod data;
 mod driver;

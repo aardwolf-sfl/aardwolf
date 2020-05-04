@@ -25,10 +25,7 @@ macro_rules! required {
 pub struct Invariants;
 
 impl AardwolfPlugin for Invariants {
-    fn init<'data>(
-        _api: &'data Api<'data>,
-        _opts: &HashMap<String, Yaml>,
-    ) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -37,8 +34,8 @@ impl AardwolfPlugin for Invariants {
 
     fn run_loc<'data, 'param>(
         &self,
-        api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        api: &'data Api,
+        results: &'param mut Results,
         irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
@@ -50,10 +47,10 @@ impl AardwolfPlugin for Invariants {
             for item in vars
                 .iter_vars(test)
                 .unwrap()
-                .filter(|item| irrelevant.is_stmt_relevant(item.stmt))
+                .filter(|item| irrelevant.is_stmt_relevant(item.stmt.as_ref()))
             {
                 for (access, data) in item.zip() {
-                    stats.learn(access, data, test.clone());
+                    stats.learn(*access, *data, test.clone());
                 }
             }
         }
@@ -82,10 +79,12 @@ impl AardwolfPlugin for Invariants {
 
                         let mut rationale = Rationale::new();
 
+                        let stmt = item.stmt.as_ref();
+
                         // NOTE: Could be configurable to disable args, calls, etc.
-                        if item.stmt.metadata.is_arg() {
+                        if stmt.metadata.is_arg() {
                             rationale.add_text("The value of this argument violates some invariants inferred from passing runs.");
-                        } else if item.stmt.metadata.is_call() {
+                        } else if stmt.metadata.is_call() {
                             rationale.add_text("The result of this function call violates some invariants inferred from passing runs.");
                         } else {
                             rationale.add_text("The result of this statement violates some invariants inferred from passing runs.");
@@ -96,7 +95,7 @@ impl AardwolfPlugin for Invariants {
                             .add_text(explanation);
 
                         results.add(
-                            LocalizationItem::new(item.stmt.loc, item.stmt, confidence, rationale)
+                            LocalizationItem::new(stmt.loc, item.stmt, confidence, rationale)
                                 .unwrap(),
                         );
                     }

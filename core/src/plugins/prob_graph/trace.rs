@@ -7,18 +7,19 @@ use petgraph::Direction;
 
 use super::models::{Model, Node, NodeType};
 use crate::api::Api;
+use crate::arena::{P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName};
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
-type DataContext<'data> = BTreeSet<(u64, &'data Statement)>;
+type DataContext = BTreeSet<(u64, P<Statement>)>;
 
-pub trait DataContextExt<'data> {
-    fn diff(&self, other: &Self) -> Vec<(u64, &'data Statement, &'data Statement)>;
+pub trait DataContextExt {
+    fn diff(&self, other: &Self) -> Vec<(u64, P<Statement>, P<Statement>)>;
 }
 
-impl<'data> DataContextExt<'data> for DataContext<'data> {
-    fn diff(&self, other: &Self) -> Vec<(u64, &'data Statement, &'data Statement)> {
+impl DataContextExt for DataContext {
+    fn diff(&self, other: &Self) -> Vec<(u64, P<Statement>, P<Statement>)> {
         let mut result = Vec::new();
         for (var, self_def) in self {
             if let Some((_, other_def)) = other
@@ -33,18 +34,18 @@ impl<'data> DataContextExt<'data> for DataContext<'data> {
 }
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone)]
-pub enum NodeState<'data> {
+pub enum NodeState {
     // Immediate successor on the path where the program flow went from the branching.
-    Predicate(&'data Statement),
+    Predicate(P<Statement>),
     // Variable and statement that defined the variable last.
-    Data(DataContext<'data>),
+    Data(DataContext),
     // When node has not been executed yet.
     NotExecuted,
     Executed,
 }
 
-impl<'data> NodeState<'data> {
-    pub fn canonicalize(self) -> NodeState<'data> {
+impl NodeState {
+    pub fn canonicalize(self) -> NodeState {
         match self {
             NodeState::Data(ctx) => {
                 if ctx.is_empty() {
@@ -58,7 +59,7 @@ impl<'data> NodeState<'data> {
     }
 }
 
-impl<'data> Hash for NodeState<'data> {
+impl Hash for NodeState {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             NodeState::Predicate(stmt) => stmt.hash(state),
@@ -76,17 +77,17 @@ impl<'data> Hash for NodeState<'data> {
     }
 }
 
-pub type StateConf<'data> = BTreeSet<(Node<'data>, NodeState<'data>)>;
+pub type StateConf = BTreeSet<(Node, NodeState)>;
 
-pub trait StateConfExt<'data> {
+pub trait StateConfExt {
     fn canonicalize(self) -> Option<Self>
     where
         Self: Sized;
 
-    fn from_node(node: Node<'data>, state: NodeState<'data>) -> Self;
+    fn from_node(node: Node, state: NodeState) -> Self;
 }
 
-impl<'data> StateConfExt<'data> for StateConf<'data> {
+impl StateConfExt for StateConf {
     fn canonicalize(self) -> Option<Self> {
         if self.is_empty() {
             None
@@ -95,17 +96,17 @@ impl<'data> StateConfExt<'data> for StateConf<'data> {
         }
     }
 
-    fn from_node(node: Node<'data>, state: NodeState<'data>) -> Self {
+    fn from_node(node: Node, state: NodeState) -> Self {
         [(node, state)].iter().cloned().collect()
     }
 }
 
-struct StackFrame<'data, N: Hash + Eq> {
-    pub current_states: HashMap<N, NodeState<'data>>,
-    pub current_defs: HashMap<u64, &'data Statement>,
+struct StackFrame<N: Hash + Eq> {
+    pub current_states: HashMap<N, NodeState>,
+    pub current_defs: HashMap<u64, P<Statement>>,
 }
 
-impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
+impl<N: Hash + Eq + Copy> StackFrame<N> {
     pub fn new() -> Self {
         StackFrame {
             current_states: HashMap::new(),
@@ -113,21 +114,27 @@ impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
         }
     }
 
-    pub fn update_state(&mut self, node: N, state: NodeState<'data>) {
+    pub fn update_state(&mut self, node: N, state: NodeState) {
         self.current_states.insert(node, state.canonicalize());
     }
 
-    pub fn get_state(&self, node: &N) -> NodeState<'data> {
+    pub fn get_state(&self, node: &N) -> NodeState {
         self.current_states
             .get(node)
             .cloned()
             .unwrap_or(NodeState::NotExecuted)
     }
 
-    pub fn get_data_state(&self, stmt: &'data Statement) -> NodeState<'data> {
+    pub fn get_data_state(&self, stmt: &P<Statement>) -> NodeState {
         let mut state = BTreeSet::new();
 
-        for var in stmt.uses.iter().flat_map(AccessChain::from_uses) {
+        for var in stmt
+            .as_ref()
+            .uses
+            .iter()
+            .map(|access| access.as_ref())
+            .flat_map(AccessChain::from_uses)
+        {
             if let Some(def) = self.current_defs.get(&var) {
                 state.insert((var, *def));
             }
@@ -136,28 +143,30 @@ impl<'data, N: Hash + Eq + Copy> StackFrame<'data, N> {
         NodeState::Data(state)
     }
 
-    pub fn update_defs(&mut self, stmt: &'data Statement) {
+    pub fn update_defs(&mut self, stmt: P<Statement>) {
         // TODO: A data structure that tries to model data dependencies of pointers should be used.
         //       At least on a level, when a pointer is sent to a function and the function modifies it (or its child),
         //       then it should be added as a definition of the function call.
-        for var in stmt.defs.iter().flat_map(AccessChain::from_defs) {
+        for var in stmt
+            .as_ref()
+            .defs
+            .iter()
+            .map(|access| access.as_ref())
+            .flat_map(AccessChain::from_defs)
+        {
             self.current_defs.insert(var, stmt);
         }
     }
 }
 
-pub struct TraceItem<'data> {
-    pub node: Node<'data>,
-    pub node_state: NodeState<'data>,
-    pub parents_state_conf: Option<StateConf<'data>>,
+pub struct TraceItem {
+    pub node: Node,
+    pub node_state: NodeState,
+    pub parents_state_conf: Option<StateConf>,
 }
 
-impl<'data> TraceItem<'data> {
-    pub fn new(
-        node: Node<'data>,
-        node_state: NodeState<'data>,
-        parents_state_conf: Option<StateConf<'data>>,
-    ) -> Self {
+impl TraceItem {
+    pub fn new(node: Node, node_state: NodeState, parents_state_conf: Option<StateConf>) -> Self {
         TraceItem {
             node,
             node_state,
@@ -166,16 +175,16 @@ impl<'data> TraceItem<'data> {
     }
 }
 
-pub struct Trace<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> {
-    stack_frames: Vec<StackFrame<'data, NodeIndex<DefaultIx>>>,
+pub struct Trace<'data, I: Iterator<Item = P<Statement>>, M: Model> {
+    stack_frames: Vec<StackFrame<NodeIndex<DefaultIx>>>,
     trace: Peekable<I>,
-    next_items: VecDeque<TraceItem<'data>>,
-    api: &'data Api<'data>,
-    models: HashMap<FuncName, M>,
+    next_items: VecDeque<TraceItem>,
+    api: &'data Api,
+    models: HashMap<S<FuncName>, M>,
 }
 
-impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Trace<'data, I, M> {
-    pub fn new(trace: I, api: &'data Api<'data>) -> Self {
+impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Trace<'data, I, M> {
+    pub fn new(trace: I, api: &'data Api) -> Self {
         Trace {
             stack_frames: vec![StackFrame::new()],
             trace: trace.peekable(),
@@ -186,15 +195,16 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Trace<'data, 
     }
 }
 
-impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for Trace<'data, I, M> {
-    type Item = TraceItem<'data>;
+impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'data, I, M> {
+    type Item = TraceItem;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.next_items.is_empty() {
             return self.next_items.pop_front();
         }
 
-        let stmt = self.trace.next()?;
+        let stmt_ptr = self.trace.next()?;
+        let stmt = stmt_ptr.as_ref();
         let func = self.api.get_stmts().find_fn(stmt).unwrap();
 
         // There should always exist a stack frame. If there is not, then one of the following happened:
@@ -208,29 +218,29 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
         // Get (or initialize) model for the function which the statement comes from.
         let model = self
             .models
-            .entry(func.clone())
-            .or_insert_with(|| M::from_pdg(&pdgs.get(func).unwrap()))
+            .entry(func)
+            .or_insert_with(|| M::from_pdg(&pdgs.get(&func).unwrap()))
             .get_graph();
 
         // Get all nodes from the model corresponding to the statement.
-        for index in model[stmt].iter() {
+        for index in model[&stmt_ptr].iter() {
             let node = model[*index];
 
             let state = match node.typ {
                 NodeType::Predicate => {
                     // Predicate node must have a successor, so we can unwrap.
                     let next = self.trace.peek().unwrap();
-                    let state = NodeState::Predicate(next);
+                    let state = NodeState::Predicate(*next);
 
                     stack_frame.update_state(*index, state.clone());
 
                     state
                 }
                 NodeType::NonPredicate => {
-                    let state = stack_frame.get_data_state(stmt).canonicalize();
+                    let state = stack_frame.get_data_state(&stmt_ptr).canonicalize();
 
                     stack_frame.update_state(*index, state.clone());
-                    stack_frame.update_defs(stmt);
+                    stack_frame.update_defs(stmt_ptr);
 
                     state
                 }
@@ -245,7 +255,7 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
                 .as_ref()
                 .neighbors_directed(*index, Direction::Incoming)
                 .map(|parent| (model[parent], stack_frame.get_state(&parent)))
-                .collect::<StateConf<'data>>();
+                .collect::<StateConf>();
 
             self.next_items
                 .push_back(TraceItem::new(node, state, parents.canonicalize()));
@@ -260,7 +270,7 @@ impl<'data, I: Iterator<Item = &'data Statement>, M: Model<'data>> Iterator for 
         // We cannot use just stmt.is_call() because static analysis in some cases would not detect
         // that the statement is call, especially in dynamic languages.
         if let Some(next_stmt) = self.trace.peek() {
-            if !stmt.is_succ(next_stmt) {
+            if !stmt.is_succ(next_stmt.as_ref()) {
                 // Initialize new stack frame which will be used in the called function.
                 self.stack_frames.push(StackFrame::new());
             }

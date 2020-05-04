@@ -4,6 +4,7 @@ use std::collections::{
 };
 
 use crate::api::Api;
+use crate::arena::{S, P};
 use crate::data::{
     statement::Statement,
     trace::TraceItem,
@@ -12,28 +13,28 @@ use crate::data::{
 };
 use crate::structures::{FromRawData, FromRawDataError};
 
-pub struct Stmts<'data> {
-    mapping: HashMap<StmtId, &'data Statement>,
-    functions: HashMap<StmtId, FuncName>,
+pub struct Stmts {
+    mapping: HashMap<StmtId, P<Statement>>,
+    functions: HashMap<StmtId, S<FuncName>>,
     n_total: usize,
     n_executed: usize,
 }
 
-impl<'data> Stmts<'data> {
-    pub fn iter_ids(&self) -> Keys<StmtId, &'data Statement> {
+impl Stmts {
+    pub fn iter_ids(&self) -> Keys<StmtId, P<Statement>> {
         self.mapping.keys()
     }
 
-    pub fn iter_stmts(&self) -> Values<StmtId, &'data Statement> {
+    pub fn iter_stmts(&self) -> Values<StmtId, P<Statement>> {
         self.mapping.values()
     }
 
-    pub fn get(&self, id: &StmtId) -> Option<&'data Statement> {
+    pub fn get(&self, id: &StmtId) -> Option<P<Statement>> {
         self.mapping.get(id).map(|stmt| *stmt)
     }
 
-    pub fn find_fn(&self, stmt: &Statement) -> Option<&FuncName> {
-        self.functions.get(&stmt.id)
+    pub fn find_fn(&self, stmt: &Statement) -> Option<S<FuncName>> {
+        self.functions.get(&stmt.id).copied()
     }
 
     pub fn get_n_total(&self) -> usize {
@@ -45,8 +46,8 @@ impl<'data> Stmts<'data> {
     }
 }
 
-impl<'data> FromRawData<'data> for Stmts<'data> {
-    fn from_raw(data: &'data RawData, _api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Stmts {
+    fn from_raw(data: &RawData, _api: &Api) -> Result<Self, FromRawDataError> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
         let mut functions = HashMap::new();
@@ -61,7 +62,7 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
 
                     for (name, stmts) in data.modules.functions.iter() {
                         if stmts.contains_key(stmt) {
-                            functions.insert(*stmt, name.clone());
+                            functions.insert(*stmt, *name);
                         }
                     }
                 }
@@ -74,7 +75,7 @@ impl<'data> FromRawData<'data> for Stmts<'data> {
                 n_total += 1;
 
                 if executed.contains(id) {
-                    mapping.insert(*id, stmt);
+                    mapping.insert(*id, *stmt);
                     n_executed += 1;
                 }
             }

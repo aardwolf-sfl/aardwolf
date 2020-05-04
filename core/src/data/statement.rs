@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use super::access::Access;
 use super::consts;
 use super::types::{FileId, StmtId};
+use crate::arena::{Dummy, DummyValue, P};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
@@ -47,16 +48,6 @@ impl Loc {
 
         file && begin && end
     }
-
-    pub const fn dummy() -> Self {
-        Loc {
-            file_id: FileId::new(0),
-            line_begin: 0,
-            col_begin: 0,
-            line_end: 0,
-            col_end: 0,
-        }
-    }
 }
 
 impl fmt::Debug for Loc {
@@ -69,16 +60,24 @@ impl fmt::Debug for Loc {
     }
 }
 
+impl DummyValue for Loc {
+    fn dummy(dummy: Dummy) -> Self {
+        Loc {
+            file_id: FileId::dummy(dummy),
+            line_begin: 0,
+            col_begin: 0,
+            line_end: 0,
+            col_end: 0,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Metadata(u8);
 
 impl Metadata {
     pub(crate) const fn new(byte: u8) -> Self {
         Metadata(byte)
-    }
-
-    pub const fn dummy() -> Self {
-        Metadata(0)
     }
 
     pub fn is_arg(&self) -> bool {
@@ -100,6 +99,12 @@ impl Metadata {
     fn is_meta(&self, cst: u8) -> bool {
         let meta = consts::META;
         (self.0 & !meta) == (cst & !meta)
+    }
+}
+
+impl DummyValue for Metadata {
+    fn dummy(_dummy: Dummy) -> Self {
+        Metadata(0)
     }
 }
 
@@ -130,30 +135,31 @@ impl fmt::Debug for Metadata {
 pub struct Statement {
     pub id: StmtId,
     pub succ: Vec<StmtId>,
-    pub defs: Vec<Access>,
-    pub uses: Vec<Access>,
+    pub defs: Vec<P<Access>>,
+    pub uses: Vec<P<Access>>,
     pub loc: Loc,
     pub metadata: Metadata,
 }
 
 impl Statement {
-    pub const fn dummy(id: StmtId) -> Self {
-        Statement {
-            id,
-            succ: Vec::new(),
-            defs: Vec::new(),
-            uses: Vec::new(),
-            loc: Loc::dummy(),
-            metadata: Metadata::dummy(),
-        }
-    }
-
     pub fn is_predicate(&self) -> bool {
         self.succ.len() > 1
     }
 
     pub fn is_succ(&self, stmt: &Statement) -> bool {
         self.succ.iter().any(|succ| succ == &stmt.id)
+    }
+
+    #[cfg(test)]
+    pub fn new_test(stmt_id: StmtId) -> Self {
+        Statement {
+            id: stmt_id,
+            succ: Vec::new(),
+            defs: Vec::new(),
+            uses: Vec::new(),
+            loc: Loc::dummy(Dummy::D1),
+            metadata: Metadata::dummy(Dummy::D1),
+        }
     }
 }
 
@@ -224,3 +230,18 @@ impl Ord for Statement {
         self.id.cmp(&other.id)
     }
 }
+
+impl DummyValue for Statement {
+    fn dummy(dummy: Dummy) -> Self {
+        Statement {
+            id: StmtId::dummy(dummy),
+            succ: Vec::new(),
+            defs: Vec::new(),
+            uses: Vec::new(),
+            loc: Loc::dummy(dummy),
+            metadata: Metadata::dummy(dummy),
+        }
+    }
+}
+
+impl_arena_p!(Statement);

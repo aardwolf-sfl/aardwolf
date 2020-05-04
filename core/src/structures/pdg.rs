@@ -4,27 +4,28 @@ use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
 use crate::api::Api;
+use crate::arena::{P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName, RawData};
 use crate::graph_ext::DominatorsExt;
-use crate::structures::{Cfg, FromRawData, FromRawDataError, EXIT};
+use crate::structures::{Cfg, Cfgs, FromRawData, FromRawDataError};
 
-pub type Pdg<'data> = DiGraph<&'data Statement, EdgeType>;
+pub type Pdg = DiGraph<P<Statement>, EdgeType>;
 
-pub struct Pdgs<'data>(HashMap<FuncName, Pdg<'data>>);
+pub struct Pdgs(HashMap<S<FuncName>, Pdg>);
 
-impl<'data> Pdgs<'data> {
-    pub fn get(&'data self, func: &FuncName) -> Option<&'data Pdg<'data>> {
+impl Pdgs {
+    pub fn get(&self, func: &S<FuncName>) -> Option<&Pdg> {
         self.0.get(func)
     }
 }
 
-impl<'data> FromRawData<'data> for Pdgs<'data> {
-    fn from_raw(data: &'data RawData, api: &'data Api<'data>) -> Result<Self, FromRawDataError> {
+impl FromRawData for Pdgs {
+    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
         let mut result = HashMap::new();
         let cfgs = api.get_cfgs();
 
         for (func_name, _) in data.modules.functions.iter() {
-            result.insert(func_name.clone(), create_pdg(cfgs.get(func_name).unwrap()));
+            result.insert(*func_name, create_pdg(cfgs.get(func_name).unwrap()));
         }
 
         Ok(Pdgs(result))
@@ -46,15 +47,15 @@ pub enum EdgeType {
 
 type DataContext<T> = HashMap<u64, HashSet<T>>;
 
-struct NodeData<'data, Ix> {
-    stmt: &'data Statement,
+struct NodeData<Ix> {
+    stmt: P<Statement>,
     index: NodeIndex<Ix>,
     data_ctx: DataContext<NodeIndex<Ix>>,
     deps: HashSet<(u64, NodeIndex<Ix>)>,
 }
 
-impl<'data, Ix: IndexType> NodeData<'data, Ix> {
-    pub fn new(stmt: &'data Statement, index: NodeIndex<Ix>) -> Self {
+impl<Ix: IndexType> NodeData<Ix> {
+    pub fn new(stmt: P<Statement>, index: NodeIndex<Ix>) -> Self {
         NodeData {
             stmt,
             index,
@@ -106,7 +107,13 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         // It's important to run this before changing the context with statement's defined variables
         // because of statements that use the variables that they also define.
 
-        let vars = self.stmt.uses.iter().flat_map(AccessChain::from_uses);
+        let vars = self
+            .stmt
+            .as_ref()
+            .uses
+            .iter()
+            .map(|access| access.as_ref())
+            .flat_map(AccessChain::from_uses);
 
         for var in vars {
             if let Some(defs) = self.data_ctx.get(&var).map(|defs| defs.iter().copied()) {
@@ -117,7 +124,13 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         }
 
         // For all variables that this statement defines, replace the current definition with this statement.
-        let vars = self.stmt.defs.iter().flat_map(AccessChain::from_defs);
+        let vars = self
+            .stmt
+            .as_ref()
+            .defs
+            .iter()
+            .map(|access| access.as_ref())
+            .flat_map(AccessChain::from_defs);
 
         for var in vars {
             let defs = self.data_ctx.entry(var).or_insert(HashSet::new());
@@ -130,14 +143,14 @@ impl<'data, Ix: IndexType> NodeData<'data, Ix> {
         self.deps.iter()
     }
 
-    pub fn as_stmt(&self) -> &'data Statement {
+    pub fn as_stmt(&self) -> P<Statement> {
         self.stmt
     }
 }
 
-pub fn create_pdg<'data>(cfg: &Cfg<'data>) -> Pdg<'data> {
+pub fn create_pdg(cfg: &Cfg) -> Pdg {
     let mut pdg = cfg.map(
-        |index, stmt| NodeData::new(stmt, index),
+        |index, stmt| NodeData::new(*stmt, index),
         |_, _| EdgeTypePriv::ControlFlow,
     );
 
@@ -157,16 +170,16 @@ pub fn create_pdg<'data>(cfg: &Cfg<'data>) -> Pdg<'data> {
     )
 }
 
-fn compute_control_deps<'data, Ix: IndexType, E>(
-    pdg: &mut DiGraph<NodeData<'data, Ix>, EdgeTypePriv, Ix>,
-    cfg: &DiGraph<&'data Statement, E, Ix>,
+fn compute_control_deps<Ix: IndexType, E>(
+    pdg: &mut DiGraph<NodeData<Ix>, EdgeTypePriv, Ix>,
+    cfg: &DiGraph<P<Statement>, E, Ix>,
 ) {
     // Reverse control flow edges so we compute post-dominance instead of dominance using the standard algorithm.
     pdg.reverse();
 
     let exit = cfg
         .node_indices()
-        .find(|index| cfg[*index] == EXIT)
+        .find(|index| cfg[*index] == Cfgs::exit())
         .unwrap();
 
     // So far, there are only control flow edges,
@@ -186,9 +199,9 @@ fn compute_control_deps<'data, Ix: IndexType, E>(
     pdg.reverse();
 }
 
-fn compute_data_deps<'data, Ix: IndexType, E>(
-    pdg: &mut DiGraph<NodeData<'data, Ix>, EdgeTypePriv, Ix>,
-    cfg: &DiGraph<&'data Statement, E, Ix>,
+fn compute_data_deps<Ix: IndexType, E>(
+    pdg: &mut DiGraph<NodeData<Ix>, EdgeTypePriv, Ix>,
+    cfg: &DiGraph<P<Statement>, E, Ix>,
 ) {
     let mut queue = cfg.node_indices().collect::<Vec<_>>();
 
@@ -228,18 +241,28 @@ pub mod tests {
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
+    use crate::arena::{Arena, P};
     use crate::data::{access::Access, statement::Statement, types::StmtId};
-    use crate::structures::{ENTRY, EXIT};
+    use crate::structures::Cfgs;
 
-    pub struct StatementFactory(HashMap<StmtId, Statement>);
+    pub struct StatementFactory {
+        data: HashMap<StmtId, P<Statement>>,
+        stmts: Arena<Statement>,
+        accesses: Arena<Access>,
+    }
 
     impl StatementFactory {
         pub fn new() -> Self {
-            StatementFactory(HashMap::new())
+            StatementFactory {
+                data: HashMap::new(),
+                stmts: Arena::with_capacity(32),
+                accesses: Arena::with_capacity(32),
+            }
         }
 
         pub fn add(&mut self, id: StmtId) {
-            self.0.insert(id, Statement::dummy(id));
+            let ptr = self.stmts.alloc(Statement::new_test(id));
+            self.data.insert(id, ptr);
         }
 
         pub fn add_many(&mut self, ids: impl Iterator<Item = StmtId>) {
@@ -248,80 +271,98 @@ pub mod tests {
             }
         }
 
-        pub fn add_def(&mut self, id: StmtId, access: Access) {
-            if let Some(stmt) = self.0.get_mut(&id) {
+        pub fn create_access(&mut self, access: Access) -> P<Access> {
+            self.accesses.alloc(access)
+        }
+
+        pub fn add_def(&mut self, id: StmtId, access: P<Access>) {
+            if let Some(stmt) = self.data.get(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
-                stmt.defs.push(access);
+                self.stmts.get_mut(stmt).defs.push(access);
             }
         }
 
-        pub fn add_use(&mut self, id: StmtId, access: Access) {
-            if let Some(stmt) = self.0.get_mut(&id) {
+        pub fn add_use(&mut self, id: StmtId, access: P<Access>) {
+            if let Some(stmt) = self.data.get(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
-                stmt.uses.push(access);
+                self.stmts.get_mut(stmt).uses.push(access);
             }
         }
 
         pub fn add_succ(&mut self, id: StmtId, succ: StmtId) {
-            if let Some(stmt) = self.0.get_mut(&id) {
+            if let Some(stmt) = self.data.get(&id) {
                 // Valid because we don't modify statement id
                 // which is the only field used to compute the hash.
-                stmt.succ.push(succ);
+                self.stmts.get_mut(stmt).succ.push(succ);
             }
         }
 
-        pub fn get(&self, id: StmtId) -> &Statement {
-            // This structure is for testing purposes, safe API (returning Option) is not needed.
-            &self.0[&id]
+        pub fn seal(self) -> SealedStatementFactory {
+            P::<Statement>::init_once(self.stmts);
+            P::<Access>::init_once(self.accesses);
+            SealedStatementFactory(self.data)
         }
     }
 
-    pub fn create_basic_cfg(factory: &mut StatementFactory) -> Cfg {
+    pub struct SealedStatementFactory(HashMap<StmtId, P<Statement>>);
+
+    impl SealedStatementFactory {
+        pub fn get(&self, id: StmtId) -> P<Statement> {
+            // This structure is for testing purposes, safe API (returning Option) is not needed.
+            self.0[&id]
+        }
+    }
+
+    pub fn create_basic_cfg() -> (Cfg, SealedStatementFactory) {
         // Example program from "The probabilistic program dependence graph and its application to fault diagnosis"
         let mut cfg = DiGraph::new();
 
-        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
+        let mut factory = StatementFactory::new();
 
-        let var_i = 1;
-        let var_n = 2;
-        let var_max = 3;
-        let var_v = 4;
+        factory.add_many((1..=10).map(|stmt_id| StmtId::new_test(stmt_id)));
 
-        factory.add_def(StmtId::dummy(1), Access::Scalar(var_i));
-        factory.add_def(StmtId::dummy(2), Access::Scalar(var_n));
-        factory.add_def(StmtId::dummy(3), Access::Scalar(var_max));
-        factory.add_def(StmtId::dummy(5), Access::Scalar(var_v));
-        factory.add_def(StmtId::dummy(7), Access::Scalar(var_max));
-        factory.add_def(StmtId::dummy(8), Access::Scalar(var_i));
+        let var_i = factory.create_access(Access::Scalar(1));
+        let var_n = factory.create_access(Access::Scalar(2));
+        let var_max = factory.create_access(Access::Scalar(3));
+        let var_v = factory.create_access(Access::Scalar(4));
 
-        factory.add_use(StmtId::dummy(4), Access::Scalar(var_i));
-        factory.add_use(StmtId::dummy(4), Access::Scalar(var_n));
-        factory.add_use(StmtId::dummy(6), Access::Scalar(var_v));
-        factory.add_use(StmtId::dummy(6), Access::Scalar(var_max));
-        factory.add_use(StmtId::dummy(7), Access::Scalar(var_v));
-        factory.add_use(StmtId::dummy(8), Access::Scalar(var_i));
-        factory.add_use(StmtId::dummy(4), Access::Scalar(var_i));
-        factory.add_use(StmtId::dummy(10), Access::Scalar(var_max));
+        factory.add_def(StmtId::new_test(1), var_i);
+        factory.add_def(StmtId::new_test(2), var_n);
+        factory.add_def(StmtId::new_test(3), var_max);
+        factory.add_def(StmtId::new_test(5), var_v);
+        factory.add_def(StmtId::new_test(7), var_max);
+        factory.add_def(StmtId::new_test(8), var_i);
+
+        factory.add_use(StmtId::new_test(4), var_i);
+        factory.add_use(StmtId::new_test(4), var_n);
+        factory.add_use(StmtId::new_test(6), var_v);
+        factory.add_use(StmtId::new_test(6), var_max);
+        factory.add_use(StmtId::new_test(7), var_v);
+        factory.add_use(StmtId::new_test(8), var_i);
+        factory.add_use(StmtId::new_test(4), var_i);
+        factory.add_use(StmtId::new_test(10), var_max);
 
         // Add only successors of predicates which is needed for is_predicate method of the statement.
-        factory.add_succ(StmtId::dummy(4), StmtId::dummy(5));
-        factory.add_succ(StmtId::dummy(4), StmtId::dummy(10));
-        factory.add_succ(StmtId::dummy(6), StmtId::dummy(7));
-        factory.add_succ(StmtId::dummy(6), StmtId::dummy(8));
+        factory.add_succ(StmtId::new_test(4), StmtId::new_test(5));
+        factory.add_succ(StmtId::new_test(4), StmtId::new_test(10));
+        factory.add_succ(StmtId::new_test(6), StmtId::new_test(7));
+        factory.add_succ(StmtId::new_test(6), StmtId::new_test(8));
 
-        let entry = cfg.add_node(ENTRY);
-        let n1 = cfg.add_node(factory.get(StmtId::dummy(1)));
-        let n2 = cfg.add_node(factory.get(StmtId::dummy(2)));
-        let n3 = cfg.add_node(factory.get(StmtId::dummy(3)));
-        let n4 = cfg.add_node(factory.get(StmtId::dummy(4)));
-        let n5 = cfg.add_node(factory.get(StmtId::dummy(5)));
-        let n6 = cfg.add_node(factory.get(StmtId::dummy(6)));
-        let n7 = cfg.add_node(factory.get(StmtId::dummy(7)));
-        let n8 = cfg.add_node(factory.get(StmtId::dummy(8)));
-        let n10 = cfg.add_node(factory.get(StmtId::dummy(10)));
-        let exit = cfg.add_node(EXIT);
+        let factory = factory.seal();
+
+        let entry = cfg.add_node(Cfgs::entry());
+        let n1 = cfg.add_node(factory.get(StmtId::new_test(1)));
+        let n2 = cfg.add_node(factory.get(StmtId::new_test(2)));
+        let n3 = cfg.add_node(factory.get(StmtId::new_test(3)));
+        let n4 = cfg.add_node(factory.get(StmtId::new_test(4)));
+        let n5 = cfg.add_node(factory.get(StmtId::new_test(5)));
+        let n6 = cfg.add_node(factory.get(StmtId::new_test(6)));
+        let n7 = cfg.add_node(factory.get(StmtId::new_test(7)));
+        let n8 = cfg.add_node(factory.get(StmtId::new_test(8)));
+        let n10 = cfg.add_node(factory.get(StmtId::new_test(10)));
+        let exit = cfg.add_node(Cfgs::exit());
 
         cfg.add_edge(entry, n1, ());
         cfg.add_edge(n1, n2, ());
@@ -336,32 +377,28 @@ pub mod tests {
         cfg.add_edge(n4, n10, ());
         cfg.add_edge(n10, exit, ());
 
-        cfg
+        (cfg, factory)
     }
 
     #[test]
     fn basic() {
-        let mut factory = StatementFactory::new();
-        let cfg = create_basic_cfg(&mut factory);
+        let (cfg, factory) = create_basic_cfg();
 
         let actual = create_pdg(&cfg);
 
-        let mut factory = StatementFactory::new();
-        factory.add_many((1..=10).map(|stmt_id| StmtId::dummy(stmt_id)));
-
         let mut expected = DiGraph::new();
 
-        let _ = expected.add_node(ENTRY);
-        let n1 = expected.add_node(factory.get(StmtId::dummy(1)));
-        let n2 = expected.add_node(factory.get(StmtId::dummy(2)));
-        let n3 = expected.add_node(factory.get(StmtId::dummy(3)));
-        let n4 = expected.add_node(factory.get(StmtId::dummy(4)));
-        let n5 = expected.add_node(factory.get(StmtId::dummy(5)));
-        let n6 = expected.add_node(factory.get(StmtId::dummy(6)));
-        let n7 = expected.add_node(factory.get(StmtId::dummy(7)));
-        let n8 = expected.add_node(factory.get(StmtId::dummy(8)));
-        let n10 = expected.add_node(factory.get(StmtId::dummy(10)));
-        let _ = expected.add_node(EXIT);
+        let _ = expected.add_node(Cfgs::entry());
+        let n1 = expected.add_node(factory.get(StmtId::new_test(1)));
+        let n2 = expected.add_node(factory.get(StmtId::new_test(2)));
+        let n3 = expected.add_node(factory.get(StmtId::new_test(3)));
+        let n4 = expected.add_node(factory.get(StmtId::new_test(4)));
+        let n5 = expected.add_node(factory.get(StmtId::new_test(5)));
+        let n6 = expected.add_node(factory.get(StmtId::new_test(6)));
+        let n7 = expected.add_node(factory.get(StmtId::new_test(7)));
+        let n8 = expected.add_node(factory.get(StmtId::new_test(8)));
+        let n10 = expected.add_node(factory.get(StmtId::new_test(10)));
+        let _ = expected.add_node(Cfgs::exit());
 
         expected.add_edge(n1, n4, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);

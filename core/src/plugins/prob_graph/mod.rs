@@ -21,10 +21,7 @@ pub struct ProbGraph {
 }
 
 impl AardwolfPlugin for ProbGraph {
-    fn init<'data>(
-        _api: &'data Api<'data>,
-        opts: &HashMap<String, Yaml>,
-    ) -> Result<Self, PluginInitError>
+    fn init<'data>(_api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -40,8 +37,8 @@ impl AardwolfPlugin for ProbGraph {
 
     fn run_loc<'data, 'param>(
         &self,
-        api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        api: &'data Api,
+        results: &'param mut Results,
         _irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
         match self.model {
@@ -52,31 +49,31 @@ impl AardwolfPlugin for ProbGraph {
 }
 
 impl ProbGraph {
-    pub fn run_loc_typed<'data, 'param, M: Model<'data>>(
+    pub fn run_loc_typed<'data, 'param, M: Model>(
         &self,
-        api: &'data Api<'data>,
-        results: &'param mut Results<'data>,
+        api: &'data Api,
+        results: &'param mut Results,
     ) -> Result<(), PluginError> {
         let tests = api.get_tests();
 
         let ppdg = self.learn_ppdg::<M>(api);
 
         for test in tests.iter_failed() {
-            let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap(), api);
+            let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap().copied(), api);
             M::run_loc(trace, &ppdg, api, results)?;
         }
 
         Ok(())
     }
 
-    pub fn learn_ppdg<'data, M: Model<'data>>(&self, api: &'data Api<'data>) -> Ppdg<'data> {
+    pub fn learn_ppdg<'data, M: Model>(&self, api: &'data Api) -> Ppdg {
         let tests = api.get_tests();
         let mut ppdg = Ppdg::new();
 
         // Learn PPDG on passing tests.
         for test in tests.iter_passed() {
             // We don't filter irrelevant statements because it might negatively affect the parent state computation.
-            let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap(), api);
+            let trace: Trace<_, M> = Trace::new(tests.iter_stmts(test).unwrap().copied(), api);
 
             for item in trace {
                 // Increment n(X)
@@ -126,12 +123,12 @@ impl<T: Hash + Eq> CounterExt<T> for Counter<T> {
     }
 }
 
-pub struct Ppdg<'data> {
-    occurrence_counter: Counter<Node<'data>>,
-    state_conf_counter: Counter<StateConf<'data>>,
+pub struct Ppdg {
+    occurrence_counter: Counter<Node>,
+    state_conf_counter: Counter<StateConf>,
 }
 
-impl<'data> Ppdg<'data> {
+impl Ppdg {
     pub fn new() -> Self {
         Ppdg {
             occurrence_counter: Counter::new(),
@@ -139,15 +136,15 @@ impl<'data> Ppdg<'data> {
         }
     }
 
-    pub fn inc_occurrence(&mut self, node: Node<'data>) {
+    pub fn inc_occurrence(&mut self, node: Node) {
         self.occurrence_counter.inc(node);
     }
 
-    pub fn inc_state_conf(&mut self, conf: StateConf<'data>) {
+    pub fn inc_state_conf(&mut self, conf: StateConf) {
         self.state_conf_counter.inc(conf);
     }
 
-    pub fn get_prob(&self, item: &TraceItem<'data>) -> f32 {
+    pub fn get_prob(&self, item: &TraceItem) -> f32 {
         let (nom, denom) = if let Some(parents_state_conf) = &item.parents_state_conf {
             let mut joint = parents_state_conf.clone();
             joint.insert((item.node.clone(), item.node_state.clone()));

@@ -227,7 +227,7 @@ impl Driver {
 
     fn init_plugins<'data>(
         config: &'data Config,
-        api: &'data Api<'data>,
+        api: &'data Api,
     ) -> Vec<(&'data str, Box<dyn AardwolfPlugin>)> {
         config
             .plugins
@@ -251,10 +251,10 @@ impl Driver {
 
     fn run_loc<'data>(
         config: &'data Config,
-        api: &'data Api<'data>,
+        api: &'data Api,
         plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
         logger: &mut Logger,
-    ) -> BTreeMap<LocalizationId<'data>, NormalizedResults<'data>> {
+    ) -> BTreeMap<LocalizationId<'data>, NormalizedResults> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
         for (name, plugin) in plugins {
@@ -310,8 +310,8 @@ impl Driver {
     fn display_results<'data>(
         ui: UiName,
         config: &'data Config,
-        api: &'data Api<'data>,
-        results: BTreeMap<LocalizationId<'data>, NormalizedResults<'data>>,
+        api: &'data Api,
+        results: BTreeMap<LocalizationId<'data>, NormalizedResults>,
     ) {
         let mut ui: Box<dyn Ui> = match ui {
             UiName::Cli => Box::new(CliUi::new(api).unwrap()),

@@ -1,10 +1,11 @@
 use super::types::{StmtId, TestName};
 use super::values::Value;
+use crate::arena::{S, P};
 
 pub enum TraceItem {
     Statement(StmtId),
-    Test(TestName),
-    Value(Value),
+    Test(S<TestName>),
+    Value(P<Value>),
 }
 
 pub struct Trace {
