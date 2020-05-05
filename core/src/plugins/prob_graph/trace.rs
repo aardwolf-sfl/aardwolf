@@ -7,13 +7,13 @@ use petgraph::Direction;
 
 use super::models::{Model, Node, NodeType};
 use crate::api::Api;
-use crate::arena::{P, S};
+use crate::arena::{CheapOrd, P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName};
 use crate::queries::{Pdg, Stmts};
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
-type DataContext = BTreeSet<(u64, P<Statement>)>;
+type DataContext = BTreeSet<(u64, CheapOrd<P<Statement>>)>;
 
 pub trait DataContextExt {
     fn diff(&self, other: &Self) -> Vec<(u64, P<Statement>, P<Statement>)>;
@@ -27,7 +27,7 @@ impl DataContextExt for DataContext {
                 .iter()
                 .find(|(item_var, other_def)| var == item_var && self_def != other_def)
             {
-                result.push((*var, *self_def, *other_def));
+                result.push((*var, **self_def, **other_def));
             }
         }
         result
@@ -37,7 +37,7 @@ impl DataContextExt for DataContext {
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone)]
 pub enum NodeState {
     // Immediate successor on the path where the program flow went from the branching.
-    Predicate(P<Statement>),
+    Predicate(CheapOrd<P<Statement>>),
     // Variable and statement that defined the variable last.
     Data(DataContext),
     // When node has not been executed yet.
@@ -137,7 +137,7 @@ impl<N: Hash + Eq + Copy> StackFrame<N> {
             .flat_map(AccessChain::from_uses)
         {
             if let Some(def) = self.current_defs.get(&var) {
-                state.insert((var, *def));
+                state.insert((var, CheapOrd::new(*def)));
             }
         }
 
@@ -234,7 +234,7 @@ impl<'a, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'a, I, M
                 NodeType::Predicate => {
                     // Predicate node must have a successor, so we can unwrap.
                     let next = self.trace.peek().unwrap();
-                    let state = NodeState::Predicate(*next);
+                    let state = NodeState::Predicate(CheapOrd::new(*next));
 
                     stack_frame.update_state(*index, state.clone());
 

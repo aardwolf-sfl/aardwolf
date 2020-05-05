@@ -6,7 +6,7 @@ use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 
 use crate::api::Api;
-use crate::arena::P;
+use crate::arena::{CheapOrd, P};
 use crate::data::statement::Statement;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
 use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
@@ -51,13 +51,16 @@ impl EdgeType {
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Node {
-    pub stmt: P<Statement>,
+    pub stmt: CheapOrd<P<Statement>>,
     pub typ: NodeType,
 }
 
 impl Node {
     pub fn new(stmt: P<Statement>, typ: NodeType) -> Self {
-        Node { stmt, typ }
+        Node {
+            stmt: CheapOrd::new(stmt),
+            typ,
+        }
     }
 
     pub fn to_predicate(self) -> Self {
@@ -214,7 +217,7 @@ impl Model for DependencyNetwork {
             results.add(
                 LocalizationItem::new(
                     stmt.as_ref().loc,
-                    stmt,
+                    *stmt,
                     1.0 - prob,
                     default_rationale.clone(),
                 )
@@ -317,7 +320,7 @@ fn create_dependency_network(
             stmt_nodes = stmt_nodes.add(self_loop_node);
         }
 
-        mapping.insert(dn[index].stmt, stmt_nodes);
+        mapping.insert(*dn[index].stmt, stmt_nodes);
     }
 
     for edge_index in remove {

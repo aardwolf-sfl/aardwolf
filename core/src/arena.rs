@@ -1,13 +1,15 @@
 use std::any::type_name;
+use std::cmp::Ordering;
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::Deref;
 
 // `P` struct is completely opaque to the user. The only thing they can do with
 // it is to get its pointed value using the appropriate arena.
 //
-// In order to derived trait implementation to work properly, the allocator must
-// ensure that equal values are given exactly the same `P`.
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
+// In order to derived equality trait implementations to work properly, the
+// allocator must ensure that equal values are given exactly the same `P`.
+#[derive(PartialEq, Eq, Hash)]
 pub struct P<T> {
     index: usize,
     // Specify the type of value which this pointer represents. If there is
@@ -197,6 +199,47 @@ impl<T> StringArena<T> {
 
     pub fn get(&self, ptr: &S<T>) -> &str {
         &self.storage[ptr.lo..ptr.hi]
+    }
+}
+
+// Cheap index-based Ord-related trait implementation for P pointers. The new
+// type pattern is used not to confuse users by implementing this opaque
+// ordering for P itself, since it does not relate to ordering of inner values
+// at all.
+#[derive(Clone, Copy, Hash, Debug)]
+pub struct CheapOrd<T>(T);
+
+impl<T> CheapOrd<T> {
+    pub fn new(value: T) -> Self {
+        CheapOrd(value)
+    }
+}
+
+impl<T> PartialOrd for CheapOrd<P<T>> {
+    fn partial_cmp(&self, other: &CheapOrd<P<T>>) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for CheapOrd<P<T>> {
+    fn cmp(&self, other: &CheapOrd<P<T>>) -> Ordering {
+        self.0.index.cmp(&other.0.index)
+    }
+}
+
+impl<T> PartialEq for CheapOrd<P<T>> {
+    fn eq(&self, other: &CheapOrd<P<T>>) -> bool {
+        self.0.index == other.0.index
+    }
+}
+
+impl<T> Eq for CheapOrd<P<T>> {}
+
+impl<T> Deref for CheapOrd<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

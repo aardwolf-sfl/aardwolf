@@ -98,29 +98,37 @@ impl InvariantInfo {
     }
 }
 
-#[derive(PartialOrd, PartialEq, Eq)]
-struct UnsafeOrd<T: PartialOrd + PartialEq + Eq>(T);
+#[derive(PartialEq, Eq)]
+struct ValueOrd(P<Value>);
 
-impl<T: PartialOrd + PartialEq + Eq> Ord for UnsafeOrd<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.partial_cmp(&other.0).unwrap()
-    }
-}
-
-impl UnsafeOrd<P<Value>> {
+impl ValueOrd {
     pub fn wrap(value: P<Value>) -> Option<Self> {
         match value.as_ref() {
             Value::Floating(value) if !(***value).is_finite() => None,
-            _ => Some(UnsafeOrd(value)),
+            _ => Some(ValueOrd(value)),
         }
     }
 }
 
-impl<T: PartialOrd + PartialEq + Eq> Deref for UnsafeOrd<T> {
-    type Target = T;
+impl Deref for ValueOrd {
+    type Target = P<Value>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl PartialOrd for ValueOrd {
+    fn partial_cmp(&self, other: &ValueOrd) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ValueOrd {
+    fn cmp(&self, other: &ValueOrd) -> Ordering {
+        // We checked for problematic cases in `wrap` constructor, we are safe
+        // to unwrap here.
+        self.0.as_ref().partial_cmp(other.0.as_ref()).unwrap()
     }
 }
 
@@ -273,7 +281,7 @@ impl SingleValueAccessState {
 }
 
 struct RangeAccessState {
-    data: BTreeMap<UnsafeOrd<P<Value>>, usize>,
+    data: BTreeMap<ValueOrd, usize>,
     typ: ValueType,
     in_tests: HashSet<S<TestName>>,
 }
@@ -287,7 +295,7 @@ impl RangeAccessState {
 
         if let Some(first) = values.next() {
             let typ = first.0.as_ref().get_type();
-            let key = UnsafeOrd::wrap(first.0)?;
+            let key = ValueOrd::wrap(first.0)?;
 
             data.insert(key, first.1);
 
@@ -295,7 +303,7 @@ impl RangeAccessState {
                 if item.0.as_ref().get_type() != typ {
                     return None;
                 } else {
-                    let key = UnsafeOrd::wrap(item.0)?;
+                    let key = ValueOrd::wrap(item.0)?;
                     *data.entry(key).or_insert(0) += item.1;
                 }
             }
@@ -314,7 +322,7 @@ impl RangeAccessState {
         self.in_tests.insert(test);
 
         if data.as_ref().get_type() == self.typ {
-            if let Some(key) = UnsafeOrd::wrap(data) {
+            if let Some(key) = ValueOrd::wrap(data) {
                 *self.data.entry(key).or_insert(0) += 1;
             }
         }
