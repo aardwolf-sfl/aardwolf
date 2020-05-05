@@ -51,23 +51,12 @@ fn ochiai(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
 }
 
 fn overlap(aep: f32, _anp: f32, aef: f32, anf: f32) -> f32 {
-    fn min(a: f32, b: f32, c: f32) -> f32 {
-        if a <= b {
-            if a <= c {
-                a
-            } else {
-                c
-            }
-        } else {
-            if b <= c {
-                b
-            } else {
-                c
-            }
-        }
-    }
+    let min = [aef, anf, aep]
+        .iter()
+        .copied()
+        .fold(std::f32::MAX, |min, val| if val < min { val } else { min });
 
-    aef / (min(aef, anf, aep) + SAFE_DENOMINATOR)
+    aef / (min + SAFE_DENOMINATOR)
 }
 
 fn tarantula(aep: f32, anp: f32, aef: f32, anf: f32) -> f32 {
@@ -102,7 +91,7 @@ pub fn from_opts(opts: &HashMap<String, Yaml>) -> Result<Box<dyn Metric>, Plugin
                     Yaml::Integer(int) => *int as f32,
                     _ => {
                         return Err(format!(
-                            "Invalid star paremeter, must be an integer or real number."
+                            "Invalid star parameter, must be an integer or real number."
                         ))
                     }
                 };
