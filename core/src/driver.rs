@@ -74,27 +74,27 @@ impl<P: AsRef<Path>> DriverArgs<P> {
 // Process localization plugins as they are defined in the config.
 // Implement ordering by its index.
 #[derive(Eq)]
-struct LocalizationId<'data>(&'data str, usize);
+struct LocalizationId<'a>(&'a str, usize);
 
-impl<'data> LocalizationId<'data> {
-    pub fn new(name: &'data str, index: usize) -> Self {
+impl<'a> LocalizationId<'a> {
+    pub fn new(name: &'a str, index: usize) -> Self {
         LocalizationId(name, index)
     }
 }
 
-impl<'data> Ord for LocalizationId<'data> {
+impl<'a> Ord for LocalizationId<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.1.cmp(&other.1)
     }
 }
 
-impl<'data> PartialOrd for LocalizationId<'data> {
+impl<'a> PartialOrd for LocalizationId<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'data> PartialEq for LocalizationId<'data> {
+impl<'a> PartialEq for LocalizationId<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.1 == other.1
     }
@@ -225,10 +225,10 @@ impl Driver {
         }
     }
 
-    fn init_plugins<'data>(
-        config: &'data Config,
-        api: &'data Api,
-    ) -> Vec<(&'data str, Box<dyn AardwolfPlugin>)> {
+    fn init_plugins<'a>(
+        config: &'a Config,
+        api: &'a Api,
+    ) -> Vec<(&'a str, Box<dyn AardwolfPlugin>)> {
         config
             .plugins
             .iter()
@@ -249,12 +249,12 @@ impl Driver {
             .collect()
     }
 
-    fn run_loc<'data>(
-        config: &'data Config,
-        api: &'data Api,
-        plugins: &'data Vec<(&'data str, Box<dyn AardwolfPlugin>)>,
+    fn run_loc<'a>(
+        config: &'a Config,
+        api: &'a Api,
+        plugins: &'a Vec<(&'a str, Box<dyn AardwolfPlugin>)>,
         logger: &mut Logger,
-    ) -> BTreeMap<LocalizationId<'data>, NormalizedResults> {
+    ) -> BTreeMap<LocalizationId<'a>, NormalizedResults> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
         for (name, plugin) in plugins {
@@ -307,11 +307,11 @@ impl Driver {
         all_results
     }
 
-    fn display_results<'data>(
+    fn display_results<'a>(
         ui: UiName,
-        config: &'data Config,
-        api: &'data Api,
-        results: BTreeMap<LocalizationId<'data>, NormalizedResults>,
+        config: &'a Config,
+        api: &'a Api,
+        results: BTreeMap<LocalizationId<'a>, NormalizedResults>,
     ) {
         let mut ui: Box<dyn Ui> = match ui {
             UiName::Cli => Box::new(CliUi::new(api).unwrap()),
@@ -333,7 +333,7 @@ impl Driver {
         ui.epilog();
     }
 
-    fn n_results<'data>(config: &'data Config, id: &LocalizationId<'data>) -> usize {
+    fn n_results<'a>(config: &'a Config, id: &LocalizationId<'a>) -> usize {
         for plugin in config.plugins.iter() {
             if plugin.id() == id.0 {
                 if let Some(n_results) = plugin
@@ -349,7 +349,7 @@ impl Driver {
         config.n_results
     }
 
-    fn should_display<'data>(config: &'data Config, id: &LocalizationId<'data>) -> bool {
+    fn should_display<'a>(config: &'a Config, id: &LocalizationId<'a>) -> bool {
         for plugin in config.plugins.iter() {
             if plugin.id() == id.0 {
                 if let Some(false) = plugin

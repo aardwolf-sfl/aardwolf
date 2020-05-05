@@ -23,8 +23,8 @@ pub struct IrrelevantItems {
     pub tests: HashSet<S<TestName>>,
 }
 
-impl<'data> IrrelevantItems {
-    pub fn new(api: &'data Api) -> Self {
+impl IrrelevantItems {
+    pub fn new(api: &Api) -> Self {
         // By default, all items are relevant.
         IrrelevantItems {
             stmts: api.query::<Stmts>().unwrap().iter_ids().copied().collect(),
@@ -298,33 +298,29 @@ impl LocalizationItem {
 pub type PluginInitError = String;
 
 pub trait AardwolfPlugin {
-    fn init<'data>(api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init(api: &Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized;
 
     // TODO: Make general structure Preprocessing instead of IrrelevantItems.
-    fn run_pre<'data, 'out>(
-        &'out self,
-        _api: &'data Api,
-        _irrelevant: &'out mut IrrelevantItems,
+    fn run_pre(&self, _api: &Api, _irrelevant: &mut IrrelevantItems) -> Result<(), PluginError> {
+        Ok(())
+    }
+
+    fn run_loc(
+        &self,
+        _api: &Api,
+        _results: &mut Results,
+        _irrelevant: &IrrelevantItems,
     ) -> Result<(), PluginError> {
         Ok(())
     }
 
-    fn run_loc<'data, 'param>(
+    fn run_post(
         &self,
-        _api: &'data Api,
-        _results: &'param mut Results,
-        _irrelevant: &'param IrrelevantItems,
-    ) -> Result<(), PluginError> {
-        Ok(())
-    }
-
-    fn run_post<'data, 'param>(
-        &self,
-        _api: &'data Api,
-        _base: &'param HashMap<&'param str, &'param NormalizedResults>,
-        _results: &'param mut Results,
+        _api: &Api,
+        _base: &HashMap<&str, &NormalizedResults>,
+        _results: &mut Results,
     ) -> Result<(), PluginError> {
         Ok(())
     }

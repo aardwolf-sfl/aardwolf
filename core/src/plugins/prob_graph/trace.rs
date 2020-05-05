@@ -176,16 +176,16 @@ impl TraceItem {
     }
 }
 
-pub struct Trace<'data, I: Iterator<Item = P<Statement>>, M: Model> {
+pub struct Trace<'a, I: Iterator<Item = P<Statement>>, M: Model> {
     stack_frames: Vec<StackFrame<NodeIndex<DefaultIx>>>,
     trace: Peekable<I>,
     next_items: VecDeque<TraceItem>,
-    api: &'data Api,
+    api: &'a Api,
     models: HashMap<S<FuncName>, M>,
 }
 
-impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Trace<'data, I, M> {
-    pub fn new(trace: I, api: &'data Api) -> Self {
+impl<'a, I: Iterator<Item = P<Statement>>, M: Model> Trace<'a, I, M> {
+    pub fn new(trace: I, api: &'a Api) -> Self {
         Trace {
             stack_frames: vec![StackFrame::new()],
             trace: trace.peekable(),
@@ -196,7 +196,7 @@ impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Trace<'data, I, M> {
     }
 }
 
-impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'data, I, M> {
+impl<'a, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'a, I, M> {
     type Item = TraceItem;
 
     fn next(&mut self) -> Option<Self::Item> {

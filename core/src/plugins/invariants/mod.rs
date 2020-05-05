@@ -16,18 +16,18 @@ use detector::Stats;
 pub struct Invariants;
 
 impl AardwolfPlugin for Invariants {
-    fn init<'data>(_api: &'data Api, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init(_api: &Api, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
         Ok(Invariants)
     }
 
-    fn run_loc<'data, 'param>(
+    fn run_loc(
         &self,
-        api: &'data Api,
-        results: &'param mut Results,
-        irrelevant: &'param IrrelevantItems,
+        api: &Api,
+        results: &mut Results,
+        irrelevant: &IrrelevantItems,
     ) -> Result<(), PluginError> {
         let tests = api.query::<Tests>()?;
 

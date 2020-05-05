@@ -55,16 +55,16 @@ impl TextWrapper {
     }
 }
 
-pub struct CliUi<'data> {
-    api: &'data Api,
+pub struct CliUi<'a> {
+    api: &'a Api,
     terminal: Box<StdoutTerminal>,
     wrapper: TextWrapper,
     current_color: Option<Color>,
     hypothesis: usize,
 }
 
-impl<'data> CliUi<'data> {
-    pub fn new(api: &'data Api) -> Option<Self> {
+impl<'a> CliUi<'a> {
+    pub fn new(api: &'a Api) -> Option<Self> {
         Some(CliUi {
             api,
             terminal: term::stdout()?,
@@ -179,7 +179,7 @@ impl<'data> CliUi<'data> {
     }
 }
 
-impl<'data> Ui<'data> for CliUi<'data> {
+impl<'a> Ui for CliUi<'a> {
     fn plugin(&mut self, id: &str) {
         let bar = self.construct_bar(id.len() + 20, '-');
 

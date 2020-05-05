@@ -11,18 +11,14 @@ use crate::queries::{Query, Stmts, Tests};
 pub struct Irrelevant;
 
 impl AardwolfPlugin for Irrelevant {
-    fn init<'data>(_api: &'data Api, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init(_api: &Api, _opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
         Ok(Irrelevant)
     }
 
-    fn run_pre<'data, 'out>(
-        &'out self,
-        api: &'data Api,
-        irrelevant: &'out mut IrrelevantItems,
-    ) -> Result<(), PluginError> {
+    fn run_pre(&self, api: &Api, irrelevant: &mut IrrelevantItems) -> Result<(), PluginError> {
         let failing = api.query::<FailingStmts>()?;
         let stmts = api.query::<Stmts>()?;
 

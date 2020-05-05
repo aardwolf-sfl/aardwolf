@@ -41,14 +41,14 @@ struct Location {
     col_end: u32,
 }
 
-pub struct JsonUi<'data> {
-    api: &'data Api,
+pub struct JsonUi<'a> {
+    api: &'a Api,
     terminal: Stdout,
     output: Output,
 }
 
-impl<'data> JsonUi<'data> {
-    pub fn new(api: &'data Api) -> Self {
+impl<'a> JsonUi<'a> {
+    pub fn new(api: &'a Api) -> Self {
         JsonUi {
             api,
             terminal: io::stdout(),
@@ -98,7 +98,7 @@ impl<'data> JsonUi<'data> {
     }
 }
 
-impl<'data> Ui<'data> for JsonUi<'data> {
+impl<'a> Ui for JsonUi<'a> {
     fn plugin(&mut self, id: &str) {
         self.output.plugins.push(Plugin {
             name: id.to_owned(),

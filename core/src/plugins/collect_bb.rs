@@ -19,7 +19,7 @@ pub struct CollectBb {
 }
 
 impl AardwolfPlugin for CollectBb {
-    fn init<'data>(_api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init(_api: &Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -36,11 +36,11 @@ impl AardwolfPlugin for CollectBb {
         Ok(CollectBb { plugin })
     }
 
-    fn run_post<'data, 'param>(
+    fn run_post(
         &self,
-        api: &'data Api,
-        base: &'param HashMap<&'param str, &'param NormalizedResults>,
-        results: &'param mut Results,
+        api: &Api,
+        base: &HashMap<&str, &NormalizedResults>,
+        results: &mut Results,
     ) -> Result<(), PluginError> {
         let mut original = base
             .get(self.plugin.as_str())

@@ -22,7 +22,7 @@ pub struct ProbGraph {
 }
 
 impl AardwolfPlugin for ProbGraph {
-    fn init<'data>(_api: &'data Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
+    fn init(_api: &Api, opts: &HashMap<String, Yaml>) -> Result<Self, PluginInitError>
     where
         Self: Sized,
     {
@@ -36,11 +36,11 @@ impl AardwolfPlugin for ProbGraph {
         Ok(ProbGraph { model })
     }
 
-    fn run_loc<'data, 'param>(
+    fn run_loc(
         &self,
-        api: &'data Api,
-        results: &'param mut Results,
-        _irrelevant: &'param IrrelevantItems,
+        api: &Api,
+        results: &mut Results,
+        _irrelevant: &IrrelevantItems,
     ) -> Result<(), PluginError> {
         match self.model {
             ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),
@@ -50,10 +50,10 @@ impl AardwolfPlugin for ProbGraph {
 }
 
 impl ProbGraph {
-    pub fn run_loc_typed<'data, 'param, M: Model>(
+    pub fn run_loc_typed<M: Model>(
         &self,
-        api: &'data Api,
-        results: &'param mut Results,
+        api: &Api,
+        results: &mut Results,
     ) -> Result<(), PluginError> {
         let tests = api.query::<Tests>()?;
 
@@ -67,7 +67,7 @@ impl ProbGraph {
         Ok(())
     }
 
-    pub fn learn_ppdg<'data, M: Model>(&self, api: &'data Api) -> Ppdg {
+    pub fn learn_ppdg<M: Model>(&self, api: &Api) -> Ppdg {
         let tests = api.query::<Tests>().unwrap();
         let mut ppdg = Ppdg::new();
 

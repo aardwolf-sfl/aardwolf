@@ -9,7 +9,7 @@ use crate::plugins::LocalizationItem;
 pub use cli::CliUi;
 pub use json::JsonUi;
 
-pub trait Ui<'data> {
+pub trait Ui {
     fn prolog(&mut self) {}
     fn plugin(&mut self, id: &str);
     fn result(&mut self, item: &LocalizationItem);
