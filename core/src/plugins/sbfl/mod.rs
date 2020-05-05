@@ -10,6 +10,7 @@ use crate::plugins::{
     AardwolfPlugin, IrrelevantItems, LocalizationItem, PluginError, PluginInitError, Rationale,
     Results,
 };
+use crate::queries::{Spectra, Stmts, Tests};
 
 struct Counters {
     pub aep: f32,
@@ -53,9 +54,9 @@ impl AardwolfPlugin for Sbfl {
         results: &'param mut Results,
         irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
-        let stmts = api.get_stmts();
-        let tests = api.get_tests();
-        let spectra = api.get_spectra();
+        let stmts = api.query::<Stmts>()?;
+        let tests = api.query::<Tests>()?;
+        let spectra = api.query::<Spectra>()?;
 
         let mut rationale = Rationale::new();
         rationale

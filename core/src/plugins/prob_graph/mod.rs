@@ -10,6 +10,7 @@ use self::models::*;
 use self::trace::*;
 use crate::api::Api;
 use crate::plugins::{AardwolfPlugin, IrrelevantItems, PluginError, PluginInitError, Results};
+use crate::queries::Tests;
 
 enum ModelType {
     Dependence,
@@ -54,7 +55,7 @@ impl ProbGraph {
         api: &'data Api,
         results: &'param mut Results,
     ) -> Result<(), PluginError> {
-        let tests = api.get_tests();
+        let tests = api.query::<Tests>()?;
 
         let ppdg = self.learn_ppdg::<M>(api);
 
@@ -67,7 +68,7 @@ impl ProbGraph {
     }
 
     pub fn learn_ppdg<'data, M: Model>(&self, api: &'data Api) -> Ppdg {
-        let tests = api.get_tests();
+        let tests = api.query::<Tests>().unwrap();
         let mut ppdg = Ppdg::new();
 
         // Learn PPDG on passing tests.

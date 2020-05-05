@@ -3,15 +3,15 @@ use std::collections::{
     HashSet,
 };
 
+use super::Query;
 use crate::api::Api;
-use crate::arena::{S, P};
+use crate::arena::{P, S};
 use crate::data::{
     statement::Statement,
     trace::TraceItem,
     types::{FuncName, StmtId},
     RawData,
 };
-use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Stmts {
     mapping: HashMap<StmtId, P<Statement>>,
@@ -29,12 +29,12 @@ impl Stmts {
         self.mapping.values()
     }
 
-    pub fn get(&self, id: &StmtId) -> Option<P<Statement>> {
-        self.mapping.get(id).map(|stmt| *stmt)
+    pub fn get(&self, id: &StmtId) -> Option<&P<Statement>> {
+        self.mapping.get(id)
     }
 
-    pub fn find_fn(&self, stmt: &Statement) -> Option<S<FuncName>> {
-        self.functions.get(&stmt.id).copied()
+    pub fn find_fn(&self, id: &StmtId) -> Option<&S<FuncName>> {
+        self.functions.get(id)
     }
 
     pub fn get_n_total(&self) -> usize {
@@ -46,8 +46,11 @@ impl Stmts {
     }
 }
 
-impl FromRawData for Stmts {
-    fn from_raw(data: &RawData, _api: &Api) -> Result<Self, FromRawDataError> {
+impl Query for Stmts {
+    type Error = ();
+    type Args = ();
+
+    fn init(data: &RawData, _args: &Self::Args, _api: &Api) -> Result<Self, Self::Error> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
         let mut functions = HashMap::new();
@@ -62,7 +65,7 @@ impl FromRawData for Stmts {
 
                     for (name, stmts) in data.modules.functions.iter() {
                         if stmts.contains_key(stmt) {
-                            functions.insert(*stmt, *name);
+                            functions.insert(*stmt, name.clone());
                         }
                     }
                 }
@@ -75,7 +78,7 @@ impl FromRawData for Stmts {
                 n_total += 1;
 
                 if executed.contains(id) {
-                    mapping.insert(*id, *stmt);
+                    mapping.insert(*id, stmt.clone());
                     n_executed += 1;
                 }
             }

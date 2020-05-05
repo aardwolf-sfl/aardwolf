@@ -7,6 +7,7 @@ use super::Ui;
 use crate::api::Api;
 use crate::data::statement::Loc;
 use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
+use crate::queries::Stmts;
 
 #[derive(Serialize, Deserialize)]
 struct Output {
@@ -55,7 +56,7 @@ impl<'data> JsonUi<'data> {
                 version: String::from("v1"),
                 utc_time: Utc::now(),
                 local_time: Local::now(),
-                statements_count: api.get_stmts().get_n_total(),
+                statements_count: api.query::<Stmts>().unwrap().get_n_total(),
                 plugins: Vec::new(),
             },
         }
@@ -84,7 +85,7 @@ impl<'data> JsonUi<'data> {
         Location {
             file: self
                 .api
-                .get_filepath(&loc.file_id)
+                .file(&loc.file_id)
                 .unwrap()
                 .to_str()
                 .unwrap()

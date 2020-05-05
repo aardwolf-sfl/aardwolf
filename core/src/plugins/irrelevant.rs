@@ -6,7 +6,7 @@ use crate::api::Api;
 use crate::arena::P;
 use crate::data::{statement::Statement, RawData};
 use crate::plugins::{AardwolfPlugin, IrrelevantItems, PluginError, PluginInitError};
-use crate::structures::{FromRawData, FromRawDataError};
+use crate::queries::{Query, Stmts, Tests};
 
 pub struct Irrelevant;
 
@@ -23,8 +23,8 @@ impl AardwolfPlugin for Irrelevant {
         api: &'data Api,
         irrelevant: &'out mut IrrelevantItems,
     ) -> Result<(), PluginError> {
-        let failing = api.make::<FailingStmts>().unwrap();
-        let stmts = api.get_stmts();
+        let failing = api.query::<FailingStmts>()?;
+        let stmts = api.query::<Stmts>()?;
 
         for stmt_ptr in stmts.iter_stmts() {
             let stmt = stmt_ptr.as_ref();
@@ -45,9 +45,12 @@ impl FailingStmts {
     }
 }
 
-impl FromRawData for FailingStmts {
-    fn from_raw(_data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
-        let tests = api.get_tests();
+impl Query for FailingStmts {
+    type Error = ();
+    type Args = ();
+
+    fn init(_data: &RawData, _args: &Self::Args, api: &Api) -> Result<Self, Self::Error> {
+        let tests = api.query::<Tests>()?;
         let mut executed = HashSet::new();
 
         for test in tests.iter_failed() {

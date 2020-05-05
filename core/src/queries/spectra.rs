@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use super::Query;
 use crate::api::Api;
 use crate::arena::S;
 use crate::data::{
@@ -8,7 +9,6 @@ use crate::data::{
     types::{StmtId, TestName},
     RawData,
 };
-use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Spectra {
     spectra: HashMap<S<TestName>, HashSet<StmtId>>,
@@ -24,8 +24,11 @@ impl Spectra {
     }
 }
 
-impl FromRawData for Spectra {
-    fn from_raw(data: &RawData, _api: &Api) -> Result<Self, FromRawDataError> {
+impl Query for Spectra {
+    type Error = ();
+    type Args = ();
+
+    fn init(data: &RawData, _args: &Self::Args, _api: &Api) -> Result<Self, Self::Error> {
         let mut spectra = HashMap::new();
         let mut stmts = HashSet::new();
         let mut test_case = None;

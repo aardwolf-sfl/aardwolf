@@ -9,6 +9,7 @@ use super::models::{Model, Node, NodeType};
 use crate::api::Api;
 use crate::arena::{P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName};
+use crate::queries::{Pdg, Stmts};
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
@@ -203,9 +204,12 @@ impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'data
             return self.next_items.pop_front();
         }
 
+        let stmts = self.api.query::<Stmts>().unwrap();
+
         let stmt_ptr = self.trace.next()?;
         let stmt = stmt_ptr.as_ref();
-        let func = self.api.get_stmts().find_fn(stmt).unwrap();
+
+        let func = stmts.find_fn(&stmt.id).unwrap();
 
         // There should always exist a stack frame. If there is not, then one of the following happened:
         //   * The function from top-level stack frame returned
@@ -213,13 +217,13 @@ impl<'data, I: Iterator<Item = P<Statement>>, M: Model> Iterator for Trace<'data
         //   * We missed a function call and a return statement discarded wrong stack frame.
         let stack_frame = self.stack_frames.last_mut().unwrap();
 
-        let pdgs = self.api.get_pdgs();
+        let pdg = self.api.query_with::<Pdg>(func).unwrap();
 
         // Get (or initialize) model for the function which the statement comes from.
         let model = self
             .models
-            .entry(func)
-            .or_insert_with(|| M::from_pdg(&pdgs.get(&func).unwrap()))
+            .entry(*func)
+            .or_insert_with(|| M::from_pdg(&pdg))
             .get_graph();
 
         // Get all nodes from the model corresponding to the statement.

@@ -6,21 +6,12 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{
-    AardwolfPlugin, IrrelevantItems, LocalizationItem, MissingApi, PluginError, PluginInitError,
-    Rationale, Results,
+    AardwolfPlugin, IrrelevantItems, LocalizationItem, PluginError, PluginInitError, Rationale,
+    Results,
 };
+use crate::queries::{Tests, Vars};
 
 use detector::Stats;
-
-// TODO: This should perhaps globally available macro.
-macro_rules! required {
-    ($structure:expr, $name:expr) => {
-        match $structure {
-            Some(structure) => structure,
-            None => return Err(PluginError::MissingApi($name)),
-        }
-    };
-}
 
 pub struct Invariants;
 
@@ -38,15 +29,15 @@ impl AardwolfPlugin for Invariants {
         results: &'param mut Results,
         irrelevant: &'param IrrelevantItems,
     ) -> Result<(), PluginError> {
-        let tests = api.get_tests();
-        let vars = required!(api.get_vars(), MissingApi::Vars);
+        let tests = api.query::<Tests>()?;
 
         let mut stats = Stats::new();
 
         for test in tests.iter_passed() {
+            let vars = api.query_with::<Vars>(test)?;
+
             for item in vars
-                .iter_vars(test)
-                .unwrap()
+                .iter()
                 .filter(|item| irrelevant.is_stmt_relevant(item.stmt.as_ref()))
             {
                 for (access, data) in item.zip() {
@@ -56,7 +47,9 @@ impl AardwolfPlugin for Invariants {
         }
 
         for test in tests.iter_failed() {
-            for item in vars.iter_vars(test).unwrap() {
+            let vars = api.query_with::<Vars>(test)?;
+
+            for item in vars.iter() {
                 for (access, data) in item.zip() {
                     let violations = stats.check(data, access);
 

@@ -9,6 +9,7 @@ use crate::data::{
     statement::{Loc, Statement},
     types::{StmtId, TestName},
 };
+use crate::queries::{QueryInitError, Stmts, Tests};
 
 pub mod collect_bb;
 pub mod invariants;
@@ -26,8 +27,13 @@ impl<'data> IrrelevantItems {
     pub fn new(api: &'data Api) -> Self {
         // By default, all items are relevant.
         IrrelevantItems {
-            stmts: api.get_stmts().iter_ids().copied().collect(),
-            tests: api.get_tests().iter_names().copied().collect(),
+            stmts: api.query::<Stmts>().unwrap().iter_ids().copied().collect(),
+            tests: api
+                .query::<Tests>()
+                .unwrap()
+                .iter_names()
+                .copied()
+                .collect(),
         }
     }
 
@@ -156,19 +162,23 @@ impl IntoIterator for NormalizedResults {
 }
 
 #[derive(Debug)]
-pub enum MissingApi {
-    Cfg,
-    DefUse,
-    Spectra,
-    Stmts,
-    Tests,
-    Vars,
-}
-
-#[derive(Debug)]
 pub enum PluginError {
     Inner(String),
-    MissingApi(MissingApi),
+    QueryError(QueryInitError),
+}
+
+impl From<QueryInitError> for PluginError {
+    fn from(err: QueryInitError) -> Self {
+        PluginError::QueryError(err)
+    }
+}
+
+impl From<()> for PluginError {
+    fn from(_err: ()) -> Self {
+        // We assume that when the error type is unit type, then such error is
+        // never returned.
+        unreachable!()
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]

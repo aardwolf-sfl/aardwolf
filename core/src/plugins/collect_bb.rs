@@ -12,6 +12,7 @@ use crate::data::statement::{Loc, Statement};
 use crate::plugins::{
     AardwolfPlugin, LocalizationItem, NormalizedResults, PluginError, PluginInitError, Results,
 };
+use crate::queries::{Cfg, Stmts};
 
 pub struct CollectBb {
     plugin: String,
@@ -52,13 +53,12 @@ impl AardwolfPlugin for CollectBb {
             .rev()
             .collect::<Vec<_>>();
 
-        let stmts = api.get_stmts();
-        let cfgs = api.get_cfgs();
+        let stmts = api.query::<Stmts>()?;
 
         while let Some(item) = original.pop() {
             if let Some(cfg) = stmts
-                .find_fn(item.root_stmt.as_ref())
-                .and_then(|func| cfgs.get(&func))
+                .find_fn(&item.root_stmt.as_ref().id)
+                .and_then(|func| api.query_with::<Cfg>(&func).ok())
             {
                 // Find index in CFG corresponding to the statement.
                 let index = cfg
@@ -84,7 +84,7 @@ impl AardwolfPlugin for CollectBb {
                             break;
                         }
 
-                        if self.extend_loc(&mut loc, &mut original, cfg, item, neighbor) {
+                        if self.extend_loc(&mut loc, &mut original, &cfg, item, neighbor) {
                             // Continue with the neighbor.
                             current = neighbor;
                         } else {
@@ -116,7 +116,7 @@ impl AardwolfPlugin for CollectBb {
                             break;
                         }
 
-                        if self.extend_loc(&mut loc, &mut original, cfg, item, neighbor) {
+                        if self.extend_loc(&mut loc, &mut original, &cfg, item, neighbor) {
                             // Continue with the neighbor.
                             current = neighbor;
                         } else {

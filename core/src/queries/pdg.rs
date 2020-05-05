@@ -3,32 +3,26 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
+use super::cfg::{exit, Cfg};
+use super::{Query, QueryInitError};
 use crate::api::Api;
 use crate::arena::{P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName, RawData};
 use crate::graph_ext::DominatorsExt;
-use crate::structures::{Cfg, Cfgs, FromRawData, FromRawDataError};
 
 pub type Pdg = DiGraph<P<Statement>, EdgeType>;
 
-pub struct Pdgs(HashMap<S<FuncName>, Pdg>);
+impl Query for Pdg {
+    type Error = QueryInitError;
+    type Args = S<FuncName>;
 
-impl Pdgs {
-    pub fn get(&self, func: &S<FuncName>) -> Option<&Pdg> {
-        self.0.get(func)
-    }
-}
-
-impl FromRawData for Pdgs {
-    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
-        let mut result = HashMap::new();
-        let cfgs = api.get_cfgs();
-
-        for (func_name, _) in data.modules.functions.iter() {
-            result.insert(*func_name, create_pdg(cfgs.get(func_name).unwrap()));
-        }
-
-        Ok(Pdgs(result))
+    fn init(data: &RawData, args: &Self::Args, api: &Api) -> Result<Self, Self::Error> {
+        data.modules
+            .functions
+            .iter()
+            .find(|(func_name, _)| *func_name == args)
+            .ok_or(QueryInitError::InvalidFuncName(*args))
+            .map(|(_, _)| create_pdg(api.query_with::<Cfg>(args).unwrap().as_ref()))
     }
 }
 
@@ -179,7 +173,7 @@ fn compute_control_deps<Ix: IndexType, E>(
 
     let exit = cfg
         .node_indices()
-        .find(|index| cfg[*index] == Cfgs::exit())
+        .find(|index| cfg[*index] == exit())
         .unwrap();
 
     // So far, there are only control flow edges,
@@ -243,7 +237,7 @@ pub mod tests {
 
     use crate::arena::{Arena, P};
     use crate::data::{access::Access, statement::Statement, types::StmtId};
-    use crate::structures::Cfgs;
+    use crate::queries::cfg::{entry, exit};
 
     pub struct StatementFactory {
         data: HashMap<StmtId, P<Statement>>,
@@ -352,7 +346,7 @@ pub mod tests {
 
         let factory = factory.seal();
 
-        let entry = cfg.add_node(Cfgs::entry());
+        let entry = cfg.add_node(entry());
         let n1 = cfg.add_node(factory.get(StmtId::new_test(1)));
         let n2 = cfg.add_node(factory.get(StmtId::new_test(2)));
         let n3 = cfg.add_node(factory.get(StmtId::new_test(3)));
@@ -362,7 +356,7 @@ pub mod tests {
         let n7 = cfg.add_node(factory.get(StmtId::new_test(7)));
         let n8 = cfg.add_node(factory.get(StmtId::new_test(8)));
         let n10 = cfg.add_node(factory.get(StmtId::new_test(10)));
-        let exit = cfg.add_node(Cfgs::exit());
+        let exit = cfg.add_node(exit());
 
         cfg.add_edge(entry, n1, ());
         cfg.add_edge(n1, n2, ());
@@ -388,7 +382,7 @@ pub mod tests {
 
         let mut expected = DiGraph::new();
 
-        let _ = expected.add_node(Cfgs::entry());
+        let _ = expected.add_node(entry());
         let n1 = expected.add_node(factory.get(StmtId::new_test(1)));
         let n2 = expected.add_node(factory.get(StmtId::new_test(2)));
         let n3 = expected.add_node(factory.get(StmtId::new_test(3)));
@@ -398,7 +392,7 @@ pub mod tests {
         let n7 = expected.add_node(factory.get(StmtId::new_test(7)));
         let n8 = expected.add_node(factory.get(StmtId::new_test(8)));
         let n10 = expected.add_node(factory.get(StmtId::new_test(10)));
-        let _ = expected.add_node(Cfgs::exit());
+        let _ = expected.add_node(exit());
 
         expected.add_edge(n1, n4, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);

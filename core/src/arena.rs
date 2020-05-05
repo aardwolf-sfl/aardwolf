@@ -4,6 +4,9 @@ use std::marker::PhantomData;
 
 // `P` struct is completely opaque to the user. The only thing they can do with
 // it is to get its pointed value using the appropriate arena.
+//
+// In order to derived trait implementation to work properly, the allocator must
+// ensure that equal values are given exactly the same `P`.
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct P<T> {
     index: usize,

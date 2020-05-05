@@ -1,12 +1,13 @@
 use std::collections::hash_map::{HashMap, Iter, Keys};
 use std::mem;
 
+use super::stmts::Stmts;
+use super::Query;
 use crate::api::Api;
 use crate::arena::{P, S};
 use crate::data::{
     statement::Statement, tests::TestStatus, trace::TraceItem, types::TestName, RawData,
 };
-use crate::structures::{FromRawData, FromRawDataError};
 
 pub struct Tests {
     tests: HashMap<S<TestName>, TestStatus>,
@@ -53,9 +54,12 @@ impl Tests {
     }
 }
 
-impl FromRawData for Tests {
-    fn from_raw(data: &RawData, api: &Api) -> Result<Self, FromRawDataError> {
-        let stmts = api.get_stmts();
+impl Query for Tests {
+    type Error = ();
+    type Args = ();
+
+    fn init(data: &RawData, _args: &Self::Args, api: &Api) -> Result<Self, Self::Error> {
+        let stmts = api.query::<Stmts>()?;
 
         let mut traces = HashMap::with_capacity(data.test_suite.tests.len());
 
@@ -68,8 +72,8 @@ impl FromRawData for Tests {
                     // Even though stmts are built from dynamic trace as well,
                     // traced statements without accompanied "external" element
                     // are discarded from it.
-                    if let Some(id) = stmts.get(&id) {
-                        trace.push(id);
+                    if let Some(stmt) = stmts.get(&id) {
+                        trace.push(stmt.clone());
                     }
                 }
                 TraceItem::Test(new_test) => {

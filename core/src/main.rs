@@ -7,7 +7,7 @@ mod driver;
 mod graph_ext;
 mod logger;
 pub mod plugins;
-pub mod structures;
+pub mod queries;
 mod ui;
 
 use clap::{App, Arg};

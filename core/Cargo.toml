@@ -5,7 +5,6 @@ authors = ["Petr Nevyhoštěný <petr.nevyhosteny@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-lazycell = "1.2"
 yaml-rust = "0.4.3"
 clap = "2.33"
 petgraph = "0.5.0"

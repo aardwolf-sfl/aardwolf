@@ -168,13 +168,7 @@ impl<'data> CliUi<'data> {
     }
 
     fn write_loc(&mut self, loc: &Loc) {
-        self.write(
-            self.api
-                .get_filepath(&loc.file_id)
-                .unwrap()
-                .to_str()
-                .unwrap(),
-        );
+        self.write(self.api.file(&loc.file_id).unwrap().to_str().unwrap());
         self.write(":");
 
         if loc.line_begin == loc.line_end && loc.col_begin == loc.col_end {

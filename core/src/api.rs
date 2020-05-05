@@ -1,10 +1,12 @@
+use std::any::{Any, TypeId};
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
-
-use lazycell::LazyCell;
+use std::rc::Rc;
 
 use crate::data::{types::FileId, RawData};
-use crate::structures::*;
+use crate::queries::{Query, QueryArgs, QueryKey};
 
 #[derive(Debug)]
 pub enum EmptyDataReason {
@@ -21,39 +23,10 @@ pub enum InvalidData {
 
 pub struct Api {
     data: RawData,
-    stmts: LazyCell<Stmts>,
-    tests: LazyCell<Tests>,
-    def_use: LazyCell<DefUse>,
-    spectra: LazyCell<Spectra>,
-    cfgs: LazyCell<Cfgs>,
-    pdgs: LazyCell<Pdgs>,
-    vars: LazyCell<Vars>,
-}
-
-macro_rules! get_lazy_fallible {
-    ($api:expr, $prop:ident) => {{
-        if !($api).$prop.filled() {
-            match $api.make() {
-                Ok(prop) => {
-                    ($api).$prop.fill(prop).ok();
-                }
-                // TODO: Save the error to api in order to warn the user.
-                Err(_) => return None,
-            }
-        }
-
-        ($api).$prop.borrow()
-    }};
-}
-
-macro_rules! get_lazy_infallible {
-    ($api:expr, $prop:ident) => {{
-        if !($api).$prop.filled() {
-            ($api).$prop.fill($api.make().unwrap()).ok();
-        }
-
-        ($api).$prop.borrow().unwrap()
-    }};
+    // RefCell enables to mutably borrow the cache even when Api is borrowed
+    // immutably. Use of Rc allows us to safely return a reference to the cached
+    // query without the need of expensively cloning it.
+    queries: RefCell<HashMap<(QueryKey, TypeId), Rc<dyn Any>>>,
 }
 
 impl Api {
@@ -74,50 +47,56 @@ impl Api {
         } else {
             Ok(Api {
                 data,
-                stmts: LazyCell::new(),
-                tests: LazyCell::new(),
-                def_use: LazyCell::new(),
-                spectra: LazyCell::new(),
-                cfgs: LazyCell::new(),
-                pdgs: LazyCell::new(),
-                vars: LazyCell::new(),
+                queries: RefCell::new(HashMap::new()),
             })
         }
     }
 
-    pub fn make<T: FromRawData>(&self) -> Result<T, FromRawDataError> {
-        T::from_raw(&self.data, &self)
+    pub fn query<Q: Query<Args = ()>>(&self) -> Result<Rc<Q>, Q::Error> {
+        self.query_with(&())
     }
 
-    pub fn get_stmts(&self) -> &Stmts {
-        get_lazy_infallible!(self, stmts)
+    pub fn query_with<Q: Query>(&self, args: &Q::Args) -> Result<Rc<Q>, Q::Error> {
+        let type_id = TypeId::of::<Q>();
+        let key = args.key();
+
+        // We cannot use `entry` API since it would break support for nested
+        // queries as it would violate exclusive mutable borrow rules enforced
+        // by RefCell.
+        let value = if !self.queries.borrow().contains_key(&(key.clone(), type_id)) {
+            // If a query, whose creation is erroneous, is requested multiple
+            // times, it is also recomputed (with failed result) multiple times
+            // since it is not stored in the cache. We accept this behavior
+            // since we consider failed query to be an ill state for the
+            // localization and such process would end up with an error early.
+            //
+            // It is important that calling `Q::init` is done *before* mutably
+            // borrowing the queries cache. In this way, nested queries will
+            // work fine because at this point, the cache is not borrowed by
+            // anything.
+            let value = Rc::new(Q::init(&self.data, args, self)?);
+
+            // Create a new pointer to the now-compted query.
+            self.queries
+                .borrow_mut()
+                .insert((key, type_id), value.clone());
+
+            value
+        } else {
+            // The query is already in the cache. We can safely unwrap it and
+            // create a new pointer to the cached query.
+            let value = self.queries.borrow().get(&(key, type_id)).unwrap().clone();
+
+            // Cast the value to the concrete type. Since we store the
+            // any-values by their type id, we are sure that the cast will end
+            // up successful.
+            value.downcast::<Q>().unwrap()
+        };
+
+        Ok(value)
     }
 
-    pub fn get_tests(&self) -> &Tests {
-        get_lazy_infallible!(self, tests)
-    }
-
-    pub fn get_def_use(&self) -> &DefUse {
-        get_lazy_infallible!(self, def_use)
-    }
-
-    pub fn get_spectra(&self) -> &Spectra {
-        get_lazy_infallible!(self, spectra)
-    }
-
-    pub fn get_cfgs(&self) -> &Cfgs {
-        get_lazy_infallible!(self, cfgs)
-    }
-
-    pub fn get_pdgs(&self) -> &Pdgs {
-        get_lazy_infallible!(self, pdgs)
-    }
-
-    pub fn get_vars(&self) -> Option<&Vars> {
-        get_lazy_fallible!(self, vars)
-    }
-
-    pub fn get_filepath(&self, file_id: &FileId) -> Option<PathBuf> {
+    pub fn file(&self, file_id: &FileId) -> Option<PathBuf> {
         let ptr = self.data.modules.files.get(file_id)?;
         let raw = PathBuf::from(ptr.as_ref());
 

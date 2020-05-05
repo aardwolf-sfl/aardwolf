@@ -10,7 +10,7 @@ use crate::arena::P;
 use crate::data::statement::Statement;
 use crate::plugins::prob_graph::{trace::Trace, Ppdg};
 use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
-use crate::structures::{EdgeType as PdgEdgeType, Pdg};
+use crate::queries::pdg::{EdgeType as PdgEdgeType, Pdg};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
 pub enum NodeType {
@@ -340,13 +340,13 @@ pub fn create_bayesian_network(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::structures::pdg::{create_pdg, tests::*};
+    use crate::queries::pdg::{create_pdg, tests::*};
 
     use petgraph::algo;
     use petgraph::graph::DiGraph;
 
     use crate::data::types::StmtId;
-    use crate::structures::Cfgs;
+    use crate::queries::cfg::{entry, exit};
 
     #[test]
     fn dependency_network_basic() {
@@ -357,7 +357,7 @@ mod tests {
 
         let mut expected = DiGraph::new();
 
-        let _ = expected.add_node(Node::new(Cfgs::entry(), NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(entry(), NodeType::NonPredicate));
         let n1 = expected.add_node(Node::new(
             factory.get(StmtId::new_test(1)),
             NodeType::NonPredicate,
@@ -406,7 +406,7 @@ mod tests {
             factory.get(StmtId::new_test(10)),
             NodeType::NonPredicate,
         ));
-        let _ = expected.add_node(Node::new(Cfgs::exit(), NodeType::NonPredicate));
+        let _ = expected.add_node(Node::new(exit(), NodeType::NonPredicate));
 
         expected.add_edge(n1, n4_data, EdgeType::DataDep);
         expected.add_edge(n1, n8, EdgeType::DataDep);
