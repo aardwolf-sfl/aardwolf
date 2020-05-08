@@ -9,6 +9,7 @@ use super::models::{Model, Node, NodeType};
 use crate::api::Api;
 use crate::arena::{CheapOrd, P, S};
 use crate::data::{access::AccessChain, statement::Statement, types::FuncName};
+use crate::plugins::Rationale;
 use crate::queries::{Pdg, Stmts};
 
 // We need BTreeSet because we want to keep a unique order of the elements
@@ -172,6 +173,107 @@ impl TraceItem {
             node,
             node_state,
             parents_state_conf,
+        }
+    }
+
+    pub fn explain(self, expected: Option<(Node, NodeState)>) -> Rationale {
+        let mut rationale = Rationale::new();
+        rationale.add_text("The element entered an unusual state.");
+
+        match self.node_state {
+            NodeState::Predicate(succ) => {
+                rationale
+                    .add_text(" The predicate outcome lead the execution unexpectedly to ")
+                    .add_anchor(succ.as_ref().loc)
+                    .add_text(".");
+            }
+            NodeState::Data(ctx) => {
+                rationale.add_text(
+                    " The values of the variables were assigned by the following statements: ",
+                );
+
+                let mut iter = ctx.into_iter();
+
+                if let Some((_, def)) = iter.next() {
+                    rationale.add_anchor(def.as_ref().loc);
+                }
+
+                for (_, def) in iter {
+                    rationale.add_text(", ").add_anchor(def.as_ref().loc);
+                }
+
+                rationale.add_text(".");
+            }
+            _ => {}
+        }
+
+        if let Some(parents) = self.parents_state_conf {
+            rationale
+                .paragraph()
+                .add_text("It happened in these circumstances:");
+
+            for parent in parents {
+                rationale.paragraph();
+
+                Self::explain_node_state(parent.0, parent.1, &mut rationale);
+            }
+        }
+
+        if let Some(expected) = expected {
+            rationale
+                .paragraph()
+                .newline()
+                .add_text("This is what was expected the most:")
+                .paragraph();
+
+            Self::explain_node_state(expected.0, expected.1, &mut rationale);
+        }
+
+        rationale
+    }
+
+    fn explain_node_state(node: Node, state: NodeState, rationale: &mut Rationale) {
+        rationale.add_text("- ");
+
+        match state {
+            NodeState::Predicate(succ) => {
+                rationale
+                    .add_text("The predicate outcome of ")
+                    .add_anchor(node.stmt.as_ref().loc)
+                    .add_text(" lead the execution to ")
+                    .add_anchor(succ.as_ref().loc)
+                    .add_text(".");
+            }
+            NodeState::Data(ctx) => {
+                rationale
+                    .add_text("The values of the variables used by ")
+                    .add_anchor(node.stmt.as_ref().loc)
+                    .add_text(" were assigned by the following statements: ");
+
+                let mut iter = ctx.into_iter();
+
+                if let Some((_, def)) = iter.next() {
+                    rationale.add_anchor(def.as_ref().loc);
+                }
+
+                for (_, def) in iter {
+                    rationale.add_text(", ").add_anchor(def.as_ref().loc);
+                }
+
+                rationale.add_text(".");
+            }
+            NodeState::Executed => {
+                rationale
+                    .add_text("Statement ")
+                    .add_anchor(node.stmt.as_ref().loc)
+                    .add_text(" was executed.");
+            }
+            NodeState::NotExecuted => {
+                rationale
+                    .add_text("Statement ")
+                    .add_anchor(node.stmt.as_ref().loc)
+                    .add_text(" was not executed.");
+            }
         }
     }
 }

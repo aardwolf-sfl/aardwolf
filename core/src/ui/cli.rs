@@ -27,7 +27,7 @@ impl TextWrapper {
         let string = text.into();
         let mut last_space = 0;
         for (_, (byte_pos, ch)) in string.char_indices().enumerate() {
-            self.col += ch.width().unwrap();
+            self.col += ch.width().unwrap_or(0);
 
             if self.col > self.wrap_at {
                 self.col = self.col % self.wrap_at;
@@ -55,6 +55,35 @@ impl TextWrapper {
     }
 }
 
+struct DedupVec<T>(Vec<T>);
+
+impl<T> DedupVec<T> {
+    pub fn new() -> Self {
+        DedupVec(Vec::new())
+    }
+
+    pub fn into_inner(self) -> Vec<T> {
+        self.0
+    }
+}
+
+impl<T: PartialEq> DedupVec<T> {
+    pub fn push(&mut self, item: T) -> usize {
+        match self
+            .0
+            .iter()
+            .enumerate()
+            .find(|(_, present)| *present == &item)
+        {
+            Some((index, _)) => index,
+            None => {
+                self.0.push(item);
+                self.0.len() - 1
+            }
+        }
+    }
+}
+
 pub struct CliUi<'a> {
     api: &'a Api,
     terminal: Box<StdoutTerminal>,
@@ -75,7 +104,7 @@ impl<'a> CliUi<'a> {
     }
 
     fn rationale(&mut self, rationale: &Rationale) {
-        let mut anchors = Vec::new();
+        let mut anchors = DedupVec::new();
 
         self.writeln("Rationale:");
         self.newline();
@@ -88,8 +117,7 @@ impl<'a> CliUi<'a> {
                     self.write(wrapped);
                 }
                 RationaleChunk::Anchor(anchor) => {
-                    anchors.push(anchor);
-                    let reference = format!("[{}]", anchors.len());
+                    let reference = format!("[{}]", anchors.push(anchor) + 1);
 
                     self.bold();
                     let wrapped = self.wrapper.fill(reference);
@@ -101,6 +129,8 @@ impl<'a> CliUi<'a> {
 
         self.wrapper.reset();
         self.reset_color();
+
+        let anchors = anchors.into_inner();
 
         if !anchors.is_empty() {
             self.newline();
@@ -117,6 +147,7 @@ impl<'a> CliUi<'a> {
             self.bold();
             self.write_loc(anchor);
             self.reset_style();
+            self.newline();
         }
 
         self.newline();

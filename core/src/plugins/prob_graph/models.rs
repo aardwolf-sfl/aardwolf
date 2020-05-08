@@ -8,8 +8,11 @@ use petgraph::Direction;
 use crate::api::Api;
 use crate::arena::{CheapOrd, P};
 use crate::data::statement::Statement;
-use crate::plugins::prob_graph::{trace::Trace, Ppdg};
-use crate::plugins::{LocalizationItem, PluginError, Rationale, Results};
+use crate::plugins::prob_graph::{
+    trace::{Trace, TraceItem},
+    Ppdg,
+};
+use crate::plugins::{LocalizationItem, PluginError, Results};
 use crate::queries::pdg::{EdgeType as PdgEdgeType, Pdg};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -194,18 +197,13 @@ impl Model for DependencyNetwork {
 
             let lowest_prob = probs
                 .get(&item.node.stmt)
-                .map(|(prob, _)| *prob)
+                .map(|(prob, _, _)| *prob)
                 .unwrap_or(std::f32::MAX);
 
             if prob < lowest_prob {
-                probs.insert(item.node.stmt, (prob, index));
+                probs.insert(item.node.stmt, (prob, index, item));
             }
         }
-
-        let mut default_rationale = Rationale::new();
-        default_rationale.add_text(
-            "The statement enters to an unusual state given the state of its control and data dependencies.",
-        );
 
         let mut probs = probs.into_iter().collect::<Vec<_>>();
 
@@ -213,15 +211,33 @@ impl Model for DependencyNetwork {
         // this will prioritizes statements that occur earlier.
         probs.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
 
-        for (stmt, (prob, _)) in probs {
+        for (stmt, (prob, _, item)) in probs {
+            let expected = match &item.parents_state_conf {
+                Some(parents) => {
+                    let expected = parents
+                        .iter()
+                        .map(|(node, state)| TraceItem::new(node.clone(), state.clone(), None))
+                        .map(|item| {
+                            let prob = ppdg.get_prob(&item);
+                            (item, prob)
+                        })
+                        .filter(|(_, prob)| prob != &0.0)
+                        .fold((None, 0.0), |expected, (item, prob)| {
+                            if prob > expected.1 {
+                                (Some(item), prob)
+                            } else {
+                                expected
+                            }
+                        });
+
+                    expected.0.map(|item| (item.node, item.node_state))
+                }
+                None => None,
+            };
+
             results.add(
-                LocalizationItem::new(
-                    stmt.as_ref().loc,
-                    *stmt,
-                    1.0 - prob,
-                    default_rationale.clone(),
-                )
-                .unwrap(),
+                LocalizationItem::new(stmt.as_ref().loc, *stmt, 1.0 - prob, item.explain(expected))
+                    .unwrap(),
             );
         }
 

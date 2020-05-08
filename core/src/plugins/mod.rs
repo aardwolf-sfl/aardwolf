@@ -210,6 +210,11 @@ impl Rationale {
         self
     }
 
+    pub fn paragraph(&mut self) -> &mut Self {
+        self.0.push(RationaleChunk::Text(String::from("\n\n")));
+        self
+    }
+
     pub fn join(&self, other: &Self) -> Self {
         let chunks = self.0.iter().chain(other.0.iter()).cloned().collect();
         Rationale(chunks)
