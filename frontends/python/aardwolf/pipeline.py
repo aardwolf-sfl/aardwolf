@@ -2,6 +2,7 @@ import ast
 import symtable
 import os
 
+from .normalization import Normalizer
 from .analysis import Analysis
 from .static_data import StaticData
 from .dynamic_data import Instrumenter
@@ -12,6 +13,9 @@ def _process(tree, symbols, outdir, filename):
     # Create output directory.
     os.makedirs(outdir, exist_ok=True)
     os.environ[DATA_DEST] = outdir
+
+    # Normalize the source tree
+    tree = Normalizer().visit(tree)
 
     # Perform the analysis.
     analysis = Analysis(symbols, filename)
