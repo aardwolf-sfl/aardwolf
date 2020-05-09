@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::dominators;
 use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
-use super::cfg::{exit, Cfg};
+use super::cfg::{entry, exit, Cfg};
 use super::{Query, QueryInitError};
 use crate::api::Api;
 use crate::arena::{P, S};
@@ -61,7 +61,28 @@ impl<Ix: IndexType> NodeData<Ix> {
     pub fn prepare_update(&self, predecessor: &Self) -> Option<DataContext<NodeIndex<Ix>>> {
         let mut result = DataContext::new();
 
+        let def_vars = self
+            .stmt
+            .as_ref()
+            .defs
+            .iter()
+            .map(|access| access.as_ref())
+            .flat_map(AccessChain::from_defs)
+            .collect::<HashSet<_>>();
+
         for (var, pred_defs) in predecessor.data_ctx.iter() {
+            if def_vars.contains(&var) {
+                // If the statement defines this variable, then it is
+                // unnecessary to update the context by any other var's
+                // definition, since it would be overwritten in the next
+                // `process` call.
+                //
+                // Moreover, if this var was not skipped and there was a pair of
+                // nodes in one loop each defining the same variable, the
+                // algorithm would get into the infinite loop.
+                continue;
+            }
+
             let (defs, insert) = match self.data_ctx.get(var) {
                 Some(node_defs) => {
                     let defs = node_defs.union(pred_defs).copied().collect::<HashSet<_>>();
@@ -154,12 +175,21 @@ pub fn create_pdg(cfg: &Cfg) -> Pdg {
     // Remove control flow edges.
     pdg.retain_edges(|pdg, index| pdg[index] != EdgeTypePriv::ControlFlow);
 
-    pdg.map(
-        |_, node| node.as_stmt(),
-        |_, edge| match edge {
-            EdgeTypePriv::ControlFlow => unreachable!(),
-            EdgeTypePriv::ControlDep => EdgeType::ControlDep,
-            EdgeTypePriv::DataDep => EdgeType::DataDep,
+    pdg.filter_map(
+        |_, node| {
+            let stmt = node.as_stmt();
+            if stmt == entry() || stmt == exit() {
+                None
+            } else {
+                Some(stmt)
+            }
+        },
+        |_, edge| {
+            Some(match edge {
+                EdgeTypePriv::ControlFlow => unreachable!(),
+                EdgeTypePriv::ControlDep => EdgeType::ControlDep,
+                EdgeTypePriv::DataDep => EdgeType::DataDep,
+            })
         },
     )
 }
