@@ -274,3 +274,8 @@ class IdMap:
             self.data_[value] = len(self.data_) + 1
 
         return self.data_[value]
+
+    def get_checked(self, value):
+        orig_len = len(self.data_)
+        index = self.get(value)
+        return index, len(self.data_) != orig_len

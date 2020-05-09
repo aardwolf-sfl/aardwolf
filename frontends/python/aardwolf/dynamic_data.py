@@ -91,8 +91,10 @@ class Instrumenter(ast.NodeTransformer):
 
     def _make_node_id(self, node):
         file_id = ast.Constant(value=self.analysis_.file_id_, kind=None)
-        stmt_id = ast.Constant(
-            value=self.analysis_.nodes_.get(node), kind=None)
+        stmt_id, changed = self.analysis_.nodes_.get_checked(node)
+        assert not changed, 'instrumentation must not create new statement indexes'
+        stmt_id = ast.Constant(value=stmt_id, kind=None)
+
         return ast.Tuple(elts=[file_id, stmt_id], ctx=ast.Load())
 
     def _make_runtime_call(self, name, args):
