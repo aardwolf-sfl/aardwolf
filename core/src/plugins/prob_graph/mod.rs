@@ -1,7 +1,7 @@
 mod models;
 mod trace;
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::hash::Hash;
 
 use yaml_rust::Yaml;
@@ -127,6 +127,7 @@ impl<T: Hash + Eq> CounterExt<T> for Counter<T> {
 pub struct Ppdg {
     occurrence_counter: Counter<Node>,
     state_conf_counter: Counter<StateConf>,
+    node_states: HashMap<Node, BTreeSet<NodeState>>,
 }
 
 impl Ppdg {
@@ -134,6 +135,7 @@ impl Ppdg {
         Ppdg {
             occurrence_counter: Counter::new(),
             state_conf_counter: Counter::new(),
+            node_states: HashMap::new(),
         }
     }
 
@@ -142,6 +144,13 @@ impl Ppdg {
     }
 
     pub fn inc_state_conf(&mut self, conf: StateConf) {
+        for (node, state) in &conf {
+            self.node_states
+                .entry(node.clone())
+                .or_insert(BTreeSet::new())
+                .insert(state.clone());
+        }
+
         self.state_conf_counter.inc(conf);
     }
 
@@ -169,5 +178,9 @@ impl Ppdg {
             (0, _) | (_, 0) => 0.0,
             (a, b) => ((a as f64) / (b as f64)) as f32,
         }
+    }
+
+    pub fn node_states(&self, node: &Node) -> Option<&BTreeSet<NodeState>> {
+        self.node_states.get(node)
     }
 }

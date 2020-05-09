@@ -212,28 +212,25 @@ impl Model for DependencyNetwork {
         probs.sort_unstable_by(|lhs, rhs| (lhs.1).1.cmp(&(rhs.1).1));
 
         for (stmt, (prob, _, item)) in probs {
-            let expected = match &item.parents_state_conf {
-                Some(parents) => {
-                    let expected = parents
-                        .iter()
-                        .map(|(node, state)| TraceItem::new(node.clone(), state.clone(), None))
-                        .map(|item| {
-                            let prob = ppdg.get_prob(&item);
-                            (item, prob)
-                        })
-                        .filter(|(_, prob)| prob != &0.0)
-                        .fold((None, 0.0), |expected, (item, prob)| {
-                            if prob > expected.1 {
-                                (Some(item), prob)
-                            } else {
-                                expected
-                            }
-                        });
+            let expected = ppdg
+                .node_states(&item.node)
+                .unwrap()
+                .iter()
+                .map(|state| TraceItem::new(item.node.clone(), state.clone(), None))
+                .map(|item| {
+                    let prob = ppdg.get_prob(&item);
+                    (item, prob)
+                })
+                .filter(|(_, prob)| prob != &0.0)
+                .fold((None, 0.0), |expected, (item, prob)| {
+                    if prob > expected.1 {
+                        (Some(item), prob)
+                    } else {
+                        expected
+                    }
+                });
 
-                    expected.0.map(|item| (item.node, item.node_state))
-                }
-                None => None,
-            };
+            let expected = expected.0.map(|item| (item.node, item.node_state));
 
             results.add(
                 LocalizationItem::new(stmt.as_ref().loc, *stmt, 1.0 - prob, item.explain(expected))

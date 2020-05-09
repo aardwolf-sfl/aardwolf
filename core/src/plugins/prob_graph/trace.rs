@@ -180,6 +180,16 @@ impl TraceItem {
         let mut rationale = Rationale::new();
         rationale.add_text("The element entered an unusual state.");
 
+        let only_state = if let Some(expected) = &expected {
+            if expected.0 == self.node && expected.1 == self.node_state {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         match self.node_state {
             NodeState::Predicate(succ) => {
                 rationale
@@ -207,26 +217,32 @@ impl TraceItem {
             _ => {}
         }
 
+        rationale.paragraph();
+
+        if let Some(expected) = expected {
+            if only_state {
+                rationale.add_text("This is, however, the only state that the node encounters.");
+            } else {
+                rationale
+                    .add_text("This is what was expected the most:")
+                    .paragraph();
+                Self::explain_node_state(expected.0, expected.1, &mut rationale);
+            }
+        } else {
+            rationale.add_text("This is, however, the only state that the node encounters.");
+        }
+
         if let Some(parents) = self.parents_state_conf {
             rationale
                 .paragraph()
-                .add_text("It happened in these circumstances:");
+                .newline()
+                .add_text("It all happened in these circumstances:");
 
             for parent in parents {
                 rationale.paragraph();
 
                 Self::explain_node_state(parent.0, parent.1, &mut rationale);
             }
-        }
-
-        if let Some(expected) = expected {
-            rationale
-                .paragraph()
-                .newline()
-                .add_text("This is what was expected the most:")
-                .paragraph();
-
-            Self::explain_node_state(expected.0, expected.1, &mut rationale);
         }
 
         rationale
