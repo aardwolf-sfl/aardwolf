@@ -106,7 +106,7 @@ def run_cmd(cmd, args=None, cwd=None):
         command = ' '.join(subprocess_args)
         error(f'Command {command} failed for this reason:', exit_after=False)
         print(file=sys.stderr)
-        print(ex.output, file=sys.stderr)
+        print(ex.stderr, file=sys.stderr)
         print(file=sys.stderr)
         exit(1)
 
