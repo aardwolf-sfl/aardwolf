@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--destination', '-d', default=DEFAULT_DEST_DIR)
     parser.add_argument('--system-python', action='store_true')
     parser.add_argument('--force', '-f', action='store_true')
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
 
@@ -202,11 +203,16 @@ def install_core(args):
 
     need_cmd(['cargo'])
 
+    mode = 'release' if not args.debug else 'debug'
+
     source_dir = os.path.join(ROOT_DIR, 'core')
-    build_dir = os.path.join(source_dir, 'target', 'release')
+    build_dir = os.path.join(source_dir, 'target', mode)
 
     info('Compile')
-    run_cmd('cargo', ['build', '--release'], cwd=source_dir)
+    cmd_args = ['build']
+    if not args.debug:
+        cmd_args.append('--release')
+    run_cmd('cargo', cmd_args, cwd=source_dir)
 
     info('Install')
     shutil.copy(os.path.join(build_dir, 'aardwolf'),
@@ -222,13 +228,16 @@ def install_llvm(args):
 
     need_cmd(['cmake', 'make'])
 
+    mode_dir = 'release' if not args.debug else 'debug'
+    mode = 'Release' if not args.debug else 'Debug'
+
     source_dir = os.path.join(ROOT_DIR, 'frontends', 'llvm')
-    build_dir = os.path.join(source_dir, 'build', 'release')
+    build_dir = os.path.join(source_dir, 'build', mode_dir)
 
     info('Compile')
     os.makedirs(build_dir, exist_ok=True)
 
-    run_cmd('cmake', ['-DCMAKE_BUILD_TYPE=Release', source_dir], cwd=build_dir)
+    run_cmd('cmake', [f'-DCMAKE_BUILD_TYPE={mode}', source_dir], cwd=build_dir)
     run_cmd('make', cwd=build_dir)
 
     info('Install')
@@ -247,13 +256,16 @@ def install_runtime(args):
 
     need_cmd(['cmake', 'make'])
 
+    mode_dir = 'release' if not args.debug else 'debug'
+    mode = 'Release' if not args.debug else 'Debug'
+
     source_dir = os.path.join(ROOT_DIR, 'runtime')
-    build_dir = os.path.join(source_dir, 'build', 'release')
+    build_dir = os.path.join(source_dir, 'build', mode_dir)
 
     info('Compile')
     os.makedirs(build_dir, exist_ok=True)
 
-    run_cmd('cmake', ['-DCMAKE_BUILD_TYPE=Release', source_dir], cwd=build_dir)
+    run_cmd('cmake', [f'-DCMAKE_BUILD_TYPE={mode}', source_dir], cwd=build_dir)
     run_cmd('make', cwd=build_dir)
 
     info('Install')

@@ -63,7 +63,7 @@ FILE * __aardwolf_get_fd(void)
     return __aardwolf_fd;
 }
 
-void __aardwolf_write_data(uint8_t token, void* data, size_t type_size)
+void __aardwolf_write_data(uint8_t token, const void* data, size_t type_size)
 {
 #ifndef NO_DATA
     FILE *fd = __aardwolf_get_fd();
