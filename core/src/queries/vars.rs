@@ -43,6 +43,7 @@ impl Query for Vars {
         let mut defs = Vec::new();
 
         let mut vars = Vec::new();
+        let mut non_empty = false;
 
         for item in data.trace.find_test(args) {
             match item {
@@ -55,6 +56,8 @@ impl Query for Vars {
                     if !stmt.defs.is_empty() {
                         stack.push((*stmt_ptr, stmt));
                     }
+
+                    non_empty = true;
                 }
                 TraceItem::Value(value) => {
                     defs.push(*value);
@@ -78,7 +81,13 @@ impl Query for Vars {
         }
 
         if vars.is_empty() {
-            Err(QueryInitError::InvalidTestName(args.clone()))
+            if non_empty {
+                Err(QueryInitError::Custom(Box::new(format!(
+                    "Missing variable trace."
+                ))))
+            } else {
+                Err(QueryInitError::InvalidTestName(args.clone()))
+            }
         } else {
             Ok(Vars(vars))
         }
