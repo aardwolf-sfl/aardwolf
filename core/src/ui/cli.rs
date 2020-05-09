@@ -205,7 +205,10 @@ impl<'a> CliUi<'a> {
         if loc.line_begin == loc.line_end && loc.col_begin == loc.col_end {
             self.write(&format!("{}:{}", loc.line_begin, loc.col_begin));
         } else {
-            self.write(&format!("{}-{}", loc.line_begin, loc.line_end));
+            self.write(&format!(
+                "{}:{}-{}:{}",
+                loc.line_begin, loc.col_begin, loc.line_end, loc.col_end
+            ));
         }
     }
 }
