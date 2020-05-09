@@ -17,17 +17,16 @@ def foo(bar):
     # AARD: #1:8 ->   ::  defs:  / uses: %6 [@1 18:5-18:19]  { ret }
     return 2 * bar
 
-# TODO: Nested functions
-# # AARD: function: baz::nested
-# # AARD: #1:4 -> #1:5  ::  defs:  / uses:  [@1 13:9-13:17]  { ret }
+# AARD: function: baz
+def baz():
+    def nested():
+        return 0
 
-# # AARD: function: baz
-# def baz():
-#     def nested():
-#         return 0
+    # AARD: #1:9 -> #1:10  ::  defs: %7 / uses:  [@1 27:12-27:20]  { call }
+    # AARD: #1:10 ->   ::  defs:  / uses: %7 [@1 27:5-27:20]  { ret }
+    return nested()
 
-#     # AARD: #1:6 ->   ::  defs: %5 / uses:  [@1 16:12-16:20]  { call }
-#     # AARD: #1:7 -> #1:8  ::  defs:  / uses: %5 [@1 16:5-16:20]  { ret }
-#     return nested()
+# AARD: function: baz::nested
+# AARD: #1:11 ->   ::  defs:  / uses:  [@1 23:9-23:17]  { ret }
 
 # AARD: @1 = functions.py
