@@ -16,7 +16,19 @@ class Stmt:
         self.succ_.append(node)
 
     def get_loc(self):
-        return self.node_.lineno, self.node_.col_offset + 1, self.node_.end_lineno, self.node_.end_col_offset + 1
+        if isinstance(self.node_, ast.If):
+            return self._get_loc(self.node_.test)
+        elif isinstance(self.node_, ast.For):
+            return self._get_loc(self.node_.target)
+        elif isinstance(self.node_, ast.While):
+            return self._get_loc(self.node_.test)
+        elif isinstance(self.node_, ast.withitem):
+            return self._get_loc(self.node_.context_expr)
+        else:
+            return self._get_loc(self.node_)
+
+    def _get_loc(self, node):
+        return node.lineno, node.col_offset + 1, node.end_lineno, node.end_col_offset + 1
 
     def get_meta(self):
         if isinstance(self.node_, ast.arg):

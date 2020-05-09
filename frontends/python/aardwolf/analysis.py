@@ -106,9 +106,9 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
     def visit_If(self, node):
         self.new_level()
         self.visit(node.test)
-        self.add_uses(node.test, self.collect_level())
+        self.add_uses(node, self.collect_level())
 
-        self.add_node(node.test)
+        self.add_node(node)
 
         prev_block = self.block_
 
@@ -136,18 +136,18 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
     def visit_For(self, node):
         self.new_level()
         self.visit(node.iter)
-        self.add_uses(node.target, self.collect_level())
+        self.add_uses(node, self.collect_level())
 
         prev_block = self.block_
 
         target_block = self.new_block()
-        self.add_node(node.target)
+        self.add_node(node)
 
         prev_block.add_succ(target_block)
 
         self.new_level()
         self.visit(node.target)
-        self.add_defs(node.target, self.collect_level())
+        self.add_defs(node, self.collect_level())
 
         body_block = self.new_block()
         target_block.add_succ(body_block)
@@ -172,14 +172,14 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
     def visit_While(self, node):
         self.new_level()
         self.visit(node.test)
-        self.add_uses(node.test, self.collect_level())
+        self.add_uses(node, self.collect_level())
 
         prev_block = self.block_
 
         while_block = self.new_block()
         prev_block.add_succ(while_block)
 
-        self.add_node(node.test)
+        self.add_node(node)
 
         body_block = self.new_block()
         while_block.add_succ(body_block)
@@ -213,14 +213,14 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         for item in node.items:
             self.new_level()
             self.visit(item.context_expr)
-            self.add_uses(item.context_expr, self.collect_level())
+            self.add_uses(item, self.collect_level())
 
             if item.optional_vars is not None:
                 self.new_level()
                 self.visit(item.optional_vars)
-                self.add_defs(item.context_expr, self.collect_level())
+                self.add_defs(item, self.collect_level())
 
-            self.add_node(item.context_expr)
+            self.add_node(item)
 
         self._visit_body(node.body)
 

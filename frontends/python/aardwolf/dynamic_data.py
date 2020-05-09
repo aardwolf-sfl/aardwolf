@@ -47,20 +47,20 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_If(self, node):
         self.generic_visit(node)
-        node.test = self._instrument_expr(node.test)
+        node.test = self._instrument_expr(node.test, node)
         return node
 
     def visit_For(self, node):
         self.generic_visit(node)
 
-        write = self._make_write_stmt(node.target)
+        write = self._make_write_stmt(node.target, node)
         node.body.insert(0, write)
 
         return node
 
     def visit_While(self, node):
         self.generic_visit(node)
-        node.test = self._instrument_expr(node.test)
+        node.test = self._instrument_expr(node.test, node)
         return node
 
     def visit_Break(self, node):
@@ -74,7 +74,7 @@ class Instrumenter(ast.NodeTransformer):
     def visit_With(self, node):
         self.generic_visit(node)
         node.items = [self._instrument_expr(
-            item.context_expr) for item in node.items]
+            item.context_expr, item) for item in node.items]
         return node
 
     def visit_Return(self, node):
@@ -103,8 +103,17 @@ class Instrumenter(ast.NodeTransformer):
         call = ast.Call(func=func, args=args, keywords=[])
         return call
 
-    def _make_write_stmt(self, node):
-        node_id = self._make_node_id(node)
+    def _is_runtime_call(self, node):
+        try:
+            return node.func.value.id == 'aardwolf'
+        except AttributeError:
+            return False
+
+    def _make_write_stmt(self, node, id_node=None):
+        if id_node is None:
+            id_node = node
+
+        node_id = self._make_node_id(id_node)
         call = self._make_runtime_call('write_stmt', [node_id])
         stmt = ast.Expr(value=call)
 
@@ -121,8 +130,17 @@ class Instrumenter(ast.NodeTransformer):
         [node, stmt] = self._instrument_stmt(node)
         return [stmt, node]
 
-    def _instrument_expr(self, node):
-        node_id = self._make_node_id(node)
+    def _instrument_expr(self, node, id_node=None):
+        if self._is_runtime_call(node):
+            # This is already instrumented node, we don't need to (and must not)
+            # to instrument it. This can happen only if the expression is a
+            # call.
+            return node
+
+        if id_node is None:
+            id_node = node
+
+        node_id = self._make_node_id(id_node)
         call = self._make_runtime_call('write_expr', [node, node_id])
 
         ast.copy_location(call, node)
