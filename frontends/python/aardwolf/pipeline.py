@@ -30,6 +30,12 @@ def _process(tree, symbols, outdir, filename):
 
 
 def process_str(source, outdir=None, filename='<string>', mode='exec'):
+    if mode == 'tree':
+        return_tree = True
+        mode = 'exec'
+    else:
+        return_tree = False
+
     tree = ast.parse(source, filename)
     symbols = symtable.symtable(source, filename, mode)
 
@@ -37,6 +43,10 @@ def process_str(source, outdir=None, filename='<string>', mode='exec'):
         outdir = os.getcwd()
 
     tree = _process(tree, symbols, outdir, filename)
+
+    if return_tree:
+        return tree
+
     return compile(tree, filename, mode)
 
 
