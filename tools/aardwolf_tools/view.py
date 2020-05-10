@@ -30,6 +30,8 @@ TOKEN_DATA_U64 = b'\x18'
 TOKEN_DATA_F32 = b'\x19'
 TOKEN_DATA_F64 = b'\x20'
 TOKEN_DATA_BOOL = b'\x21'
+TOKEN_DATA_NAMED = b'\x28'
+TOKEN_DATA_NULL = b'\x29'
 
 
 def read_stmt(f):
@@ -188,6 +190,8 @@ def get_dynamic_handlers():
         TOKEN_DATA_F32: _prepend('f32', read_f32),
         TOKEN_DATA_F64: _prepend('f64', read_f64),
         TOKEN_DATA_BOOL: _prepend('bool', read_bool),
+        TOKEN_DATA_NAMED: _prepend('named', read_cstr),
+        TOKEN_DATA_NULL: lambda f: 'null',
     }
 
 
