@@ -1,8 +1,8 @@
 import ast
-import symtable
 import os
 
 from .normalization import Normalizer
+from .symbols import symbol_table
 from .analysis import Analysis
 from .static_data import StaticData
 from .dynamic_data import Instrumenter
@@ -37,7 +37,7 @@ def process_str(source, outdir=None, filename='<string>', mode='exec'):
         return_tree = False
 
     tree = ast.parse(source, filename)
-    symbols = symtable.symtable(source, filename, mode)
+    symbols = symbol_table(tree)
 
     if outdir is None:
         outdir = os.getcwd()

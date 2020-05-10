@@ -1,5 +1,6 @@
 import ast
-import symtable
+
+from .symbols import Symbol
 
 SCALAR = 'scalar'
 STRUCTURAL = 'structural'
@@ -16,7 +17,7 @@ class Access:
 
     @staticmethod
     def scalar(value):
-        assert isinstance(value, (symtable.Symbol, str))
+        assert isinstance(value, (Symbol, str))
         return Access(SCALAR, value=value)
 
     @staticmethod
@@ -52,7 +53,7 @@ class Access:
 
     def __str__(self):
         if self.type_ == SCALAR:
-            if isinstance(self.value_, symtable.Symbol):
+            if isinstance(self.value_, Symbol):
                 name = self.value_.get_name()
             else:
                 name = str(self.value_)
@@ -92,8 +93,6 @@ class ValueAccessBuilder:
         self.defs_ = dict()
         self.uses_ = dict()
 
-        self.lambda_index_ = [0]
-
     def new_level(self):
         self.level_ = []
         self.levels_.append(self.level_)
@@ -107,28 +106,11 @@ class ValueAccessBuilder:
     def access(self):
         return self.level_[-1]
 
-    def use_symbols_of(self, name, index=None):
-        previous = self.symbols_
+    def enter_scope(self, name):
+        self.symbols_ = self.symbols_.lookup(name)
 
-        if name == 'lambda':
-            lambdas = [child for child in previous.get_children()
-                       if child.get_name() == name]
-
-            self.symbols_ = lambdas[index]
-        elif index is None:
-            self.symbols_ = previous.lookup(name).get_namespace()
-        else:
-            self.symbols_ = previous.lookup(name).get_namespaces()[index]
-
-        self.lambda_index_.append(0)
-
-        return previous
-
-    def use_symbols(self, symbols):
-        previous = self.symbols_
-        self.symbols_ = symbols
-        self.lambda_index_.pop()
-        return previous
+    def exit_scope(self):
+        self.symbols_ = self.symbols_.get_parent()
 
     def add_defs(self, node, accesses):
         if not node in self.defs_:
@@ -176,8 +158,3 @@ class ValueAccessBuilder:
     def register_subscript(self, index):
         base = self.level_.pop()
         self.level_.append(Access.array_like(base, index))
-
-    def lambda_index(self):
-        index = self.lambda_index_[-1]
-        self.lambda_index_[-1] += 1
-        return index

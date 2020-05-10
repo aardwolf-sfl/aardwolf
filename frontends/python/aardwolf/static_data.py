@@ -3,14 +3,15 @@ import os
 
 from .writer import Writer
 from .constants import *
+from .utils import unique
 
 
 class Stmt:
     def __init__(self, node, defs, uses):
         self.node_ = node
         self.succ_ = []
-        self.defs_ = defs
-        self.uses_ = uses
+        self.defs_ = unique(defs)
+        self.uses_ = unique(uses)
 
     def add_succ(self, node):
         self.succ_.append(node)

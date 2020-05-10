@@ -21,16 +21,16 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
 
     def visit_ClassDef(self, node):
         self.push_ctx(node.name)
-        symbols = self.use_symbols_of(node.name)
+        self.enter_scope(node.name)
 
         self._visit_body(node.body)
 
         self.pop_ctx()
-        self.use_symbols(symbols)
+        self.exit_scope()
 
     def visit_FunctionDef(self, node):
         self.push_ctx(node.name)
-        symbols = self.use_symbols_of(node.name)
+        self.enter_scope(node.name)
 
         self.new_level()
         for arg in node.args.args:
@@ -43,7 +43,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self._visit_body(node.body)
 
         self.pop_ctx()
-        self.use_symbols(symbols)
+        self.exit_scope()
 
     def visit_Assign(self, node):
         self.new_level()
@@ -132,6 +132,8 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
             else_block.add_succ(new_block)
         else:
             prev_block.add_succ(new_block)
+
+    # TODO: IfExp
 
     def visit_For(self, node):
         self.new_level()
@@ -234,8 +236,9 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self._visit_body(node.body)
 
     def visit_Lambda(self, node):
-        self.push_ctx(f'lambda:{node.lineno}:{node.col_offset}')
-        symbols = self.use_symbols_of('lambda', self.lambda_index())
+        name = f'lambda:{node.lineno}:{node.col_offset}'
+        self.push_ctx(name)
+        self.enter_scope(name)
 
         self.new_level()
         for arg in node.args.args:
@@ -251,7 +254,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(body)
 
         self.pop_ctx()
-        self.use_symbols(symbols)
+        self.exit_scope()
 
     def visit_Return(self, node):
         self.new_level()
