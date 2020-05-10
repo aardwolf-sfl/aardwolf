@@ -39,13 +39,18 @@ def normalize_data(content):
     # Remove blank lines
     content = '\n'.join(filter(lambda line: line != '', content.splitlines()))
 
-    # Normalize file IDs
+    # Normalize file IDs in static data
     ids = [(match.group(1), match.group(2))
            for match in re.finditer(r'@(\d+) = (.+)', content)]
     for i, (id, filepath) in enumerate(ids):
         content = re.sub(f'@{id}', f'@{i + 1}', content)
         content = re.sub(f'#{id}', f'#{i + 1}', content)
         content = re.sub(os.path.dirname(filepath) + os.path.sep, '', content)
+
+    # Normalize file IDs in dynamic data
+    ids = [match.group(1) for match in re.finditer(r'statement: #(\d+):\d+', content)]
+    for i, id in enumerate(ids):
+        content = re.sub(f'#{id}', f'#{i + 1}', content)
 
     return content
 
