@@ -27,11 +27,30 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_Assign(self, node):
         self.generic_visit(node)
-        return self._instrument_stmt(node)
+
+        builder = TargetAccessorBuilder()
+
+        for target in node.targets:
+            builder.visit(target)
+
+        accessors = builder.build()
+
+        node.value = self._instrument_expr(node.value, node)
+        node.value = self._instrument_trace_value(node.value, accessors)
+
+        return node
 
     def visit_AugAssign(self, node):
         self.generic_visit(node)
-        return self._instrument_stmt(node)
+
+        builder = TargetAccessorBuilder()
+        builder.visit(node.target)
+        accessors = builder.build()
+
+        node.value = self._instrument_expr(node.value, node)
+        node.value = self._instrument_trace_value(node.value, accessors)
+
+        return node
 
     def visit_Assert(self, node):
         self.generic_visit(node)
@@ -43,7 +62,7 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_Call(self, node):
         self.generic_visit(node)
-        return self._instrument_expr_lazy(node)
+        return self._instrument_trace_value(self._instrument_expr_lazy(node))
 
     def visit_If(self, node):
         self.generic_visit(node)
@@ -53,8 +72,18 @@ class Instrumenter(ast.NodeTransformer):
     def visit_For(self, node):
         self.generic_visit(node)
 
-        write = self._make_write_stmt(node.target, node)
-        node.body.insert(0, write)
+        stmt_id = self._make_node_id(node)
+
+        builder = TargetAccessorBuilder()
+        builder.visit(node.target)
+        accessors = builder.build()
+
+        call = self._make_runtime_call(
+            'aardwolf_iter', [node.iter, stmt_id, accessors])
+        ast.copy_location(call, node.iter)
+        ast.fix_missing_locations(call)
+
+        node.iter = call
 
         return node
 
@@ -73,21 +102,33 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_With(self, node):
         self.generic_visit(node)
-        node.items = [self._instrument_expr(
-            item.context_expr, item) for item in node.items]
+        node.items = [self._instrument_trace_value(
+            self._instrument_expr(item.context_expr, item)) for item in node.items]
         return node
 
     def visit_Return(self, node):
         self.generic_visit(node)
-        return self._instrument_term_expr(node, 'value')
+
+        node.value = self._instrument_expr(node.value, node)
+        node.value = self._instrument_trace_value(node.value)
+
+        return node
 
     def visit_Yield(self, node):
         self.generic_visit(node)
-        return self._instrument_term_expr(node, 'value')
+
+        node.value = self._instrument_expr(node.value, node)
+        node.value = self._instrument_trace_value(node.value)
+
+        return node
 
     def visit_YieldFrom(self, node):
         self.generic_visit(node)
-        return self._instrument_term_expr(node, 'value')
+
+        node.value = self._instrument_expr(node.value, node)
+        node.value = self._instrument_trace_value(node.value)
+
+        return node
 
     def _make_node_id(self, node):
         file_id = ast.Constant(value=self.analysis_.file_id_, kind=None)
@@ -177,3 +218,74 @@ class Instrumenter(ast.NodeTransformer):
         ast.fix_missing_locations(call)
 
         return call
+
+    def _instrument_trace_value(self, node, accessors=None):
+        if accessors is None:
+            accessors = ast.Constant(value=None, kind=None)
+
+        call = self._make_runtime_call('write_value', [node, accessors])
+
+        ast.copy_location(call, node)
+        ast.fix_missing_locations(call)
+
+        return call
+
+
+# For unpacking assignment.
+class TargetAccessorBuilder(ast.NodeVisitor):
+    def __init__(self):
+        self.accessors_ = []
+        self.index_ = []
+
+    def build(self):
+        array = ast.List(elts=self.accessors_, ctx=ast.Load())
+        ast.fix_missing_locations(array)
+        return array
+
+    def visit_Tuple(self, node):
+        self.index_.append(0)
+        assert isinstance(node.ctx, ast.Store)
+
+        for elt in node.elts:
+            self.visit(elt)
+            self._inc_index()
+
+        self.index_.pop()
+
+    # TODO: visit_List
+
+    def visit_Name(self, node):
+        assert isinstance(node.ctx, ast.Store)
+        self.accessors_.append(self._build_accessor())
+
+    def visit_Attribute(self, node):
+        assert isinstance(node.ctx, ast.Store)
+        self.accessors_.append(self._build_accessor())
+
+    def visit_Subscript(self, node):
+        assert isinstance(node.ctx, ast.Store)
+        self.accessors_.append(self._build_accessor())
+
+    def _inc_index(self):
+        if len(self.index_) > 0:
+            self.index_[-1] += 1
+
+    def _build_accessor(self):
+        accessor = ast.Name(id='v', ctx=ast.Load())
+
+        for index in self.index_:
+            accessor = ast.Subscript(
+                value=accessor,
+                slice=ast.Index(value=ast.Constant(value=index, kind=None)),
+                ctx=ast.Load())
+
+        return ast.Lambda(
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg='v', annotation=None, type_comment=None)],
+                vararg=None,
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[]),
+            body=accessor)

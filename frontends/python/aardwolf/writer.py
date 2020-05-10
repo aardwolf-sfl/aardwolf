@@ -19,6 +19,18 @@ class Writer:
     def write_token(self, value):
         self.write_u8(value)
 
+    def write_i8(self, value):
+        self._write_packed('b', value)
+
+    def write_i16(self, value):
+        self._write_packed('h', value)
+
+    def write_i32(self, value):
+        self._write_packed('i', value)
+
+    def write_i64(self, value):
+        self._write_packed('q', value)
+
     def write_u8(self, value):
         self._write_packed('B', value)
 
@@ -30,3 +42,9 @@ class Writer:
 
     def write_u64(self, value):
         self._write_packed('Q', value)
+
+    def write_f32(self, value):
+        self._write_packed('f', value)
+
+    def write_f64(self, value):
+        self._write_packed('d', value)
