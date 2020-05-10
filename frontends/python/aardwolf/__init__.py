@@ -1,3 +1,4 @@
+from .normalization import Normalizer
 from .analysis import Analysis
 from .static_data import StaticData
 from .dynamic_data import Instrumenter
@@ -9,6 +10,7 @@ from .test_drivers import wrap_test, wrap_module
 __version__ = '0.1.0'
 
 __all__ = [
+    'Normalizer',
     'Analysis',
     'StaticData',
     'Instrumenter',
