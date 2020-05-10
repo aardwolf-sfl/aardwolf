@@ -82,6 +82,7 @@ class Access:
                 h = h ^ (hash(access) << (i + 1))
             return h
 
+
 class ValueAccessBuilder:
     def __init__(self, symbols):
         self.level_ = []
@@ -90,6 +91,8 @@ class ValueAccessBuilder:
 
         self.defs_ = dict()
         self.uses_ = dict()
+
+        self.lambda_index_ = [0]
 
     def new_level(self):
         self.level_ = []
@@ -104,14 +107,27 @@ class ValueAccessBuilder:
     def access(self):
         return self.level_[-1]
 
-    def use_symbols_of(self, name):
+    def use_symbols_of(self, name, index=None):
         previous = self.symbols_
-        self.symbols_ = previous.lookup(name).get_namespace()
+
+        if name == 'lambda':
+            lambdas = [child for child in previous.get_children()
+                       if child.get_name() == name]
+
+            self.symbols_ = lambdas[index]
+        elif index is None:
+            self.symbols_ = previous.lookup(name).get_namespace()
+        else:
+            self.symbols_ = previous.lookup(name).get_namespaces()[index]
+
+        self.lambda_index_.append(0)
+
         return previous
 
     def use_symbols(self, symbols):
         previous = self.symbols_
         self.symbols_ = symbols
+        self.lambda_index_.pop()
         return previous
 
     def add_defs(self, node, accesses):
@@ -160,3 +176,8 @@ class ValueAccessBuilder:
     def register_subscript(self, index):
         base = self.level_.pop()
         self.level_.append(Access.array_like(base, index))
+
+    def lambda_index(self):
+        index = self.lambda_index_[-1]
+        self.lambda_index_[-1] += 1
+        return index

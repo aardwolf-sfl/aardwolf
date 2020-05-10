@@ -233,7 +233,25 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
 
         self._visit_body(node.body)
 
-    # TODO: Lambda
+    def visit_Lambda(self, node):
+        self.push_ctx(f'lambda:{node.lineno}:{node.col_offset}')
+        symbols = self.use_symbols_of('lambda', self.lambda_index())
+
+        self.new_level()
+        for arg in node.args.args:
+            self.register_name(arg)
+            self.add_def(arg, self.access())
+            self.add_node(arg)
+
+        self.collect_level()
+
+        body = ast.Return(value=node.body)
+        ast.copy_location(body, node.body)
+        ast.fix_missing_locations(body)
+        self.visit(body)
+
+        self.pop_ctx()
+        self.use_symbols(symbols)
 
     def visit_Return(self, node):
         self.new_level()
