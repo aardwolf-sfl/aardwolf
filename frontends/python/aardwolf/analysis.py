@@ -141,6 +141,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         prev_block = self.block_
 
         target_block = self.new_block()
+        self.push_loop()
         self.add_node(node)
 
         prev_block.add_succ(target_block)
@@ -169,6 +170,8 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         if else_block is not None:
             else_block.add_succ(new_block)
 
+        self.pop_loop()
+
     def visit_While(self, node):
         self.new_level()
         self.visit(node.test)
@@ -179,6 +182,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         while_block = self.new_block()
         prev_block.add_succ(while_block)
 
+        self.push_loop()
         self.add_node(node)
 
         body_block = self.new_block()
@@ -201,11 +205,16 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         if else_block is not None:
             else_block.add_succ(new_block)
 
+        self.pop_loop()
+
     def visit_Break(self, node):
         self.add_node(node)
+        self.break_loop()
 
     def visit_Continue(self, node):
         self.add_node(node)
+        self.block_.add_succ(self.peek_loop()[0])
+        self.block_.freeze_succ()
 
     # TODO: Try, Raise, etc.
 
@@ -231,6 +240,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(node.value)
         self.add_uses(node, self.collect_level())
         self.add_node(node)
+        self.block_.freeze_succ()
 
     def visit_Yield(self, node):
         self.new_level()
