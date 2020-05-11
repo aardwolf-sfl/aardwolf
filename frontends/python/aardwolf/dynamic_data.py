@@ -20,23 +20,27 @@ class Instrumenter(ast.NodeTransformer):
         self.generic_visit(node)
 
         for index, arg in enumerate(node.args.args):
-            write = self._make_write_stmt(arg)
-            node.body.insert(index, write)
+            write_id = self._make_write_stmt(arg)
+            node.body.insert(2 * index, write_id)
+
+            trace_value = self._make_trace_arg(arg)
+            node.body.insert(2 * index + 1, trace_value)
 
         return node
 
     def visit_Assign(self, node):
         self.generic_visit(node)
 
-        builder = TargetAccessorBuilder()
+        node.value = self._instrument_expr(node.value, node)
 
         for target in node.targets:
+            builder = TargetAccessorBuilder()
             builder.visit(target)
+            accessors = builder.build()
 
-        accessors = builder.build()
-
-        node.value = self._instrument_expr(node.value, node)
-        node.value = self._instrument_trace_value(node.value, accessors)
+            # Wrap the value with the tracing call as many times as the number
+            # of targets to match the number of definitions.
+            node.value = self._instrument_trace_value(node.value, accessors)
 
         return node
 
@@ -106,29 +110,19 @@ class Instrumenter(ast.NodeTransformer):
             self._instrument_expr(item.context_expr, item)) for item in node.items]
         return node
 
+    # TODO: visit_Lambda (do ont forget to trace values of arguments)
+
     def visit_Return(self, node):
         self.generic_visit(node)
-
-        node.value = self._instrument_expr(node.value, node)
-        node.value = self._instrument_trace_value(node.value)
-
-        return node
+        return self._instrument_term_expr(node, 'value')
 
     def visit_Yield(self, node):
         self.generic_visit(node)
-
-        node.value = self._instrument_expr(node.value, node)
-        node.value = self._instrument_trace_value(node.value)
-
-        return node
+        return self._instrument_term_expr(node, 'value')
 
     def visit_YieldFrom(self, node):
         self.generic_visit(node)
-
-        node.value = self._instrument_expr(node.value, node)
-        node.value = self._instrument_trace_value(node.value)
-
-        return node
+        return self._instrument_term_expr(node, 'value')
 
     def _make_node_id(self, node):
         file_id = ast.Constant(value=self.analysis_.file_id_, kind=None)
@@ -229,6 +223,16 @@ class Instrumenter(ast.NodeTransformer):
         ast.fix_missing_locations(call)
 
         return call
+
+    def _make_trace_arg(self, arg):
+        node = ast.Name(id=arg.arg, ctx=ast.Load())
+        call = self._make_runtime_call('write_value', [node])
+        stmt = ast.Expr(value=call)
+
+        ast.copy_location(stmt, arg)
+        ast.fix_missing_locations(stmt)
+
+        return stmt
 
 
 # For unpacking assignment.

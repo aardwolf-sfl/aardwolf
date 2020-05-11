@@ -72,8 +72,10 @@ def write_value(value, accessors=None):
 
         elif isinstance(v, float):
             if sys.float_info.max == 1.7976931348623157e+308:
+                WRITER.write_token(TOKEN_DATA_F64)
                 WRITER.write_f64(v)
             elif sys.float_info.max == 3.4028235e+38:
+                WRITER.write_token(TOKEN_DATA_F32)
                 WRITER.write_f32(v)
             else:
                 # Something ridiculous is happening
