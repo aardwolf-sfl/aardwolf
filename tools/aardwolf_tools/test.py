@@ -72,13 +72,13 @@ def run_driver(test_files, process_source, annotations_prefix):
     for filename in test_files:
         basename = os.path.basename(filename)
 
-        actual = normalize_data(process_source(filename))
         expected = extract_annotations(filename, annotations_prefix)
 
         if expected is None:
             skipped += 1
             print(f'SKIP: {basename}')
         else:
+            actual = normalize_data(process_source(filename))
             equal, diff = compare(actual, expected)
             if equal:
                 passed += 1
