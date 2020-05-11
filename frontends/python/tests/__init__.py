@@ -40,6 +40,9 @@ def process_trace(filename):
 
     parsed = aardwolf_tools.parse_file(outfile)
 
+    # Reset the file handle so the next test will create a new one
+    aardwolf.runtime.WRITER = None
+
     return parsed
 
 
