@@ -1,0 +1,14 @@
+diff --git a/examples/thesis/thesis/__init__.py b/examples/thesis/thesis/__init__.py
+index 5d02515..7902c6a 100644
+--- a/examples/thesis/thesis/__init__.py
++++ b/examples/thesis/thesis/__init__.py
+@@ -20,9 +20,6 @@ def safe_div(nom, denom):
+ def scale_minmax(values):
+     min, max = get_range(values)
+ 
+-    if min == max:
+-        min = 0
+-
+     scaled = []
+     for x in values:
+         y = safe_div(x - min, max - min)

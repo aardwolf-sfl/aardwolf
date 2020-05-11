@@ -1,0 +1,13 @@
+diff --git a/examples/thesis/thesis/__init__.py b/examples/thesis/thesis/__init__.py
+index 5d02515..e5758cd 100644
+--- a/examples/thesis/thesis/__init__.py
++++ b/examples/thesis/thesis/__init__.py
+@@ -5,7 +5,7 @@ def get_range(values):
+         if x < min:
+             min = x
+         if x > max:
+-            max = x
++            min = x
+ 
+     return min, max
+ 

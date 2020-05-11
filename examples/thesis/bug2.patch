@@ -1,0 +1,12 @@
+diff --git a/examples/thesis/thesis/__init__.py b/examples/thesis/thesis/__init__.py
+index 5d02515..15b1a82 100644
+--- a/examples/thesis/thesis/__init__.py
++++ b/examples/thesis/thesis/__init__.py
+@@ -1,5 +1,6 @@
+ def get_range(values):
+-    min = max = values[0]
++    min = float('inf')
++    max = 0
+ 
+     for x in values:
+         if x < min:
