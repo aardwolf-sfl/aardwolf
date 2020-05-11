@@ -138,12 +138,6 @@ class Instrumenter(ast.NodeTransformer):
         call = ast.Call(func=func, args=args, keywords=[])
         return call
 
-    def _is_runtime_call(self, node):
-        try:
-            return node.func.value.id == 'aardwolf'
-        except AttributeError:
-            return False
-
     def _make_write_stmt(self, node, id_node=None):
         if id_node is None:
             id_node = node
@@ -166,12 +160,6 @@ class Instrumenter(ast.NodeTransformer):
         return [stmt, node]
 
     def _instrument_expr(self, node, id_node=None):
-        if self._is_runtime_call(node):
-            # This is already instrumented node, we don't need to (and must not)
-            # to instrument it. This can happen only if the expression is a
-            # call.
-            return node
-
         if id_node is None:
             id_node = node
 
