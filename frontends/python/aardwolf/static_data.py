@@ -110,6 +110,7 @@ class StaticData:
         writer.write_str('AARD/S1')
 
         for func, body in self.analysis_.ctx_store_.items():
+            # Empty function
             if len(body[0]) == 0:
                 continue
 
@@ -128,6 +129,11 @@ class StaticData:
         writer.close()
 
     def _get_stmts(self, func_body):
+        # Normalize the basic blocks first. It properly reconnect the edges of
+        # empty basic blocks.
+        for block in func_body:
+            block.normalize()
+
         stmts = []
         for block in func_body:
             prev = None
@@ -144,8 +150,10 @@ class StaticData:
                 prev = stmt
 
             if prev is not None:
-                for succ in block.succ_:
+                for succ in block.succ():
                     if len(succ) > 0:
                         prev.add_succ(succ.entry())
+                    else:
+                        assert len(list(succ.succ())) == 0
 
         return stmts

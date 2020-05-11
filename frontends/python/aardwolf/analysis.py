@@ -108,30 +108,31 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(node.test)
         self.add_uses(node, self.collect_level())
 
+        if_block = self.block()
         self.add_node(node)
 
-        prev_block = self.block_
-
         then_block = self.new_block()
-        prev_block.add_succ(then_block)
+        if_block.add_succ(then_block)
 
         self._visit_body(node.body)
+        then_block = self.block()
 
         if len(node.orelse) > 0:
             else_block = self.new_block()
-            prev_block.add_succ(else_block)
+            if_block.add_succ(else_block)
 
             self._visit_body(node.orelse)
+            else_block = self.block()
         else:
             else_block = None
 
         new_block = self.new_block()
 
         then_block.add_succ(new_block)
-        if else_block is not None:
-            else_block.add_succ(new_block)
+        if else_block is None:
+            if_block.add_succ(new_block)
         else:
-            prev_block.add_succ(new_block)
+            else_block.add_succ(new_block)
 
     # TODO: IfExp
 
@@ -140,37 +141,42 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(node.iter)
         self.add_uses(node, self.collect_level())
 
-        prev_block = self.block_
+        prev_block = self.block()
 
-        target_block = self.new_block()
+        loop_block = self.new_block()
+        prev_block.add_succ(loop_block)
+
         self.push_loop()
-        self.add_node(node)
 
-        prev_block.add_succ(target_block)
+        self.add_node(node)
 
         self.new_level()
         self.visit(node.target)
         self.add_defs(node, self.collect_level())
 
         body_block = self.new_block()
-        target_block.add_succ(body_block)
+        loop_block.add_succ(body_block)
 
         self._visit_body(node.body)
-        self.block_.add_succ(target_block)
+        self.block().add_succ(loop_block)
 
         if len(node.orelse) > 0:
             else_block = self.new_block()
-            target_block.add_succ(else_block)
+            loop_block.add_succ(else_block)
 
             self._visit_body(node.orelse)
+            else_block = self.block()
         else:
             else_block = None
 
         new_block = self.new_block()
 
-        target_block.add_succ(new_block)
+        loop_block.add_succ(new_block)
         if else_block is not None:
             else_block.add_succ(new_block)
+
+        for block in loop_block.exits():
+            block.add_succ(new_block, force=True)
 
         self.pop_loop()
 
@@ -179,44 +185,55 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(node.test)
         self.add_uses(node, self.collect_level())
 
-        prev_block = self.block_
+        prev_block = self.block()
 
-        while_block = self.new_block()
-        prev_block.add_succ(while_block)
-
+        loop_block = self.new_block()
+        prev_block.add_succ(loop_block)
         self.push_loop()
+
         self.add_node(node)
 
         body_block = self.new_block()
-        while_block.add_succ(body_block)
+        loop_block.add_succ(body_block)
 
         self._visit_body(node.body)
-        self.block_.add_succ(while_block)
+        self.block().add_succ(loop_block)
 
         if len(node.orelse) > 0:
             else_block = self.new_block()
-            while_block.add_succ(else_block)
+            loop_block.add_succ(else_block)
 
             self._visit_body(node.orelse)
+            else_block = self.block()
         else:
             else_block = None
 
         new_block = self.new_block()
 
-        while_block.add_succ(new_block)
+        loop_block.add_succ(new_block)
         if else_block is not None:
             else_block.add_succ(new_block)
+
+        for block in loop_block.exits():
+            block.add_succ(new_block, force=True)
 
         self.pop_loop()
 
     def visit_Break(self, node):
+        block = self.block()
         self.add_node(node)
-        self.break_loop()
+
+        loop_block = self.peek_loop()
+        loop_block.add_exit(block)
+        block.freeze()
 
     def visit_Continue(self, node):
+        block = self.block()
         self.add_node(node)
-        self.block_.add_succ(self.peek_loop()[0])
-        self.block_.freeze_succ()
+
+        loop_block = self.peek_loop()
+        block.add_succ(loop_block)
+        block.freeze()
 
     # TODO: Try, Raise, etc.
 
@@ -261,7 +278,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.visit(node.value)
         self.add_uses(node, self.collect_level())
         self.add_node(node)
-        self.block_.freeze_succ()
+        self.block().freeze()
 
     def visit_Yield(self, node):
         self.new_level()
