@@ -107,3 +107,5 @@ def run_driver(test_files, process_source, annotations_prefix):
     if failed > 0 and not (display_diff or display_actual):
         print()
         print('There are failed test cases. To see what is wrong, execute this script with --diff or --actual.')
+
+    return failed == 0

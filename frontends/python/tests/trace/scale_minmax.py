@@ -167,3 +167,4 @@ scale_minmax([1, 3, 2])
 # AARD: unsupported data type
 
 # AARD: statement: #1:25
+# AARD: unsupported data type

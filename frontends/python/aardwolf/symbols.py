@@ -140,7 +140,8 @@ class SymbolTableBuilder(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
-        self.table_.push_scope(node.name)
+        name = f'{node.name}[{node.lineno}]'
+        self.table_.push_scope(name)
 
         self.definer_.visit(node.args)
 
@@ -148,7 +149,8 @@ class SymbolTableBuilder(ast.NodeVisitor):
         self.table_.pop_scope()
 
     def visit_Lambda(self, node):
-        self.table_.push_scope(f'lambda:{node.lineno}:{node.col_offset}')
+        name = f'lambda:{node.lineno}:{node.col_offset}'
+        self.table_.push_scope(name)
 
         self.definer_.visit(node.args)
 

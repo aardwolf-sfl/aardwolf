@@ -5,9 +5,13 @@ import re
 import sys
 
 from .runtime import write_external, write_test_status
+from .utils import use_aardwolf
 
 
 def wrap_test(f):
+    if not use_aardwolf():
+        return f
+
     @functools.wraps(f)
     def aardwolf_test_wrapper(*args, **kwargs):
         name = f.__name__

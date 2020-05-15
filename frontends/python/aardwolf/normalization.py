@@ -24,6 +24,6 @@ class Normalizer(ast.NodeTransformer):
 
         return node
 
-    # TODO: ModuleDef, append sys.exit(0) (or a more suitable alternative) call
-    # at the and of the module (only if there are non-declaration statements)
-    # for the same reason as explicit `return None` for functions
+    # TODO: ModuleDef, append some kind of no-operation at the and of the module
+    # (only if there are non-declaration statements) for the same reason as
+    # explicit `return None` for functions

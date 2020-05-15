@@ -8,15 +8,26 @@ from importlib.util import spec_from_file_location, find_spec
 from importlib.machinery import SourceFileLoader
 
 from .pipeline import process_file
+from .utils import use_aardwolf
 
 
 class AardwolfMetaFinder(MetaPathFinder):
-    def __init__(self, package, outdir=None):
+    def __init__(self, package, outdir=None, ignore=None):
         self.package_ = package
         self.outdir_ = outdir
 
+        if ignore is None:
+            ignore = []
+
+        self.ignore_ = ignore
+
     def find_spec(self, fullname, path, target=None):
         split = fullname.split('.')
+
+        for ignore in self.ignore_:
+            # This guarantees that also submodules are ignored
+            if all([lhs == rhs for lhs, rhs in zip(split, ignore.split('.'))]):
+                return None
 
         # If the requested module comes from the user package to be analysed and
         # instrumented, then use Aardwolf loader. Otherwise, use the default
@@ -86,7 +97,10 @@ class PackageError(Exception):
         return PackageError(f'Package "{name}" does not have its source code available, which is required for Aardwolf.')
 
 
-def install(package, outdir=None):
+def install(package, outdir=None, ignore=None):
+    if not use_aardwolf():
+        return
+
     if isinstance(package, str):
         # Try to get the specification for the package.
         spec = find_spec(package)
@@ -106,7 +120,7 @@ def install(package, outdir=None):
         raise PackageError.no_source(package)
 
     # Insert Aardwolf finder to the beginning of meta_path.
-    sys.meta_path.insert(0, AardwolfMetaFinder(spec.name, outdir))
+    sys.meta_path.insert(0, AardwolfMetaFinder(spec.name, outdir, ignore))
 
     if reload_package:
         reload(package)

@@ -113,6 +113,7 @@ class ValueAccessBuilder:
         self.symbols_ = self.symbols_.get_parent()
 
     def add_defs(self, node, accesses):
+        assert all([isinstance(access, Access) for access in accesses])
         if not node in self.defs_:
             self.defs_[node] = []
 
@@ -122,6 +123,7 @@ class ValueAccessBuilder:
         self.add_defs(node, [access])
 
     def add_uses(self, node, accesses):
+        assert all([isinstance(access, Access) for access in accesses])
         if not node in self.uses_:
             self.uses_[node] = []
 
@@ -135,6 +137,8 @@ class ValueAccessBuilder:
             name = node.id
         elif isinstance(node, ast.arg):
             name = node.arg
+        elif isinstance(node, str):
+            name = node
         else:
             name = None
 
@@ -158,3 +162,9 @@ class ValueAccessBuilder:
     def register_subscript(self, index):
         base = self.level_.pop()
         self.level_.append(Access.array_like(base, index))
+
+    def levels(self):
+        return len(self.level_)
+
+    def was_registered(self, orig_levels):
+        return self.levels() > orig_levels

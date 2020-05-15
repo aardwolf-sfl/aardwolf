@@ -54,7 +54,7 @@ trace = os.path.join(root, 'trace')
 print('>>> ANALYSIS')
 print()
 
-aardwolf_tools.run_driver(
+analysis_success = aardwolf_tools.run_driver(
     test_files=aardwolf_tools.find_tests(
         analysis, '.py', ignore=['__init__.py']),
     process_source=process_analysis,
@@ -65,8 +65,11 @@ print()
 print()
 print('>>> TRACE')
 print()
-aardwolf_tools.run_driver(
+trace_success = aardwolf_tools.run_driver(
     test_files=aardwolf_tools.find_tests(
         trace, '.py', ignore=['__init__.py']),
     process_source=process_trace,
     annotations_prefix='# ')
+
+if not analysis_success or not trace_success:
+    exit(1)

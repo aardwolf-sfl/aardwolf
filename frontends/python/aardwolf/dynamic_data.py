@@ -66,7 +66,13 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_Call(self, node):
         self.generic_visit(node)
-        return self._instrument_trace_value(self._instrument_expr_lazy(node))
+
+        # foo(bar) -> write_expr(foo)(bar)
+        node_id = self._make_node_id(node)
+        node.func = self._make_runtime_call('write_expr', [node.func, node_id])
+        ast.fix_missing_locations(node)
+
+        return self._instrument_trace_value(node)
 
     def visit_If(self, node):
         self.generic_visit(node)
@@ -106,11 +112,14 @@ class Instrumenter(ast.NodeTransformer):
 
     def visit_With(self, node):
         self.generic_visit(node)
-        node.items = [self._instrument_trace_value(
-            self._instrument_expr(item.context_expr, item)) for item in node.items]
+
+        for item in node.items:
+            item.context_expr = self._instrument_trace_value(
+                self._instrument_expr(item.context_expr, item))
+
         return node
 
-    # TODO: visit_Lambda (do ont forget to trace values of arguments)
+    # TODO: visit_Lambda (do not forget to trace values of arguments)
 
     def visit_Return(self, node):
         self.generic_visit(node)
@@ -172,6 +181,9 @@ class Instrumenter(ast.NodeTransformer):
         return call
 
     def _instrument_term_expr(self, node, expr_field):
+        if getattr(node, expr_field) is None:
+            return node
+
         node_id = self._make_node_id(node)
         call = self._make_runtime_call(
             'write_expr', [getattr(node, expr_field), node_id])
@@ -182,24 +194,6 @@ class Instrumenter(ast.NodeTransformer):
         setattr(node, expr_field, call)
 
         return node
-
-    def _instrument_expr_lazy(self, node):
-        node_id = self._make_node_id(node)
-
-        lazy = ast.Lambda(args=ast.arguments(
-            posonlyargs=[],
-            args=[],
-            vararg=None,
-            kwonlyargs=[],
-            kw_defaults=[],
-            kwarg=None,
-            defaults=[]), body=node)
-        call = self._make_runtime_call('write_lazy', [lazy, node_id])
-
-        ast.copy_location(call, node)
-        ast.fix_missing_locations(call)
-
-        return call
 
     def _instrument_trace_value(self, node, accessors=None):
         if accessors is None:
@@ -226,58 +220,38 @@ class Instrumenter(ast.NodeTransformer):
 # For unpacking assignment.
 class TargetAccessorBuilder(ast.NodeVisitor):
     def __init__(self):
-        self.accessors_ = []
-        self.index_ = []
+        self.tree_ = []
 
     def build(self):
-        array = ast.List(elts=self.accessors_, ctx=ast.Load())
-        ast.fix_missing_locations(array)
-        return array
+        tree = self._build_node(self.tree_)
+        ast.fix_missing_locations(tree)
+        return tree
 
     def visit_Tuple(self, node):
-        self.index_.append(0)
         assert isinstance(node.ctx, ast.Store)
 
+        tree = self.tree_
         for elt in node.elts:
+            self.tree_ = []
+            tree.append(self.tree_)
             self.visit(elt)
-            self._inc_index()
-
-        self.index_.pop()
+        self.tree_ = tree
 
     # TODO: visit_List
 
     def visit_Name(self, node):
         assert isinstance(node.ctx, ast.Store)
-        self.accessors_.append(self._build_accessor())
+        # Stop the visitor here
 
     def visit_Attribute(self, node):
         assert isinstance(node.ctx, ast.Store)
-        self.accessors_.append(self._build_accessor())
+        # Stop the visitor here
 
     def visit_Subscript(self, node):
         assert isinstance(node.ctx, ast.Store)
-        self.accessors_.append(self._build_accessor())
+        # Stop the visitor here
 
-    def _inc_index(self):
-        if len(self.index_) > 0:
-            self.index_[-1] += 1
-
-    def _build_accessor(self):
-        accessor = ast.Name(id='v', ctx=ast.Load())
-
-        for index in self.index_:
-            accessor = ast.Subscript(
-                value=accessor,
-                slice=ast.Index(value=ast.Constant(value=index, kind=None)),
-                ctx=ast.Load())
-
-        return ast.Lambda(
-            args=ast.arguments(
-                posonlyargs=[],
-                args=[ast.arg(arg='v', annotation=None, type_comment=None)],
-                vararg=None,
-                kwonlyargs=[],
-                kw_defaults=[],
-                kwarg=None,
-                defaults=[]),
-            body=accessor)
+    def _build_node(self, value):
+        assert isinstance(value, list)
+        elts = [self._build_node(elem) for elem in value]
+        return ast.List(elts=elts, ctx=ast.Load())

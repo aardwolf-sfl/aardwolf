@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 
 from .writer import Writer
 from .constants import *
@@ -36,21 +37,17 @@ def write_expr(result, id):
     return result
 
 
-def write_lazy(expr, id):
-    _init_if_needed()
-    write_stmt(id)
-    return expr()
-
-
-def write_value(value, accessors=None):
+# Accessor tree is in "S-expression" form. Examples:
+# a = foo -> write_value(value, [])
+# a, b = foo -> write_value(value, [[], []])
+# a, (b, c) = foo -> write_value(value, [[], [[], []]])
+def write_value(value, accessor_tree=None):
     _init_if_needed()
 
-    if accessors is None:
-        accessors = [lambda v: v]
+    if accessor_tree is None:
+        accessor_tree = []
 
-    for accessor in accessors:
-        v = accessor(value)
-
+    for v in unpack_values(value, accessor_tree):
         if isinstance(v, bool):
             # This check needs to be *before* int check because bool is a subtype of
             # int.
@@ -94,8 +91,36 @@ def write_value(value, accessors=None):
 
     return value
 
+
+class NonSubscriptable:
+    def __getitem__(self, key):
+        return None
+
+
+def unpack_values(value, tree):
+    if len(tree) == 0:
+        return [value]
+    else:
+        # Ensure that we can use value[index].
+        if not hasattr(value, '__getitem__'):
+            if hasattr(value, '__iter__'):
+                # We must not change the underlying iterator by materializing
+                # it. Therefore we deepcopy it. Hopefully it will be ok
+                # performance-wise.
+                value = list(copy.deepcopy(value))
+            else:
+                value = NonSubscriptable()
+
+        output = []
+        for index, node in enumerate(tree):
+            output.extend(unpack_values(value[index], node))
+
+        return output
+
+
 def aardwolf_iter(iter, id, accessors=None):
     return AardwolfIter(iter, id, accessors)
+
 
 class AardwolfIter:
     def __init__(self, inner, id, accessors):

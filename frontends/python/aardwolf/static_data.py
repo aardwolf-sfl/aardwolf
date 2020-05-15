@@ -1,9 +1,10 @@
 import ast
 import os
+import re
 
 from .writer import Writer
 from .constants import *
-from .utils import unique
+from .utils import unique, Counter
 
 
 class Stmt:
@@ -97,6 +98,7 @@ class Stmt:
 class StaticData:
     def __init__(self, analysis):
         self.analysis_ = analysis
+        self.functions_ = Counter()
 
     def write(self, outdir=None):
         if outdir is None:
@@ -111,11 +113,19 @@ class StaticData:
 
         for func, body in self.analysis_.ctx_store_.items():
             # Empty function
-            if len(body[0]) == 0:
+            if all([len(block) == 0 for block in body]):
                 continue
 
+            func_name = re.sub(r'\[\d+\]', '', func)
+            func_id = self.functions_.get_inc(func_name)
+
+            # Can happen when e.g. @property with @foo.setter decorators are
+            # used.
+            if func_id != 1:
+                func_name += f'@{func_id}'
+
             writer.write_token(TOKEN_FUNCTION)
-            writer.write_cstr(func)
+            writer.write_cstr(func_name)
 
             stmts = self._get_stmts(body)
 

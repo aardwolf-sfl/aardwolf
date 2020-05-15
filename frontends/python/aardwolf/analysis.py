@@ -3,6 +3,7 @@ import os
 
 from .cfg import CFGBuilder
 from .values import ValueAccessBuilder
+from .utils import IdMap
 
 
 class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
@@ -23,14 +24,26 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.push_ctx(node.name)
         self.enter_scope(node.name)
 
+        self._visit_body(node.decorator_list)
+        if any([isinstance(decorator, ast.Call) for decorator in node.decorator_list]):
+            # Break the decorators initialization from the body of the function.
+            self.new_block()
+
         self._visit_body(node.body)
 
         self.pop_ctx()
         self.exit_scope()
 
     def visit_FunctionDef(self, node):
-        self.push_ctx(node.name)
-        self.enter_scope(node.name)
+        name = f'{node.name}[{node.lineno}]'
+
+        self.push_ctx(name)
+        self.enter_scope(name)
+
+        self._visit_body(node.decorator_list)
+        if any([isinstance(decorator, ast.Call) for decorator in node.decorator_list]):
+            # Break the decorators initialization from the body of the function.
+            self.new_block()
 
         self.new_level()
         for arg in node.args.args:
@@ -39,6 +52,8 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
             self.add_node(arg)
 
         self.collect_level()
+
+        self._visit_body(node.args.defaults)
 
         self._visit_body(node.body)
 
@@ -72,7 +87,7 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
 
     def visit_Assert(self, node):
         self.new_level()
-        self.visit(node.test)
+        self.generic_visit(node)
         self.add_uses(node, self.collect_level())
 
         self.add_node(node)
@@ -96,7 +111,14 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
 
         self.add_uses(node, self.collect_level())
 
+        levels = self.levels()
         self.visit(node.func)
+
+        if not self.was_registered(levels):
+            assert isinstance(node.func, ast.Lambda)
+            name = f'lambda:{node.func.lineno}:{node.func.col_offset}'
+            self.register_name(name)
+
         self.register_call(node)
 
         self.add_def(node, self.access())
@@ -265,6 +287,8 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
 
         self.collect_level()
 
+        self._visit_body(node.args.defaults)
+
         body = ast.Return(value=node.body)
         ast.copy_location(body, node.body)
         ast.fix_missing_locations(body)
@@ -274,56 +298,58 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         self.exit_scope()
 
     def visit_Return(self, node):
-        self.new_level()
-        self.visit(node.value)
-        self.add_uses(node, self.collect_level())
+        if node.value is not None:
+            self.new_level()
+            self.visit(node.value)
+            self.add_uses(node, self.collect_level())
+
         self.add_node(node)
         self.block().freeze()
 
     def visit_Yield(self, node):
-        self.new_level()
-        self.visit(node.value)
-        self.add_uses(node, self.collect_level())
+        if node.value is not None:
+            self.new_level()
+            self.visit(node.value)
+            self.add_uses(node, self.collect_level())
+
         self.add_node(node)
 
     def visit_YieldFrom(self, node):
-        self.new_level()
-        self.visit(node.value)
-        self.add_uses(node, self.collect_level())
+        if node.value is not None:
+            self.new_level()
+            self.visit(node.value)
+            self.add_uses(node, self.collect_level())
+
         self.add_node(node)
 
     def visit_Name(self, node):
         self.register_name(node)
 
     def visit_Attribute(self, node):
+        levels = self.levels()
         self.visit(node.value)
-        self.register_attribute(node)
+
+        if self.was_registered(levels):
+            self.register_attribute(node)
+        else:
+            # Probably constant node.value.
+            self.register_name(node.attr)
 
     def visit_Subscript(self, node):
+        levels = self.levels()
         self.visit(node.value)
 
-        if isinstance(node.slice, ast.Index):
-            self.new_level()
-            self.visit(node.slice)
-            index = self.collect_level()
-            self.register_subscript(index)
+        # if isinstance(node.slice, ast.Index):
+        self.new_level()
+        self.visit(node.slice)
+        index = self.collect_level()
+
+        if not self.was_registered(levels):
+            # Probably constant node.value. Use a dummy base.
+            self.register_name('$constant')
+
+        self.register_subscript(index)
 
     def _visit_body(self, body):
         for node in body:
             self.visit(node)
-
-
-class IdMap:
-    def __init__(self):
-        self.data_ = dict()
-
-    def get(self, value):
-        if value not in self.data_:
-            self.data_[value] = len(self.data_) + 1
-
-        return self.data_[value]
-
-    def get_checked(self, value):
-        orig_len = len(self.data_)
-        index = self.get(value)
-        return index, len(self.data_) != orig_len
