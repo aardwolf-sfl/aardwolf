@@ -10,7 +10,7 @@ def use_aardwolf():
     # Check if inside Aardwolf "environment". If data destination directory is
     # set, we suppose that Aardwolf data should be generated, i.e., that
     # Aardwolf should be used.
-    return 'AARDWOLF_DEST_DIR' in os.environ
+    return 'AARDWOLF_DATA_DEST' in os.environ
 
 
 class IdMap:
