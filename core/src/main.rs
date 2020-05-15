@@ -36,6 +36,7 @@ fn main() {
                 .possible_values(&["cli", "json"])
                 .help(""),
         )
+        .arg(Arg::with_name("reuse").long("reuse").help(""))
         .get_matches();
 
     let args = DriverArgs::new()
@@ -49,7 +50,8 @@ fn main() {
                     _ => unreachable!(),
                 })
                 .unwrap_or_default(),
-        );
+        )
+        .with_reuse(matches.is_present("reuse"));
 
     Driver::run(&args);
 }

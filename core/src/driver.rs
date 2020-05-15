@@ -49,6 +49,7 @@ impl DriverPaths {
 pub struct DriverArgs<P: AsRef<Path>> {
     config_path: Option<P>,
     ui: UiName,
+    reuse: bool,
 }
 
 impl<P: AsRef<Path>> DriverArgs<P> {
@@ -56,6 +57,7 @@ impl<P: AsRef<Path>> DriverArgs<P> {
         DriverArgs {
             config_path: None,
             ui: UiName::default(),
+            reuse: false,
         }
     }
 
@@ -68,6 +70,10 @@ impl<P: AsRef<Path>> DriverArgs<P> {
 
     pub fn with_ui(self, ui: UiName) -> Self {
         Self { ui, ..self }
+    }
+
+    pub fn with_reuse(self, reuse: bool) -> Self {
+        Self { reuse, ..self }
     }
 }
 
@@ -112,9 +118,11 @@ impl Driver {
         let mut logger = Logger::new(driver_paths.output_dir.join(LOG_FILE));
         logger.info("config file loaded");
 
-        let script_handle = logger.perf("run script");
-        Self::run_script(&config, &driver_paths).unwrap();
-        script_handle.stop();
+        if !args.reuse {
+            let script_handle = logger.perf("run script");
+            Self::run_script(&config, &driver_paths).unwrap();
+            script_handle.stop();
+        }
 
         let data_handle = logger.perf("load data");
         let data = Self::load_data(&driver_paths);
