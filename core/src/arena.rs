@@ -11,7 +11,7 @@ use std::ops::Deref;
 // allocator must ensure that equal values are given exactly the same `P`.
 #[derive(PartialEq, Eq, Hash)]
 pub struct P<T> {
-    index: usize,
+    index: u32,
     // Specify the type of value which this pointer represents. If there is
     // unique arena for each type, getting the value using `P` is safe and
     // guaranteed to success.
@@ -91,8 +91,12 @@ impl<T> Arena<T> {
     }
 
     pub(crate) fn alloc(&mut self, value: T) -> P<T> {
+        assert!(
+            self.storage.len() <= u32::MAX as usize,
+            "maximum number of values exceeded"
+        );
         let ptr = P {
-            index: self.storage.len(),
+            index: self.storage.len() as u32,
             typ: PhantomData,
         };
 
@@ -102,11 +106,11 @@ impl<T> Arena<T> {
     }
 
     pub fn get(&self, ptr: &P<T>) -> &T {
-        &self.storage[ptr.index]
+        &self.storage[ptr.index as usize]
     }
 
     pub fn get_mut(&mut self, ptr: &P<T>) -> &mut T {
-        &mut self.storage[ptr.index]
+        &mut self.storage[ptr.index as usize]
     }
 }
 
@@ -127,7 +131,7 @@ impl<T: DummyValue> Arena<T> {
 
     pub fn dummy(dummy: Dummy) -> P<T> {
         P {
-            index: dummy.as_num(),
+            index: dummy.as_num() as u32,
             typ: PhantomData,
         }
     }
@@ -135,16 +139,51 @@ impl<T: DummyValue> Arena<T> {
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct S<T> {
-    lo: usize,
-    hi: usize,
+    // +--------------------+------------+
+    // |     index (20)     |  len (12)  |
+    // +--------------------+------------+
+    repr: u32,
     typ: PhantomData<T>,
+}
+
+// 2^20 = 1_048_576 of strings
+const INDEX_BITWIDTH: u32 = 20;
+// 2^12 = 4096 maximum length of each string
+const LEN_BITWIDTH: u32 = 12;
+
+const MASK_INDEX: u32 = !0 << LEN_BITWIDTH;
+const MASK_LEN: u32 = !0 >> INDEX_BITWIDTH;
+
+impl<T> S<T> {
+    fn new(index: usize, size: usize) -> Self {
+        assert!(
+            index < (1 << INDEX_BITWIDTH) as usize,
+            "maximum number of strings exceeded"
+        );
+        assert!(
+            size < (1 << LEN_BITWIDTH) as usize,
+            "maximum size of string exceeded"
+        );
+
+        S {
+            repr: ((index as u32) << LEN_BITWIDTH) | (size as u32),
+            typ: PhantomData,
+        }
+    }
+
+    fn index(&self) -> usize {
+        ((self.repr & MASK_INDEX) >> LEN_BITWIDTH) as usize
+    }
+
+    fn len(&self) -> usize {
+        (self.repr & MASK_LEN) as usize
+    }
 }
 
 impl<T> Clone for S<T> {
     fn clone(&self) -> Self {
         S {
-            lo: self.lo,
-            hi: self.hi,
+            repr: self.repr,
             typ: PhantomData,
         }
     }
@@ -155,8 +194,8 @@ impl<T> Copy for S<T> {}
 impl<T> fmt::Debug for S<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("I")
-            .field("lo", &self.lo)
-            .field("hi", &self.hi)
+            .field("index", &self.index())
+            .field("len", &self.len())
             .field("type", &type_name::<T>())
             .finish()
     }
@@ -184,13 +223,8 @@ impl<T> StringArena<T> {
 
     pub(crate) fn alloc<U: AsRef<str>>(&mut self, value: U) -> S<T> {
         let value = value.as_ref();
-        let lo = self.storage.len();
-
-        let ptr = S {
-            lo,
-            hi: lo + value.len(),
-            typ: PhantomData,
-        };
+        let index = self.storage.len();
+        let ptr = S::new(index, value.len());
 
         self.storage.push_str(value);
 
@@ -198,7 +232,9 @@ impl<T> StringArena<T> {
     }
 
     pub fn get(&self, ptr: &S<T>) -> &str {
-        &self.storage[ptr.lo..ptr.hi]
+        let lo = ptr.index();
+        let hi = lo + ptr.len();
+        &self.storage[lo..hi]
     }
 }
 

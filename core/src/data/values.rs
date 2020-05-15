@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Copy, Debug)]
 pub struct ValueRef {
-    index: usize,
+    index: u32,
 }
 
 pub struct ValueArena {
@@ -25,8 +25,12 @@ impl ValueArena {
     }
 
     pub(crate) fn alloc(&mut self, value: Value, value_type: ValueType) -> ValueRef {
+        assert!(
+            self.storage.len() <= u32::MAX as usize,
+            "maximum number of values exceeded"
+        );
         let ptr = ValueRef {
-            index: self.storage.len(),
+            index: self.storage.len() as u32,
         };
 
         macro_rules! compress_numeric {
@@ -100,7 +104,7 @@ impl ValueArena {
     }
 
     pub fn value_type(&self, ptr: &ValueRef) -> ValueType {
-        let byte = self.storage[ptr.index];
+        let byte = self.storage[ptr.index as usize];
         match byte & consts::MASK_TYPE {
             consts::TYPE_UNSUPPORTED => ValueType::Unsupported,
             consts::TYPE_U8 => ValueType::U8,
@@ -121,7 +125,7 @@ impl ValueArena {
     pub fn value(&self, ptr: &ValueRef) -> (Value, ValueType) {
         let value_type = self.value_type(ptr);
 
-        let bytes = &self.storage[ptr.index..];
+        let bytes = &self.storage[(ptr.index as usize)..];
         let control_byte = bytes[0];
         let bytes = &bytes[1..];
 
