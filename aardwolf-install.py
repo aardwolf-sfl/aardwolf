@@ -6,6 +6,7 @@ import glob
 import time
 import re
 import argparse
+from itertools import chain
 
 
 ROOT_DIR = os.path.realpath(os.path.dirname(__file__))
@@ -272,7 +273,10 @@ def install_runtime(args):
     shutil.copy(os.path.join(build_dir, 'aardwolf_external'),
                 os.path.join(args.destination, 'aardwolf_external'))
 
-    for libfile in glob.glob(os.path.join(build_dir, '*.a')):
+    libfiles = chain(*[glob.glob(os.path.join(build_dir, f'*.{ext}'))
+                       for ext in ['so', 'a']])
+
+    for libfile in libfiles:
         libfile = os.path.basename(libfile)
 
         shutil.copy(os.path.join(build_dir, libfile),

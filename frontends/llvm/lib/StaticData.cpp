@@ -105,6 +105,7 @@ void exportStatement(StatementRepository &Repo, llvm::raw_ostream &Stream,
   // Successors.
   writeBytes(Stream, (uint8_t)Successors.size());
 
+  // TODO: Deduplicate successors using std::unique
   for (auto Succ : Successors) {
     exportStatementId(Stream, Repo.getStatementId(*Succ));
   }

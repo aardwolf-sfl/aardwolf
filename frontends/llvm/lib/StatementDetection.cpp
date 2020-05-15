@@ -100,7 +100,11 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     auto B = findCompositeBase(GEPI);
     auto A = findCompositeAccessors(GEPI);
 
-    assert(B != nullptr && !A.empty() && "Internal error.");
+    // assert(B != nullptr && !A.empty() && "Internal error.");
+    if (B == nullptr || A.empty()) {
+      // FIXME
+      return nullptr;
+    }
 
     // Struct pointer is special for us, all other are treated as general
     // pointers.
@@ -175,7 +179,13 @@ findInputs(const llvm::Instruction *I) {
       // Add all operands as neighbors into the queue.
       for (const llvm::Use &U : QU->operands()) {
         if (auto *In = llvm::dyn_cast<llvm::User>(U)) {
-          Q.push(In);
+          // FIXME: These are now supported by `getValueAccess`. However, it
+          // certainly limits the scope of applicability.
+          if (llvm::isa<llvm::Instruction>(In) ||
+              llvm::isa<llvm::GlobalVariable>(In) ||
+              llvm::isa<llvm::ConstantExpr>(In)) {
+            Q.push(In);
+          }
         }
       }
     }

@@ -12,7 +12,7 @@ import aardwolf_tools  # nopep8
 
 
 root = os.path.realpath(os.path.dirname(__file__))
-frontend = os.path.join(root, 'build', 'lib', 'libAardwolfLLVM.so')
+frontend = os.path.join(root, 'build', 'debug', 'lib', 'libAardwolfLLVM.so')
 tests = os.path.join(root, 'tests')
 
 
@@ -25,7 +25,7 @@ def process(filename):
     tmpdir = tempfile.gettempdir()
 
     obj_file = change_ext(filename, '.o')
-    clang = f'clang -Xclang -load -Xclang {frontend} -c -g -o {obj_file} {filename}'
+    clang = f'clang -Xclang -load -Xclang {frontend} -c -g -O0 -o {obj_file} {filename}'
     subprocess.run(clang, shell=True, cwd=tmpdir, check=True)
 
     outfile = os.path.join(tmpdir, os.path.basename(filename)) + '.aard'
