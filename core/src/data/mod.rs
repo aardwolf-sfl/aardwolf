@@ -9,6 +9,7 @@ pub mod types;
 pub mod values;
 
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::io::BufRead;
 
 use crate::arena::{Arena, DummyValue, StringArena, P, S};
@@ -16,6 +17,7 @@ use crate::arena::{Arena, DummyValue, StringArena, P, S};
 use module::Modules;
 use tests::TestSuite;
 use trace::Trace;
+use types::FileId;
 use values::{ValueArena, ValueRef};
 
 pub struct RawData {
@@ -122,7 +124,23 @@ impl<T> UniqueStringArena<T> {
     }
 }
 
+struct IdMap<T>(HashMap<T, usize>);
+
+impl<T> IdMap<T> {
+    pub fn with_capacity(capacity: usize) -> Self {
+        IdMap(HashMap::with_capacity(capacity))
+    }
+}
+
+impl<T: Hash + Eq> IdMap<T> {
+    pub fn get(&mut self, value: T) -> usize {
+        let new_id = self.0.len();
+        *self.0.entry(value).or_insert(new_id)
+    }
+}
+
 pub(crate) struct Arenas {
+    stmt_id: IdMap<(FileId, u64)>,
     stmt: UniqueArena<statement::Statement>,
     access: UniqueArena<access::Access>,
     value: ValueArena,
@@ -134,6 +152,7 @@ pub(crate) struct Arenas {
 impl Arenas {
     fn new() -> Self {
         Arenas {
+            stmt_id: IdMap::with_capacity(1 << 16),
             stmt: UniqueArena::with_capacity(1 << 16),
             access: UniqueArena::with_capacity(1 << 16),
             value: ValueArena::with_capacity(1 << 16),

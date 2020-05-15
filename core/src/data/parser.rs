@@ -368,9 +368,10 @@ impl<'a, 'b, R: BufRead> Parser<'a, 'b, R> {
     }
 
     fn parse_stmt_id(&mut self) -> ParseResult<StmtId> {
+        let file_id = self.parse_file_id()?;
+        let stmt_id = extend_buffer!(self, self.parse_u64()?);
         Ok(StmtId::new(
-            self.parse_file_id()?,
-            extend_buffer!(self, self.parse_u64()?),
+            self.arenas.stmt_id.get((file_id, stmt_id)) as u64
         ))
     }
 

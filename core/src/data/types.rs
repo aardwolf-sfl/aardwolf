@@ -60,27 +60,27 @@ impl DummyValue for FileId {
 }
 
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Default, Debug)]
-pub struct StmtId((FileId, u64));
+pub struct StmtId(u64);
 
 impl StmtId {
-    pub(crate) const fn new(file_id: FileId, stmt_id: u64) -> Self {
-        StmtId((file_id, stmt_id))
+    pub(crate) const fn new(stmt_id: u64) -> Self {
+        StmtId(stmt_id)
     }
 
     #[cfg(test)]
     pub const fn new_test(stmt_id: u64) -> Self {
-        StmtId((FileId(0), stmt_id))
+        StmtId(stmt_id)
     }
 }
 
 impl fmt::Display for StmtId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", (self.0).0, (self.0).1)
+        write!(f, "{}", self.0)
     }
 }
 
 impl DummyValue for StmtId {
     fn dummy(dummy: Dummy) -> Self {
-        StmtId((FileId::dummy(dummy), u64::MAX - (dummy.as_num() as u64)))
+        StmtId(u64::MAX - (dummy.as_num() as u64))
     }
 }
