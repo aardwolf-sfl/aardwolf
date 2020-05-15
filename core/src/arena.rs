@@ -244,8 +244,8 @@ impl<T> Deref for CheapOrd<T> {
 }
 
 // Ideally custom derive macros.
-macro_rules! __impl_arena_type {
-    ($ptr_ty:ty, $arena_ty:ty, $ret_ty:ty) => {
+macro_rules! impl_arena_type {
+    ($ptr_ty:ty, $arena_ty:ty) => {
         impl $ptr_ty {
             // This function is unsafe as we return a mutable borrow of static
             // variable. If the user intends to use it actually mutably, they
@@ -260,21 +260,19 @@ macro_rules! __impl_arena_type {
                 &ONCE
             }
 
-            // This is not implemented as `impl AsRef` now because I am not sure
-            // if it satisfies the purpose of "cheap reference-to-reference
-            // conversion". Maybe it is fine to do so, maybe it should be
-            // renamed to a less confusing name.
-            pub fn as_ref(&self) -> $ret_ty {
+            pub fn arena() -> &'static $arena_ty {
                 if <$ptr_ty>::__once().is_completed() {
-                    // SAFETY: We only use arena immutably.
-                    unsafe { <$ptr_ty>::__arena() }.get(self)
+                    // SAFETY: We only use arena immutably. Moreover, it is
+                    // checked using Once that it is already initialized and
+                    // will not be ever modified.
+                    unsafe { <$ptr_ty>::__arena() }
                 } else {
-                    // Invalid usage of the Arena singleton. The arena, after allocating
-                    // all data, must be assigned, so that the references can be used to
-                    // get the actual values using the singleton. Note that
-                    // theoretically, the initialization could be called and fail, but
-                    // we consider it very unlikely as it is only assigning a variable
-                    // in our case.
+                    // Invalid usage of the Arena singleton. The arena, after
+                    // allocating all data, must be assigned, so that the
+                    // references can be used to get the actual values using the
+                    // singleton. Note that theoretically, the initialization
+                    // could be called and fail, but we consider it very
+                    // unlikely as it is only assigning a variable in our case.
                     panic!("Arena not yet initialized.");
                 }
             }
@@ -292,25 +290,5 @@ macro_rules! __impl_arena_type {
                 })
             }
         }
-    };
-}
-
-macro_rules! impl_arena_p {
-    ($val_ty:ty) => {
-        __impl_arena_type!(
-            $crate::arena::P<$val_ty>,
-            $crate::arena::Arena<$val_ty>,
-            &$val_ty
-        );
-    };
-}
-
-macro_rules! impl_arena_s {
-    ($val_ty:ty) => {
-        __impl_arena_type!(
-            $crate::arena::S<$val_ty>,
-            $crate::arena::StringArena<$val_ty>,
-            &str
-        );
     };
 }

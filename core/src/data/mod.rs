@@ -16,6 +16,7 @@ use crate::arena::{Arena, DummyValue, StringArena, P, S};
 use module::Modules;
 use tests::TestSuite;
 use trace::Trace;
+use values::{ValueArena, ValueRef};
 
 pub struct RawData {
     pub modules: Modules,
@@ -124,7 +125,7 @@ impl<T> UniqueStringArena<T> {
 pub(crate) struct Arenas {
     stmt: UniqueArena<statement::Statement>,
     access: UniqueArena<access::Access>,
-    value: UniqueArena<values::Value>,
+    value: ValueArena,
     func: UniqueStringArena<types::FuncName>,
     test: UniqueStringArena<types::TestName>,
     file: UniqueStringArena<types::FileName>,
@@ -135,7 +136,7 @@ impl Arenas {
         Arenas {
             stmt: UniqueArena::with_capacity(1 << 16),
             access: UniqueArena::with_capacity(1 << 16),
-            value: UniqueArena::with_capacity(1 << 16),
+            value: ValueArena::with_capacity(1 << 16),
             func: UniqueStringArena::with_capacity(1 << 16),
             test: UniqueStringArena::with_capacity(1 << 16),
             file: UniqueStringArena::with_capacity(1 << 8),
@@ -145,7 +146,7 @@ impl Arenas {
     fn seal(self) {
         P::<statement::Statement>::init_once(self.stmt.into_inner());
         P::<access::Access>::init_once(self.access.into_inner());
-        P::<values::Value>::init_once(self.value.into_inner());
+        ValueRef::init_once(self.value);
         S::<types::FuncName>::init_once(self.func.into_inner());
         S::<types::TestName>::init_once(self.test.into_inner());
         S::<types::FileName>::init_once(self.file.into_inner());

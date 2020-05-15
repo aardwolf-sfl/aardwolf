@@ -8,7 +8,7 @@ use super::statement::{Loc, Metadata, Statement};
 use super::tests::{TestStatus, TestSuite};
 use super::trace::{Trace, TraceItem};
 use super::types::{FileId, StmtId};
-use super::values::Value;
+use super::values::{IntoValue, Value, ValueRef, ValueType};
 use super::Arenas;
 use crate::arena::P;
 
@@ -425,82 +425,66 @@ impl<'a, 'b, R: BufRead> Parser<'a, 'b, R> {
         Ok(Metadata::new(self.parse_u8()?))
     }
 
-    fn parse_value(&mut self, token: u8) -> ParseResult<P<Value>> {
-        self.buffer.clear();
-        self.buffer.push(token);
-
+    fn parse_value(&mut self, token: u8) -> ParseResult<ValueRef> {
         let value = match token {
-            consts::TOKEN_DATA_UNSUPPORTED => {
-                self.arenas.value.alloc(Value::unsupported(), &self.buffer)
-            }
+            consts::TOKEN_DATA_UNSUPPORTED => self
+                .arenas
+                .value
+                .alloc(Value::Unsupported, ValueType::Unsupported),
             consts::TOKEN_DATA_I8 => {
                 let parsed = self.parse_i8()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_I16 => {
                 let parsed = self.parse_i16()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_I32 => {
                 let parsed = self.parse_i32()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_I64 => {
                 let parsed = self.parse_i64()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas.value.alloc(Value::signed(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_U8 => {
                 let parsed = self.parse_u8()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::unsigned(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_U16 => {
                 let parsed = self.parse_u16()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::unsigned(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_U32 => {
                 let parsed = self.parse_u32()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::unsigned(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_U64 => {
                 let parsed = self.parse_u64()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::unsigned(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_F32 => {
                 let parsed = self.parse_f32()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::floating(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_F64 => {
                 let parsed = self.parse_f64()?;
-                self.buffer.extend_from_slice(&parsed.to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::floating(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             consts::TOKEN_DATA_BOOL => {
                 let parsed = self.parse_boolean()?;
-                self.buffer.extend_from_slice(&(parsed as u8).to_ne_bytes());
-                self.arenas
-                    .value
-                    .alloc(Value::boolean(parsed), &self.buffer)
+                let (value, value_type) = parsed.into_value();
+                self.arenas.value.alloc(value, value_type)
             }
             _ => unreachable!(),
         };

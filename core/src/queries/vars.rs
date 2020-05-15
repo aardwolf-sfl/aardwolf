@@ -5,17 +5,18 @@ use super::{Query, QueryInitError};
 use crate::api::Api;
 use crate::arena::{P, S};
 use crate::data::{
-    access::Access, statement::Statement, trace::TraceItem, types::TestName, values::Value, RawData,
+    access::Access, statement::Statement, trace::TraceItem, types::TestName, values::ValueRef,
+    RawData,
 };
 
 #[derive(Debug)]
 pub struct VarItem {
     pub stmt: P<Statement>,
-    pub defs: Vec<P<Value>>,
+    pub defs: Vec<ValueRef>,
 }
 
 impl VarItem {
-    pub fn zip(&self) -> impl Iterator<Item = (&P<Access>, &P<Value>)> {
+    pub fn zip(&self) -> impl Iterator<Item = (&P<Access>, &ValueRef)> {
         self.stmt.as_ref().defs.iter().zip(self.defs.iter())
     }
 }

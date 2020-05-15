@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::arena::{Dummy, DummyValue};
+use crate::arena::{Arena, Dummy, DummyValue, P};
 
 pub type VarId = u64;
 
@@ -37,7 +37,13 @@ impl DummyValue for Access {
     }
 }
 
-impl_arena_p!(Access);
+impl_arena_type!(P<Access>, Arena<Access>);
+
+impl P<Access> {
+    pub fn as_ref(&self) -> &Access {
+        Self::arena().get(self)
+    }
+}
 
 #[derive(Hash, PartialEq, Eq)]
 pub struct AccessChain(Vec<VarId>);

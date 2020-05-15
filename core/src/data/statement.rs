@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use super::access::Access;
 use super::consts;
 use super::types::{FileId, StmtId};
-use crate::arena::{Dummy, DummyValue, P};
+use crate::arena::{Arena, Dummy, DummyValue, P};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
@@ -244,4 +244,10 @@ impl DummyValue for Statement {
     }
 }
 
-impl_arena_p!(Statement);
+impl_arena_type!(P<Statement>, Arena<Statement>);
+
+impl P<Statement> {
+    pub fn as_ref(&self) -> &Statement {
+        Self::arena().get(self)
+    }
+}

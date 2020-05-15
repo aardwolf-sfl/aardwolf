@@ -1,11 +1,11 @@
 use super::types::{StmtId, TestName};
-use super::values::Value;
-use crate::arena::{P, S};
+use super::values::ValueRef;
+use crate::arena::S;
 
 pub enum TraceItem {
     Statement(StmtId),
     Test(S<TestName>),
-    Value(P<Value>),
+    Value(ValueRef),
 }
 
 pub struct Trace {
@@ -17,6 +17,7 @@ impl Trace {
         Trace { trace: Vec::new() }
     }
 
+    // FIXME: Very inefficient. Probably use global Vars query as before.
     pub fn find_test(&self, test: &S<TestName>) -> TestTraceIter<'_> {
         TestTraceIter {
             inner: self.trace.iter(),
