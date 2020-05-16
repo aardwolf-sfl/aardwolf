@@ -4,8 +4,8 @@ use std::hash::{Hash, Hasher};
 
 use super::access::Access;
 use super::consts;
-use super::types::{FileId, StmtId};
-use crate::arena::{Arena, Dummy, DummyValue, P};
+use super::types::{FileId, FuncName, StmtId};
+use crate::arena::{Arena, Dummy, DummyValue, P, S};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
@@ -139,6 +139,7 @@ pub struct Statement {
     pub uses: Vec<P<Access>>,
     pub loc: Loc,
     pub metadata: Metadata,
+    pub func: S<FuncName>,
 }
 
 impl Statement {
@@ -159,6 +160,7 @@ impl Statement {
             uses: Vec::new(),
             loc: Loc::dummy(Dummy::D1),
             metadata: Metadata::dummy(Dummy::D1),
+            func: S::dummy(Dummy::D1),
         }
     }
 }
@@ -240,6 +242,7 @@ impl DummyValue for Statement {
             uses: Vec::new(),
             loc: Loc::dummy(dummy),
             metadata: Metadata::dummy(dummy),
+            func: S::dummy(dummy),
         }
     }
 }

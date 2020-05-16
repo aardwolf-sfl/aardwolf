@@ -15,7 +15,6 @@ use crate::data::{
 
 pub struct Stmts {
     mapping: HashMap<StmtId, P<Statement>>,
-    functions: HashMap<StmtId, S<FuncName>>,
     n_total: usize,
     n_executed: usize,
 }
@@ -34,7 +33,7 @@ impl Stmts {
     }
 
     pub fn find_fn(&self, id: &StmtId) -> Option<&S<FuncName>> {
-        self.functions.get(id)
+        self.get(id).map(|stmt| &stmt.as_ref().func)
     }
 
     pub fn get_n_total(&self) -> usize {
@@ -53,7 +52,6 @@ impl Query for Stmts {
     fn init(data: &RawData, _args: &Self::Args, _api: &Api) -> Result<Self, Self::Error> {
         let mut executed = HashSet::new();
         let mut mapping = HashMap::new();
-        let mut functions = HashMap::new();
 
         let mut n_total = 0;
         let mut n_executed = 0;
@@ -62,12 +60,6 @@ impl Query for Stmts {
             match item {
                 TraceItem::Statement(stmt) => {
                     executed.insert(*stmt);
-
-                    for (name, stmts) in data.modules.functions.iter() {
-                        if stmts.contains_key(stmt) {
-                            functions.insert(*stmt, name.clone());
-                        }
-                    }
                 }
                 _ => {}
             }
@@ -86,7 +78,6 @@ impl Query for Stmts {
 
         Ok(Stmts {
             mapping,
-            functions,
             n_total,
             n_executed,
         })

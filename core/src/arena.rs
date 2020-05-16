@@ -201,6 +201,12 @@ impl<T> fmt::Debug for S<T> {
     }
 }
 
+impl<T> DummyValue for S<T> {
+    fn dummy(dummy: Dummy) -> Self {
+        S::new(dummy.as_num(), 0)
+    }
+}
+
 pub struct StringArena<T> {
     storage: String,
     typ: PhantomData<T>,

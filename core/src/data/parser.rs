@@ -7,10 +7,10 @@ use super::module::Modules;
 use super::statement::{Loc, Metadata, Statement};
 use super::tests::{TestStatus, TestSuite};
 use super::trace::{Trace, TraceItem};
-use super::types::{FileId, StmtId};
+use super::types::{FileId, FuncName, StmtId};
 use super::values::{IntoValue, Value, ValueRef, ValueType};
 use super::Arenas;
-use crate::arena::P;
+use crate::arena::{P, S};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -34,6 +34,9 @@ pub enum ParseError {
     },
     InvalidTestResult {
         value: String,
+    },
+    InvalidData {
+        reason: String,
     },
 }
 
@@ -136,7 +139,7 @@ pub(crate) fn parse_module<'a, 'b, R: BufRead>(
 ) -> ParseResult<()> {
     let mut parser = Parser::new(source, arenas);
     let mut statements = HashMap::new();
-    let mut function = String::new();
+    let mut func_ptr = None;
 
     match parser.parse_header()? {
         Format {
@@ -156,17 +159,33 @@ pub(crate) fn parse_module<'a, 'b, R: BufRead>(
     while let Ok(token) = parser.parse_u8() {
         match token {
             consts::TOKEN_STATEMENT => {
-                let (id, stmt) = parser.parse_stmt()?;
-                statements.insert(id, stmt);
+                if let Some(func) = func_ptr {
+                    let (id, stmt) = parser.parse_stmt(func)?;
+                    statements.insert(id, stmt);
+                } else {
+                    return Err(ParseError::InvalidData {
+                        reason: "every statement must be inside a function".to_owned(),
+                    });
+                }
             }
             consts::TOKEN_FUNCTION => {
-                let previous_function = std::mem::replace(&mut function, parser.parse_cstr()?);
+                // Register previously encountered function since we collected
+                // all its statements.
                 if !statements.is_empty() {
-                    modules.functions.insert(
-                        parser.arenas.func.alloc(previous_function),
-                        std::mem::replace(&mut statements, HashMap::new()),
-                    );
+                    if let Some(func) = func_ptr {
+                        modules
+                            .functions
+                            .insert(func, std::mem::replace(&mut statements, HashMap::new()));
+                    } else {
+                        return Err(ParseError::InvalidData {
+                            reason: "there are statements that do not belong to any function"
+                                .to_owned(),
+                        });
+                    }
                 }
+
+                let function = parser.parse_cstr()?;
+                func_ptr = Some(parser.arenas.func.alloc(function));
             }
             consts::TOKEN_FILENAMES => {
                 let n_files = parser.parse_u32()?;
@@ -193,9 +212,13 @@ pub(crate) fn parse_module<'a, 'b, R: BufRead>(
     }
 
     if !statements.is_empty() {
-        modules
-            .functions
-            .insert(parser.arenas.func.alloc(function), statements);
+        if let Some(func) = func_ptr {
+            modules.functions.insert(func, statements);
+        } else {
+            return Err(ParseError::InvalidData {
+                reason: "there are statements that do not belong to any function".to_owned(),
+            });
+        }
     }
 
     Ok(())
@@ -333,7 +356,7 @@ impl<'a, 'b, R: BufRead> Parser<'a, 'b, R> {
         }
     }
 
-    fn parse_stmt(&mut self) -> ParseResult<(StmtId, P<Statement>)> {
+    fn parse_stmt(&mut self, func: S<FuncName>) -> ParseResult<(StmtId, P<Statement>)> {
         self.buffer.clear();
         let id = self.parse_stmt_id()?;
         let buffer = self.buffer.clone();
@@ -360,6 +383,7 @@ impl<'a, 'b, R: BufRead> Parser<'a, 'b, R> {
                 uses,
                 loc,
                 metadata,
+                func,
             },
             &buffer,
         );
