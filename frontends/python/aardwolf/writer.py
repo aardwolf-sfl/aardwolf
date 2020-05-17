@@ -2,7 +2,7 @@ import struct
 
 class Writer:
     def __init__(self, filename):
-        self.fh_ = open(filename, 'wb', buffering=0)
+        self.fh_ = open(filename, 'wb')
 
     def close(self):
         self.fh_.close()

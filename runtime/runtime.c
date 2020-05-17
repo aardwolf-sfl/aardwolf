@@ -69,7 +69,11 @@ void __aardwolf_write_data(uint8_t token, const void* data, size_t type_size)
     FILE *fd = __aardwolf_get_fd();
     fputc(token, fd);
     fwrite(data, type_size, 1, fd);
+#ifdef NO_HEADER
+    // Important when multiple sources (aardwolf_external, instrumented library,
+    // etc.) write into one file.
     fflush(fd);
+#endif
 #endif
 }
 
