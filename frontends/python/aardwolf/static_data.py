@@ -104,9 +104,12 @@ class StaticData:
         if outdir is None:
             outdir = os.getcwd()
 
-        output = os.path.basename(self.analysis_.filename_) + '.aard'
+        prefix = os.path.commonprefix([os.getcwd() + os.path.sep, self.analysis_.filename_])
+        output = self.analysis_.filename_.replace(prefix, '') + '.aard'
         output = os.path.join(outdir, output)
         output = os.path.realpath(output)
+
+        os.makedirs(os.path.dirname(output), exist_ok=True)
 
         writer = Writer(output)
         writer.write_str('AARD/S1')
