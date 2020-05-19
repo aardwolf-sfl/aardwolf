@@ -38,7 +38,7 @@ def main():
         install_llvm(args)
         install_runtime(args)
 
-    if 'python' in deps:
+    if 'python' in deps and args.system_python:
         install_python(args)
 
     need_cmd(
@@ -78,7 +78,7 @@ def error(message, exit_after=True):
 
 def need_cmd(cmd, message=None, level='error'):
     if isinstance(cmd, list):
-        return all([need_cmd(c) for c in cmd])
+        return all([need_cmd(c, message, level) for c in cmd])
 
     if shutil.which(cmd) is None:
         if message is None:
