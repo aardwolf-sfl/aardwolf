@@ -84,18 +84,16 @@ impl<T: PartialEq> DedupVec<T> {
     }
 }
 
-pub struct CliUi<'a> {
-    api: &'a Api,
+pub struct CliUi {
     terminal: Box<StdoutTerminal>,
     wrapper: TextWrapper,
     current_color: Option<Color>,
     hypothesis: usize,
 }
 
-impl<'a> CliUi<'a> {
-    pub fn new(api: &'a Api) -> Option<Self> {
+impl CliUi {
+    pub fn new() -> Option<Self> {
         Some(CliUi {
-            api,
             terminal: term::stdout()?,
             wrapper: TextWrapper::new(80),
             current_color: None,
@@ -103,7 +101,7 @@ impl<'a> CliUi<'a> {
         })
     }
 
-    fn rationale(&mut self, rationale: &Rationale) {
+    fn rationale(&mut self, rationale: &Rationale, api: &Api) {
         let mut anchors = DedupVec::new();
 
         self.writeln("Rationale:");
@@ -145,7 +143,7 @@ impl<'a> CliUi<'a> {
             self.write(" --> ");
 
             self.bold();
-            self.write_loc(anchor);
+            self.write_loc(anchor, api);
             self.reset_style();
             self.newline();
         }
@@ -198,8 +196,8 @@ impl<'a> CliUi<'a> {
         })
     }
 
-    fn write_loc(&mut self, loc: &Loc) {
-        self.write(self.api.file(&loc.file_id).unwrap().to_str().unwrap());
+    fn write_loc(&mut self, loc: &Loc, api: &Api) {
+        self.write(api.file(&loc.file_id).unwrap().to_str().unwrap());
         self.write(":");
 
         if loc.line_begin == loc.line_end && loc.col_begin == loc.col_end {
@@ -213,8 +211,8 @@ impl<'a> CliUi<'a> {
     }
 }
 
-impl<'a> Ui for CliUi<'a> {
-    fn plugin(&mut self, id: &str) {
+impl Ui for CliUi {
+    fn plugin(&mut self, id: &str, _api: &Api) {
         let bar = self.construct_bar(id.len() + 20, '-');
 
         self.newline();
@@ -231,7 +229,7 @@ impl<'a> Ui for CliUi<'a> {
         self.hypothesis = 1;
     }
 
-    fn result(&mut self, item: &LocalizationItem) {
+    fn result(&mut self, item: &LocalizationItem, api: &Api) {
         let bar = self.construct_bar(20, '_');
 
         self.writeln(bar.clone());
@@ -247,7 +245,7 @@ impl<'a> Ui for CliUi<'a> {
 
         self.write("at ");
         self.bold();
-        self.write_loc(&item.loc);
+        self.write_loc(&item.loc, api);
         self.reset_style();
         self.write("\twith suspiciousness ");
         self.bold();
@@ -256,11 +254,19 @@ impl<'a> Ui for CliUi<'a> {
         self.newline();
 
         self.newline();
-        self.rationale(&item.rationale);
+        self.rationale(&item.rationale, api);
 
         self.writeln(bar);
         self.newline();
 
         self.hypothesis += 1;
+    }
+
+    fn error(&mut self, error: &str) {
+        self.color(color::RED);
+        self.writeln("An error occured!");
+        self.newline();
+        self.color(color::YELLOW);
+        self.writeln(error);
     }
 }

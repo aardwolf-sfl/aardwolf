@@ -20,6 +20,8 @@ use trace::Trace;
 use types::FileId;
 use values::{ValueArena, ValueRef};
 
+pub use parser::{ParseError, ParseResult};
+
 pub struct RawData {
     pub modules: Modules,
     pub trace: Trace,

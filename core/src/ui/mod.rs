@@ -10,10 +10,11 @@ pub use cli::CliUi;
 pub use json::JsonUi;
 
 pub trait Ui {
-    fn prolog(&mut self) {}
-    fn plugin(&mut self, id: &str);
-    fn result(&mut self, item: &LocalizationItem);
-    fn epilog(&mut self) {}
+    fn prolog(&mut self, _api: &Api) {}
+    fn plugin(&mut self, id: &str, api: &Api);
+    fn result(&mut self, item: &LocalizationItem, api: &Api);
+    fn epilog(&mut self, _api: &Api) {}
+    fn error(&mut self, error: &str);
 }
 
 #[derive(Clone, Copy)]

@@ -19,6 +19,14 @@ struct Output {
 }
 
 #[derive(Serialize, Deserialize)]
+struct ErrorOutput {
+    version: String,
+    utc_time: DateTime<Utc>,
+    local_time: DateTime<Local>,
+    error: String,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Plugin {
     name: String,
     results: Vec<Hypothesis>,
@@ -41,28 +49,26 @@ struct Location {
     col_end: u32,
 }
 
-pub struct JsonUi<'a> {
-    api: &'a Api,
+pub struct JsonUi {
     terminal: Stdout,
     output: Output,
 }
 
-impl<'a> JsonUi<'a> {
-    pub fn new(api: &'a Api) -> Self {
+impl JsonUi {
+    pub fn new() -> Self {
         JsonUi {
-            api,
             terminal: io::stdout(),
             output: Output {
                 version: String::from("v1"),
                 utc_time: Utc::now(),
                 local_time: Local::now(),
-                statements_count: api.query::<Stmts>().unwrap().get_n_total(),
+                statements_count: 0,
                 plugins: Vec::new(),
             },
         }
     }
 
-    fn rationale(&mut self, rationale: &Rationale) -> (String, Vec<Location>) {
+    fn rationale(&mut self, rationale: &Rationale, api: &Api) -> (String, Vec<Location>) {
         let mut output = String::new();
         let mut anchors = Vec::new();
 
@@ -72,7 +78,7 @@ impl<'a> JsonUi<'a> {
                     output.push_str(&text);
                 }
                 RationaleChunk::Anchor(anchor) => {
-                    anchors.push(self.location(anchor));
+                    anchors.push(self.location(anchor, api));
                     output.push_str(&format!("[{}]", anchors.len()));
                 }
             }
@@ -81,15 +87,9 @@ impl<'a> JsonUi<'a> {
         (output, anchors)
     }
 
-    fn location(&self, loc: &Loc) -> Location {
+    fn location(&self, loc: &Loc, api: &Api) -> Location {
         Location {
-            file: self
-                .api
-                .file(&loc.file_id)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned(),
+            file: api.file(&loc.file_id).unwrap().to_str().unwrap().to_owned(),
             line_begin: loc.line_begin,
             col_begin: loc.col_begin,
             line_end: loc.line_end,
@@ -98,17 +98,21 @@ impl<'a> JsonUi<'a> {
     }
 }
 
-impl<'a> Ui for JsonUi<'a> {
-    fn plugin(&mut self, id: &str) {
+impl Ui for JsonUi {
+    fn prolog(&mut self, api: &Api) {
+        self.output.statements_count = api.query::<Stmts>().unwrap().get_n_total();
+    }
+
+    fn plugin(&mut self, id: &str, _api: &Api) {
         self.output.plugins.push(Plugin {
             name: id.to_owned(),
             results: Vec::new(),
         });
     }
 
-    fn result(&mut self, item: &LocalizationItem) {
-        let (rationale, anchors) = self.rationale(&item.rationale);
-        let location = self.location(&item.loc);
+    fn result(&mut self, item: &LocalizationItem, api: &Api) {
+        let (rationale, anchors) = self.rationale(&item.rationale, api);
+        let location = self.location(&item.loc, api);
 
         self.output
             .plugins
@@ -123,11 +127,27 @@ impl<'a> Ui for JsonUi<'a> {
             });
     }
 
-    fn epilog(&mut self) {
+    fn epilog(&mut self, _api: &Api) {
         write!(
             self.terminal,
             "{}",
             serde_json::to_string(&self.output).unwrap()
+        )
+        .unwrap();
+    }
+
+    fn error(&mut self, error: &str) {
+        let error_output = ErrorOutput {
+            version: self.output.version.clone(),
+            utc_time: self.output.utc_time,
+            local_time: self.output.local_time,
+            error: error.to_owned(),
+        };
+
+        write!(
+            self.terminal,
+            "{}",
+            serde_json::to_string(&error_output).unwrap()
         )
         .unwrap();
     }

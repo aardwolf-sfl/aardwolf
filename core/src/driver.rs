@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
+use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -8,11 +9,12 @@ use std::process::{self, Command};
 
 use crate::api::Api;
 use crate::config::{Config, LoadConfigError};
-use crate::data::RawData;
+use crate::data::{ParseError, RawData};
 use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
-    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, NormalizedResults, Results,
+    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, NormalizedResults, PluginError, PluginInitError,
+    Results,
 };
 use crate::ui::{CliUi, JsonUi, Ui, UiName};
 
@@ -110,44 +112,52 @@ pub struct Driver;
 
 impl Driver {
     pub fn run<P: AsRef<Path>>(args: &DriverArgs<P>) {
-        let (config, config_path) = Self::load_config(args.config_path.as_ref()).unwrap();
-        let driver_paths = DriverPaths::new(&config, &config_path).unwrap();
+        let mut ui: Box<dyn Ui> = match args.ui {
+            UiName::Cli => Box::new(CliUi::new().expect("Standard output is inaccessible.")),
+            UiName::Json => Box::new(JsonUi::new()),
+        };
 
-        fs::create_dir_all(&driver_paths.output_dir).unwrap();
+        let (config, config_path) = ui.unwrap(Self::load_config(args.config_path.as_ref()));
+        let driver_paths = ui.unwrap(DriverPaths::new(&config, &config_path));
+
+        ui.unwrap(fs::create_dir_all(&driver_paths.output_dir));
 
         let mut logger = Logger::new(driver_paths.output_dir.join(LOG_FILE));
         logger.info("config file loaded");
 
         if !args.reuse {
             let script_handle = logger.perf("run script");
-            Self::run_script(&config, &driver_paths).unwrap();
+            ui.unwrap(Self::run_script(&config, &driver_paths));
             script_handle.stop();
         }
 
         let data_handle = logger.perf("load data");
-        let data = Self::load_data(&driver_paths);
+        let data = ui.unwrap(Self::load_data(&driver_paths));
         data_handle.stop();
 
-        let api = Api::new(data).unwrap();
+        let api = ui.unwrap(Api::new(data));
 
         let init_handle = logger.perf("init plugins");
-        let plugins = Self::init_plugins(&config, &api);
+        let plugins = ui.unwrap(Self::init_plugins(&config, &api));
         init_handle.stop();
 
-        let results = Self::run_loc(&config, &api, &plugins, &mut logger);
+        let results = ui.unwrap(Self::run_loc(&config, &api, &plugins, &mut logger));
 
         let display_handle = logger.perf("display results");
-        Self::display_results(args.ui, &config, &api, results);
+        Self::display_results(ui, &config, &api, results);
         display_handle.stop();
     }
 
     // TODO: Make return type so it can also show eventual script stderr/stdout.
-    fn run_script(config: &Config, driver_paths: &DriverPaths) -> Result<(), ()> {
+    fn run_script(config: &Config, driver_paths: &DriverPaths) -> Result<(), RunScriptError> {
         let path = env::temp_dir().join(format!("aardwolf.{}", process::id()));
-        let mut file = File::create(&path).unwrap();
-        file.write_all(config.script.join("\n").as_bytes()).unwrap();
+        let mut file = File::create(&path).map_err(RunScriptError::Initialization)?;
+        file.write_all(config.script.join("\n").as_bytes())
+            .map_err(RunScriptError::Initialization)?;
 
-        Command::new(DEFAULT_SHELL)
+        let exit_status = Command::new(DEFAULT_SHELL)
+            .arg("-o")
+            .arg("errexit")
             .arg(path)
             .env("OUTPUT_DIR", &driver_paths.output_dir)
             .env("AARDWOLF_DATA_DEST", &driver_paths.output_dir)
@@ -155,20 +165,25 @@ impl Driver {
             .env("AARDWOLF_DIR", &driver_paths.aardwolf_dir)
             .env("TRACE_FILE", &driver_paths.trace_file)
             .env("RESULT_FILE", &driver_paths.result_file)
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
+            .status()
+            .map_err(RunScriptError::Execution)?;
 
-        Ok(())
+        if exit_status.success() {
+            Ok(())
+        } else {
+            Err(RunScriptError::ExitStatus(exit_status.code()))
+        }
     }
 
-    fn load_data(driver_paths: &DriverPaths) -> RawData {
+    fn load_data(driver_paths: &DriverPaths) -> Result<RawData, LoadDataError> {
         let mut static_files = Self::find_static_files(driver_paths);
-        let mut dynamic_file = BufReader::new(File::open(&driver_paths.trace_file).unwrap());
-        let mut test_file = BufReader::new(File::open(&driver_paths.result_file).unwrap());
+        let mut dynamic_file =
+            BufReader::new(File::open(&driver_paths.trace_file).map_err(LoadDataError::Io)?);
+        let mut test_file =
+            BufReader::new(File::open(&driver_paths.result_file).map_err(LoadDataError::Io)?);
 
-        RawData::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file).unwrap()
+        RawData::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file)
+            .map_err(LoadDataError::Parse)
     }
 
     fn find_static_files(driver_paths: &DriverPaths) -> Vec<BufReader<File>> {
@@ -236,25 +251,25 @@ impl Driver {
     fn init_plugins<'a>(
         config: &'a Config,
         api: &'a Api,
-    ) -> Vec<(&'a str, Box<dyn AardwolfPlugin>)> {
-        config
-            .plugins
-            .iter()
-            .map(|plugin| {
-                let name = plugin.id();
+    ) -> Result<Vec<(&'a str, Box<dyn AardwolfPlugin>)>, PluginInitError> {
+        let mut plugins = Vec::with_capacity(config.plugins.len());
 
-                let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
-                    "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts).unwrap()),
-                    "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts).unwrap()),
-                    "invariants" => Box::new(Invariants::init(&api, &plugin.opts).unwrap()),
-                    "collect-bb" => Box::new(CollectBb::init(&api, &plugin.opts).unwrap()),
-                    "irrelevant" => Box::new(Irrelevant::init(&api, &plugin.opts).unwrap()),
-                    _ => panic!("Unknown plugin"),
-                };
+        for plugin in config.plugins.iter() {
+            let name = plugin.id();
 
-                (name, plugin)
-            })
-            .collect()
+            let plugin: Box<dyn AardwolfPlugin> = match plugin.id.as_str() {
+                "sbfl" => Box::new(Sbfl::init(&api, &plugin.opts)?),
+                "prob-graph" => Box::new(ProbGraph::init(&api, &plugin.opts)?),
+                "invariants" => Box::new(Invariants::init(&api, &plugin.opts)?),
+                "collect-bb" => Box::new(CollectBb::init(&api, &plugin.opts)?),
+                "irrelevant" => Box::new(Irrelevant::init(&api, &plugin.opts)?),
+                _ => return Err(format!("unknown plugin \"{}\"", name)),
+            };
+
+            plugins.push((name, plugin));
+        }
+
+        Ok(plugins)
     }
 
     fn run_loc<'a>(
@@ -262,12 +277,12 @@ impl Driver {
         api: &'a Api,
         plugins: &'a Vec<(&'a str, Box<dyn AardwolfPlugin>)>,
         logger: &mut Logger,
-    ) -> BTreeMap<LocalizationId<'a>, NormalizedResults> {
+    ) -> Result<BTreeMap<LocalizationId<'a>, NormalizedResults>, PluginError> {
         let mut preprocessing = IrrelevantItems::new(&api);
 
         for (name, plugin) in plugins {
             let handle = logger.perf(format!("{} (pre)", name));
-            plugin.run_pre(&api, &mut preprocessing).unwrap();
+            plugin.run_pre(&api, &mut preprocessing)?;
             handle.stop();
         }
 
@@ -278,7 +293,7 @@ impl Driver {
             let mut results = Results::new(Self::n_results(config, &id));
 
             let handle = logger.perf(format!("{} (loc)", name));
-            plugin.run_loc(&api, &mut results, &preprocessing).unwrap();
+            plugin.run_loc(&api, &mut results, &preprocessing)?;
             handle.stop();
 
             if results.any() {
@@ -298,9 +313,7 @@ impl Driver {
             let mut results = Results::new(Self::n_results(config, &id));
 
             let handle = logger.perf(format!("{} (post)", name));
-            plugin
-                .run_post(&api, &all_results_by_name, &mut results)
-                .unwrap();
+            plugin.run_post(&api, &all_results_by_name, &mut results)?;
             handle.stop();
 
             if results.any() {
@@ -312,33 +325,28 @@ impl Driver {
             all_results.insert(id, results);
         }
 
-        all_results
+        Ok(all_results)
     }
 
     fn display_results<'a>(
-        ui: UiName,
+        mut ui: Box<dyn Ui>,
         config: &'a Config,
         api: &'a Api,
         results: BTreeMap<LocalizationId<'a>, NormalizedResults>,
     ) {
-        let mut ui: Box<dyn Ui> = match ui {
-            UiName::Cli => Box::new(CliUi::new(api).unwrap()),
-            UiName::Json => Box::new(JsonUi::new(api)),
-        };
-
-        ui.prolog();
+        ui.prolog(api);
 
         for (id, results) in results.into_iter() {
             if Self::should_display(config, &id) {
-                ui.plugin(id.0);
+                ui.plugin(id.0, api);
 
                 for item in results {
-                    ui.result(&item);
+                    ui.result(&item, api);
                 }
             }
         }
 
-        ui.epilog();
+        ui.epilog(api);
     }
 
     fn n_results<'a>(config: &'a Config, id: &LocalizationId<'a>) -> usize {
@@ -371,5 +379,65 @@ impl Driver {
         }
 
         true
+    }
+}
+
+enum RunScriptError {
+    Initialization(io::Error),
+    Execution(io::Error),
+    ExitStatus(Option<i32>),
+}
+
+impl fmt::Display for RunScriptError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RunScriptError::Initialization(error) => {
+                write!(f, "script could not be initialized: {}", error)
+            }
+            RunScriptError::Execution(error) => {
+                write!(f, "script could not be executed: {}", error)
+            }
+            RunScriptError::ExitStatus(Some(exit_code)) => write!(
+                f,
+                "script finished with a non-zero exit code: {}",
+                exit_code
+            ),
+            RunScriptError::ExitStatus(None) => write!(f, "script was terminated by a signal"),
+        }
+    }
+}
+
+enum LoadDataError {
+    Io(io::Error),
+    Parse(ParseError),
+}
+
+impl fmt::Display for LoadDataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LoadDataError::Io(error) => write!(f, "{}", error),
+            LoadDataError::Parse(error) => write!(f, "parsing data failed: {}", error),
+        }
+    }
+}
+
+trait ErrorHandler {
+    fn unwrap<T, E>(&mut self, result: Result<T, E>) -> T
+    where
+        E: std::fmt::Display;
+}
+
+impl ErrorHandler for Box<dyn Ui> {
+    fn unwrap<T, E>(&mut self, result: Result<T, E>) -> T
+    where
+        E: std::fmt::Display,
+    {
+        match result {
+            Ok(value) => value,
+            Err(error) => {
+                self.error(&format!("{}", error));
+                std::process::exit(1);
+            }
+        }
     }
 }

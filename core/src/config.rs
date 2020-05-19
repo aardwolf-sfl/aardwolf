@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::path::{Path, PathBuf};
@@ -63,6 +64,18 @@ pub enum LoadConfigError {
     Invalid(String),
     UnknownOption(String),
     NotFound,
+}
+
+impl fmt::Display for LoadConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LoadConfigError::Io(error) => write!(f, "{}", error),
+            LoadConfigError::Yaml(error) => write!(f, "invalid configuration syntax: {}", error),
+            LoadConfigError::Invalid(error) => write!(f, "invalid configuration format: {}", error),
+            LoadConfigError::UnknownOption(error) => write!(f, "unknown configuration option: {}", error),
+            LoadConfigError::NotFound => write!(f, "configuration not found"),
+        }
+    }
 }
 
 impl Config {

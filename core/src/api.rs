@@ -2,6 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
+use std::fmt;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -19,6 +20,23 @@ pub enum EmptyDataReason {
 pub enum InvalidData {
     NoFailingTest,
     Empty(EmptyDataReason),
+}
+
+impl fmt::Display for InvalidData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InvalidData::NoFailingTest => write!(f, "no failing test case"),
+            InvalidData::Empty(EmptyDataReason::Static) => {
+                write!(f, "Aardwolf static data is empty")
+            }
+            InvalidData::Empty(EmptyDataReason::Runtime) => {
+                write!(f, "Aardwolf runtime data is empty")
+            }
+            InvalidData::Empty(EmptyDataReason::TestSuite) => {
+                write!(f, "Aardwolf test results data is empty")
+            }
+        }
+    }
 }
 
 pub struct Api {

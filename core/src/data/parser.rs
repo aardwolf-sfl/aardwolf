@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{self, BufRead};
 
 use super::access::Access;
@@ -45,6 +46,49 @@ impl ParseError {
         match err.kind() {
             io::ErrorKind::UnexpectedEof => ParseError::UnexpectedEof { n_bytes: buf.len() },
             _ => ParseError::ReadError { inner: err },
+        }
+    }
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::UnexpectedByte {
+                pos,
+                byte,
+                expected,
+            } => {
+                write!(
+                    f,
+                    "unexpected byte 0x{:x} at position {}, expected one of 0x{:x}",
+                    byte, pos, expected[0]
+                )?;
+                for byte in expected.into_iter().skip(1) {
+                    write!(f, ", 0x{:x}", byte)?;
+                }
+                Ok(())
+            }
+            ParseError::UnexpectedEof { n_bytes } => {
+                write!(f, "unexpected end of file when readong {} bytes", n_bytes)
+            }
+            ParseError::ReadError { inner } => write!(f, "{}", inner),
+            ParseError::InvalidFormat => write!(f, "invalid format of data file"),
+            ParseError::UnsupportedVersion { version } => {
+                write!(f, "unsupported version {}", version)
+            }
+            ParseError::InvalidUtf { value } => write!(
+                f,
+                "invalid utf-8 encoding ({})",
+                value
+                    .into_iter()
+                    .map(|byte| format!("0x{:x}", byte))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ),
+            ParseError::InvalidTestResult { value } => {
+                write!(f, "invalid test result \"{}\"", value)
+            }
+            ParseError::InvalidData { reason } => write!(f, "invalid data, reason: {}", reason),
         }
     }
 }

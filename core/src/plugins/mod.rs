@@ -181,6 +181,15 @@ impl From<()> for PluginError {
     }
 }
 
+impl fmt::Display for PluginError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PluginError::Inner(error) => write!(f, "plugin error: {}", error),
+            PluginError::QueryError(_) => write!(f, "plugin error when requesting data"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum RationaleChunk {
     Text(String),
