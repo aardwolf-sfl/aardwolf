@@ -120,7 +120,9 @@ impl Driver {
         let (config, config_path) = ui.unwrap(Self::load_config(args.config_path.as_ref()));
         let driver_paths = ui.unwrap(DriverPaths::new(&config, &config_path));
 
-        ui.unwrap(fs::create_dir_all(&driver_paths.output_dir));
+        if !args.reuse {
+            ui.unwrap(Self::prepare(&driver_paths));
+        }
 
         let mut logger = Logger::new(driver_paths.output_dir.join(LOG_FILE));
         logger.info("config file loaded");
@@ -146,6 +148,29 @@ impl Driver {
         let display_handle = logger.perf("display results");
         Self::display_results(ui, &config, &api, results);
         display_handle.stop();
+    }
+
+    fn prepare(driver_paths: &DriverPaths) -> io::Result<()> {
+        fs::create_dir_all(&driver_paths.output_dir)?;
+        // Remove Aardwolf-related files.
+        Self::clean_dir(&driver_paths.output_dir)
+    }
+
+    fn clean_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+        for file in fs::read_dir(&path)? {
+            let path = file?.path();
+
+            if path.is_dir() {
+                Self::clean_dir(&path)?;
+            } else if path.is_file() {
+                let filename = path.file_name().unwrap().to_string_lossy();
+                if filename.ends_with(".aard") || filename.starts_with("aard.") {
+                    fs::remove_file(&path)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     // TODO: Make return type so it can also show eventual script stderr/stdout.
