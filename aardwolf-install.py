@@ -38,7 +38,7 @@ def main():
         install_llvm(args)
         install_runtime(args)
 
-    if 'python' in deps and args.system_python:
+    if 'python' in deps:
         install_python(args)
 
     need_cmd(
