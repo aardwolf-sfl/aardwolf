@@ -15,6 +15,7 @@ struct Output {
     utc_time: DateTime<Utc>,
     local_time: DateTime<Local>,
     statements_count: usize,
+    executed_statements_count: usize,
     plugins: Vec<Plugin>,
 }
 
@@ -63,6 +64,7 @@ impl JsonUi {
                 utc_time: Utc::now(),
                 local_time: Local::now(),
                 statements_count: 0,
+                executed_statements_count: 0,
                 plugins: Vec::new(),
             },
         }
@@ -100,7 +102,9 @@ impl JsonUi {
 
 impl Ui for JsonUi {
     fn prolog(&mut self, api: &Api) {
-        self.output.statements_count = api.query::<Stmts>().unwrap().get_n_total();
+        let stmts = api.query::<Stmts>().unwrap();
+        self.output.statements_count = stmts.get_n_total();
+        self.output.executed_statements_count = stmts.get_n_executed();
     }
 
     fn plugin(&mut self, id: &str, _api: &Api) {
