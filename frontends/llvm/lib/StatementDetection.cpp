@@ -51,8 +51,8 @@ findCompositeBase(const llvm::GetElementPtrInst *GEPI) {
 
 // Gets values that determine the access to the composite type (e.g., index,
 // field, etc.).
-std::vector<Access>
-findCompositeAccessors(const llvm::GetElementPtrInst *GEPI) {
+std::vector<Access> findCompositeAccessors(const llvm::GetElementPtrInst *GEPI,
+                                           bool isStruct) {
   std::vector<Access> Output;
 
   auto AU =
@@ -63,8 +63,10 @@ findCompositeAccessors(const llvm::GetElementPtrInst *GEPI) {
 
   if (A == nullptr) {
     if (auto C = llvm::dyn_cast<llvm::Constant>(AU)) {
-      // Constant. For accessors they are important.
-      Output.push_back(Access::makeScalar(C));
+      // Constant. Fields of structures are encoded as numbers.
+      if (isStruct) {
+        Output.push_back(Access::makeScalar(C));
+      }
     } else if (auto I = llvm::dyn_cast<llvm::Instruction>(AU)) {
       // Find the alloca/method call instructions.
       for (auto Input : findInputs(I)) {
@@ -97,18 +99,25 @@ std::shared_ptr<Access> getValueAccess(const llvm::User *U) {
     // Global variable.
     return std::make_shared<Access>(Access::makeScalar(GV));
   } else if (auto GEPI = llvm::dyn_cast<llvm::GetElementPtrInst>(U)) {
+    auto isStruct = GEPI->getSourceElementType()->isStructTy();
+
     auto B = findCompositeBase(GEPI);
-    auto A = findCompositeAccessors(GEPI);
+    auto A = findCompositeAccessors(GEPI, isStruct);
 
     // assert(B != nullptr && !A.empty() && "Internal error.");
-    if (B == nullptr || A.empty()) {
+    if (B == nullptr) {
       // FIXME
       return nullptr;
     }
 
     // Struct pointer is special for us, all other are treated as general
     // pointers.
-    if (GEPI->getSourceElementType()->isStructTy()) {
+    if (isStruct) {
+      if (A.empty()) {
+        // FIXME
+        return nullptr;
+      }
+
       return std::make_shared<Access>(Access::makeStructural(*B, *A.begin()));
     } else {
       return std::make_shared<Access>(Access::makeArrayLike(*B, A));
@@ -248,11 +257,13 @@ Statement runOnInstr(llvm::Instruction *I) {
     return Result;
   }
 
-  // Filter intrinsic calls before processing function calls
-  if (llvm::isa<llvm::IntrinsicInst>(I)) {
+  // Filter debugging intrinsic calls before processing function calls
+  if (llvm::isa<llvm::DbgInfoIntrinsic>(I)) {
     return Result;
   }
 
+  // TODO: Consider `memset`, `memcpy`, etc. as definition calls (i.e., they do
+  // not *use* the pointer as the argument, but *define* its value)?
   if (auto *CI = llvm::dyn_cast<llvm::CallInst>(I)) {
     auto Inputs = findInputs(CI);
     Result.Instr = CI;
