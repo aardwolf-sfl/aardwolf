@@ -99,11 +99,7 @@ class NonSubscriptable:
 
 def unpack_values(value, tree):
     if len(tree) == 0:
-        if isinstance(tree, tuple):
-            # *rest unpacking. For now, assume unsupported data type for now.
-            return [None]
-        else:
-            return [value]
+        return [value]
     else:
         # Ensure that we can use value[index].
         if not hasattr(value, '__getitem__'):
@@ -121,7 +117,11 @@ def unpack_values(value, tree):
 
         output = []
         for index, node in enumerate(tree):
-            output.extend(unpack_values(value[index], node))
+            if isinstance(node, tuple):
+                # *rest unpacking. For now, assume unsupported data type for now.
+                output.append([None])
+            else:
+                output.extend(unpack_values(value[index], node))
 
         return output
 
