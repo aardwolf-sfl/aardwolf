@@ -2,7 +2,7 @@ output_dir: .aardwolf
 
 script:
   # Just run pytest (all the machinery is done in __init__.py and conftest.py)
-  - pytest
+  - pytest || true
 
 plugins:
   - sbfl: D* Spectrum
