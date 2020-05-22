@@ -233,11 +233,25 @@ class TargetAccessorBuilder(ast.NodeVisitor):
         tree = self.tree_
         for elt in node.elts:
             self.tree_ = []
-            tree.append(self.tree_)
             self.visit(elt)
+            tree.append(self.tree_)
         self.tree_ = tree
 
-    # TODO: visit_List
+    def visit_List(self, node):
+        assert isinstance(node.ctx, ast.Store)
+
+        tree = self.tree_
+        for elt in node.elts:
+            self.tree_ = []
+            self.visit(elt)
+            tree.append(self.tree_)
+        self.tree_ = tree
+
+    def visit_Starred(self, node):
+        assert isinstance(node.ctx, ast.Store)
+        self.visit(node.value)
+        # Our indication that it is starred, quite hacky tbh.
+        self.tree_ = tuple(self.tree_)
 
     def visit_Name(self, node):
         assert isinstance(node.ctx, ast.Store)
@@ -252,6 +266,10 @@ class TargetAccessorBuilder(ast.NodeVisitor):
         # Stop the visitor here
 
     def _build_node(self, value):
-        assert isinstance(value, list)
+        assert isinstance(value, (list, tuple))
         elts = [self._build_node(elem) for elem in value]
-        return ast.List(elts=elts, ctx=ast.Load())
+
+        if isinstance(value, list):
+            return ast.List(elts=elts, ctx=ast.Load())
+        else:
+            return ast.Tuple(elts=elts, ctx=ast.Load())

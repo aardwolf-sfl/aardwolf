@@ -99,15 +99,23 @@ class NonSubscriptable:
 
 def unpack_values(value, tree):
     if len(tree) == 0:
-        return [value]
+        if isinstance(tree, tuple):
+            # *rest unpacking. For now, assume unsupported data type for now.
+            return [None]
+        else:
+            return [value]
     else:
         # Ensure that we can use value[index].
         if not hasattr(value, '__getitem__'):
             if hasattr(value, '__iter__'):
-                # We must not change the underlying iterator by materializing
-                # it. Therefore we deepcopy it. Hopefully it will be ok
-                # performance-wise.
-                value = list(copy.deepcopy(value))
+                # Iterators are problematic. We cannot iterate through them
+                # since that would make the original program invalid. We could
+                # theoretically make a deep copy, but that has some issues on
+                # its own (recursive data structure, IO resources, etc.). One
+                # possibility is to wrap the iterator into our class but we need
+                # to make sure that it does not break things like `isinstance`,
+                # `getattr`, etc.
+                value = NonSubscriptable()
             else:
                 value = NonSubscriptable()
 
