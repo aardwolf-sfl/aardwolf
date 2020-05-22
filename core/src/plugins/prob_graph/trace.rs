@@ -176,14 +176,17 @@ impl TraceItem {
         match self.node_state {
             NodeState::Predicate(succ) => {
                 rationale
-                    .add_text(" The predicate outcome lead the execution unexpectedly to ")
+                    .add_text(" The predicate outcome of ")
+                    .add_anchor(self.node.stmt.as_ref().loc)
+                    .add_text(" lead the execution unexpectedly to ")
                     .add_anchor(succ.as_ref().loc)
                     .add_text(".");
             }
             NodeState::Data(ctx) => {
-                rationale.add_text(
-                    " The values of the variables were assigned by the following statements: ",
-                );
+                rationale
+                    .add_text(" The values of the variables for ")
+                    .add_anchor(self.node.stmt.as_ref().loc)
+                    .add_text(" were assigned by the following statements: ");
 
                 let mut iter = ctx.into_iter();
 

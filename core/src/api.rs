@@ -115,13 +115,15 @@ impl Api {
     }
 
     pub fn file(&self, file_id: &FileId) -> Option<PathBuf> {
-        let ptr = self.data.modules.files.get(file_id)?;
-        let raw = PathBuf::from(ptr.as_ref());
-
-        raw.canonicalize()
-            .ok()?
+        self.full_file(file_id)?
             .strip_prefix(env::current_dir().ok()?)
             .ok()
             .map(|path| path.to_path_buf())
+    }
+
+    pub fn full_file(&self, file_id: &FileId) -> Option<PathBuf> {
+        let ptr = self.data.modules.files.get(file_id)?;
+        let raw = PathBuf::from(ptr.as_ref());
+        raw.canonicalize().ok().map(|path| path.to_path_buf())
     }
 }
