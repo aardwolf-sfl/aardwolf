@@ -156,8 +156,6 @@ class Analysis(ast.NodeVisitor, CFGBuilder, ValueAccessBuilder):
         else:
             else_block.add_succ(new_block)
 
-    # TODO: IfExp
-
     def visit_For(self, node):
         self.new_level()
         self.visit(node.iter)
