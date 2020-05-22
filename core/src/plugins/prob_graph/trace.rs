@@ -14,26 +14,7 @@ use crate::queries::{Pdg, Stmts};
 
 // We need BTreeSet because we want to keep a unique order of the elements
 // for NodeState's implementation of Hash trait.
-type DataContext = BTreeSet<(u64, CheapOrd<P<Statement>>)>;
-
-pub trait DataContextExt {
-    fn diff(&self, other: &Self) -> Vec<(u64, P<Statement>, P<Statement>)>;
-}
-
-impl DataContextExt for DataContext {
-    fn diff(&self, other: &Self) -> Vec<(u64, P<Statement>, P<Statement>)> {
-        let mut result = Vec::new();
-        for (var, self_def) in self {
-            if let Some((_, other_def)) = other
-                .iter()
-                .find(|(item_var, other_def)| var == item_var && self_def != other_def)
-            {
-                result.push((*var, **self_def, **other_def));
-            }
-        }
-        result
-    }
-}
+type DataContext = BTreeSet<(AccessChain, CheapOrd<P<Statement>>)>;
 
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone)]
 pub enum NodeState {
@@ -105,7 +86,7 @@ impl StateConfExt for StateConf {
 
 struct StackFrame<N: Hash + Eq> {
     pub current_states: HashMap<N, NodeState>,
-    pub current_defs: HashMap<u64, P<Statement>>,
+    pub current_defs: HashMap<AccessChain, P<Statement>>,
 }
 
 impl<N: Hash + Eq + Copy> StackFrame<N> {
@@ -130,15 +111,17 @@ impl<N: Hash + Eq + Copy> StackFrame<N> {
     pub fn get_data_state(&self, stmt: &P<Statement>) -> NodeState {
         let mut state = BTreeSet::new();
 
-        for var in stmt
+        for use_access in stmt
             .as_ref()
             .uses
             .iter()
             .map(|access| access.as_ref())
-            .flat_map(AccessChain::from_uses)
+            .map(AccessChain::from_uses)
         {
-            if let Some(def) = self.current_defs.get(&var) {
-                state.insert((var, CheapOrd::new(*def)));
+            for (def_access, def) in self.current_defs.iter() {
+                if use_access.influenced_by(def_access) {
+                    state.insert((use_access.clone(), CheapOrd::new(*def)));
+                }
             }
         }
 
@@ -149,14 +132,14 @@ impl<N: Hash + Eq + Copy> StackFrame<N> {
         // TODO: A data structure that tries to model data dependencies of pointers should be used.
         //       At least on a level, when a pointer is sent to a function and the function modifies it (or its child),
         //       then it should be added as a definition of the function call.
-        for var in stmt
+        for access in stmt
             .as_ref()
             .defs
             .iter()
             .map(|access| access.as_ref())
-            .flat_map(AccessChain::from_defs)
+            .map(AccessChain::from_defs)
         {
-            self.current_defs.insert(var, stmt);
+            self.current_defs.insert(access, stmt);
         }
     }
 }

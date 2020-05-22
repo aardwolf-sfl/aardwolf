@@ -45,7 +45,7 @@ impl P<Access> {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct AccessChain(Vec<VarId>);
 
 impl AccessChain {
@@ -59,6 +59,21 @@ impl AccessChain {
         let mut defs = Vec::new();
         find_defs(access, &mut defs);
         AccessChain(defs)
+    }
+
+    pub fn influenced_by(&self, def_access: &AccessChain) -> bool {
+        // A use is influenced by a definition if their access trees share the
+        // same prefix. For instance:
+        //
+        // foo.bar = def()
+        // use foo -> influenced
+        // use foo.bar.baz -> influenced
+        // use foo.quo -> not influenced
+
+        def_access
+            .iter()
+            .zip(self.iter())
+            .all(|(lhs, rhs)| lhs == rhs)
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, VarId> {
