@@ -17,7 +17,7 @@ def process_analysis(filename):
     tmpdir = tempfile.gettempdir()
 
     aardwolf.process_file(filename, outdir=tmpdir)
-    outfile = os.path.join(tmpdir, os.path.basename(filename)) + '.aard'
+    outfile = os.path.join(tmpdir, 'tests', 'analysis', os.path.basename(filename)) + '.aard'
 
     parsed = aardwolf_tools.parse_file(outfile)
 
@@ -37,6 +37,8 @@ def process_trace(filename):
     # arguments.
     exec(processed, {'print': __print})
     outfile = os.path.join(tmpdir, 'aard.trace')
+
+    aardwolf.runtime.WRITER.flush()
 
     parsed = aardwolf_tools.parse_file(outfile)
 
