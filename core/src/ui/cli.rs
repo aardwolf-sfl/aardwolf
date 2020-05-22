@@ -141,9 +141,9 @@ impl SourceSnippet {
             file.seek(SeekFrom::Start(0)).unwrap();
             if loc.line_begin == loc.line_end {
                 ui.writeln(self.construct_gutter(gutter_width));
+                ui.write(self.indent(gutter_width - 1 - lineno_width(loc.line_begin)));
                 ui.write(format!("{} | ", loc.line_begin));
 
-                // TODO: Unnecessary repeated file reading.
                 let (prefix, lines, postfix) = self.read_snippet(&mut file, loc);
                 ui.write(prefix);
                 ui.write(&lines[0]);

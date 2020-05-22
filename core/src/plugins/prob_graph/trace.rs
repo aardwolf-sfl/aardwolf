@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::iter::Peekable;
 
@@ -184,14 +184,19 @@ impl TraceItem {
             }
             NodeState::Data(ctx) => {
                 rationale
-                    .add_text(" The values of the variables for ")
+                    .add_text(" The values of the variables used by ")
                     .add_anchor(self.node.stmt.as_ref().loc)
                     .add_text(" were assigned by the following statements: ");
 
                 let mut iter = ctx.into_iter();
+                let mut mentioned = HashSet::new();
 
                 if let Some((_, def)) = iter.next() {
-                    rationale.add_anchor(def.as_ref().loc);
+                    let loc = def.as_ref().loc;
+                    if !mentioned.contains(&loc) {
+                        rationale.add_anchor(loc);
+                        mentioned.insert(loc);
+                    }
                 }
 
                 for (_, def) in iter {
