@@ -6,7 +6,7 @@ mod json;
 use std::fmt;
 
 use crate::api::Api;
-use crate::plugins::LocalizationItem;
+use crate::plugins::{LocalizationItem, Metadata};
 
 pub use cli::CliUi;
 pub use json::JsonUi;
@@ -19,6 +19,8 @@ pub trait Ui {
     fn plugin(&mut self, id: &str, api: &Api);
     /// Presents the result as was determined by the plugin.
     fn result(&mut self, item: &LocalizationItem, api: &Api);
+    /// Outputs the supplementary information provided with the results.
+    fn metadata(&mut self, metadata: &Metadata, api: &Api);
     /// Finishes the results presentation.
     fn epilog(&mut self, _api: &Api) {}
     /// Displays the error encountered during the analysis.

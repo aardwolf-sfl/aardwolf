@@ -6,7 +6,7 @@ use yaml_rust::Yaml;
 
 use crate::api::Api;
 use crate::plugins::{
-    AardwolfPlugin, IrrelevantItems, LocalizationItem, PluginError, PluginInitError, Rationale,
+    AardwolfPlugin, Preprocessing, LocalizationItem, PluginError, PluginInitError, Rationale,
     Results,
 };
 use crate::queries::{Tests, Vars};
@@ -27,7 +27,7 @@ impl AardwolfPlugin for Invariants {
         &self,
         api: &Api,
         results: &mut Results,
-        irrelevant: &IrrelevantItems,
+        preprocessing: &Preprocessing,
     ) -> Result<(), PluginError> {
         let tests = api.query::<Tests>()?;
 
@@ -38,7 +38,7 @@ impl AardwolfPlugin for Invariants {
 
             for item in vars
                 .iter()
-                .filter(|item| irrelevant.is_stmt_relevant(item.stmt.as_ref()))
+                .filter(|item| preprocessing.is_stmt_relevant(item.stmt.as_ref()))
             {
                 for (access, data) in item.zip() {
                     stats.learn(*access, *data, test.clone());

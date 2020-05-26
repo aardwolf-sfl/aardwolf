@@ -7,7 +7,7 @@ use yaml_rust::Yaml;
 use self::metrics::{from_opts, Metric};
 use crate::api::Api;
 use crate::plugins::{
-    AardwolfPlugin, IrrelevantItems, LocalizationItem, PluginError, PluginInitError, Rationale,
+    AardwolfPlugin, LocalizationItem, PluginError, PluginInitError, Preprocessing, Rationale,
     Results,
 };
 use crate::queries::{Spectra, Stmts, Tests};
@@ -52,7 +52,7 @@ impl AardwolfPlugin for Sbfl {
         &self,
         api: &Api,
         results: &mut Results,
-        irrelevant: &IrrelevantItems,
+        preprocessing: &Preprocessing,
     ) -> Result<(), PluginError> {
         let stmts = api.query::<Stmts>()?;
         let tests = api.query::<Tests>()?;
@@ -66,7 +66,7 @@ impl AardwolfPlugin for Sbfl {
 
         for stmt in stmts
             .iter_stmts()
-            .filter(|stmt| irrelevant.is_stmt_relevant(stmt.as_ref()))
+            .filter(|stmt| preprocessing.is_stmt_relevant(stmt.as_ref()))
         {
             let stmt_counters = counters.entry(stmt).or_insert(Counters::new());
 

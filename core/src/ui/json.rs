@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::Ui;
 use crate::api::Api;
 use crate::data::statement::Loc;
-use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
+use crate::plugins::{LocalizationItem, Metadata, Rationale, RationaleChunk};
 use crate::queries::Stmts;
 
 #[derive(Serialize, Deserialize)]
@@ -19,6 +19,7 @@ struct Output {
     statements_count: usize,
     executed_statements_count: usize,
     plugins: Vec<Plugin>,
+    metadata: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,6 +69,7 @@ impl JsonUi {
                 statements_count: 0,
                 executed_statements_count: 0,
                 plugins: Vec::new(),
+                metadata: Vec::new(),
             },
         }
     }
@@ -131,6 +133,10 @@ impl Ui for JsonUi {
                 rationale,
                 anchors,
             });
+    }
+
+    fn metadata(&mut self, metadata: &Metadata, _api: &Api) {
+        self.output.metadata.extend(metadata.iter().cloned());
     }
 
     fn epilog(&mut self, _api: &Api) {

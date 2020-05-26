@@ -10,7 +10,8 @@ use crate::api::Api;
 use crate::arena::P;
 use crate::data::statement::{Loc, Statement};
 use crate::plugins::{
-    AardwolfPlugin, LocalizationItem, NormalizedResults, PluginError, PluginInitError, Results,
+    AardwolfPlugin, LocalizationItem, Metadata, NormalizedResults, PluginError, PluginInitError,
+    Results,
 };
 use crate::queries::{Cfg, Stmts};
 
@@ -41,6 +42,7 @@ impl AardwolfPlugin for CollectBb {
         api: &Api,
         base: &HashMap<&str, &NormalizedResults>,
         results: &mut Results,
+        _metadata: &mut Metadata,
     ) -> Result<(), PluginError> {
         let mut original = base
             .get(self.plugin.as_str())

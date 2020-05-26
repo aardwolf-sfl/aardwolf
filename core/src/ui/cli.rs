@@ -12,7 +12,7 @@ use unicode_width::UnicodeWidthChar;
 use super::Ui;
 use crate::api::Api;
 use crate::data::{statement::Loc, types::FileId};
-use crate::plugins::{LocalizationItem, Rationale, RationaleChunk};
+use crate::plugins::{LocalizationItem, Metadata, Rationale, RationaleChunk};
 
 const NEWLINE: &'static str = "\n";
 
@@ -414,6 +414,24 @@ impl Ui for CliUi {
         self.newline();
 
         self.hypothesis += 1;
+    }
+
+    fn metadata(&mut self, metadata: &Metadata, _api: &Api) {
+        if !metadata.is_empty() {
+            let bar = self.construct_bar(14, '-');
+
+            self.newline();
+            self.newline();
+            self.writeln(format!("{}+", bar));
+            self.write("   Metadata");
+            self.writeln("   |");
+            self.writeln(format!("{}+", bar));
+            self.newline();
+
+            for item in metadata.iter() {
+                self.write(item);
+            }
+        }
     }
 
     fn error(&mut self, error: &str) {

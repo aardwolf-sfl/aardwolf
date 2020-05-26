@@ -15,8 +15,8 @@ use crate::data::{ParseError, RawData};
 use crate::logger::Logger;
 use crate::plugins::{
     collect_bb::CollectBb, invariants::Invariants, irrelevant::Irrelevant, prob_graph::ProbGraph,
-    sbfl::Sbfl, AardwolfPlugin, IrrelevantItems, NormalizedResults, PluginError, PluginInitError,
-    Results,
+    sbfl::Sbfl, AardwolfPlugin, Metadata, NormalizedResults, PluginError, PluginInitError,
+    Preprocessing, Results,
 };
 use crate::ui::{CliUi, JsonUi, Ui, UiName};
 
@@ -168,10 +168,10 @@ impl Driver {
         let plugins = ui.unwrap(Self::init_plugins(&config, &api));
         init_handle.stop();
 
-        let results = ui.unwrap(Self::run_loc(&config, &api, &plugins, &mut logger));
+        let (results, metadata) = ui.unwrap(Self::run_loc(&config, &api, &plugins, &mut logger));
 
         let display_handle = logger.perf("display results");
-        Self::display_results(ui, &config, &api, results);
+        Self::display_results(ui, &config, &api, results, metadata);
         display_handle.stop();
     }
 
@@ -335,8 +335,8 @@ impl Driver {
         api: &'a Api,
         plugins: &'a Vec<(&'a str, Box<dyn AardwolfPlugin>)>,
         logger: &mut Logger,
-    ) -> Result<BTreeMap<LocalizationId<'a>, NormalizedResults>, PluginError> {
-        let mut preprocessing = IrrelevantItems::new(&api);
+    ) -> Result<(BTreeMap<LocalizationId<'a>, NormalizedResults>, Metadata), PluginError> {
+        let mut preprocessing = Preprocessing::new(&api);
 
         for (name, plugin) in plugins {
             let handle = logger.perf(format!("{} (pre)", name));
@@ -365,13 +365,14 @@ impl Driver {
             .collect::<HashMap<_, _>>();
 
         let mut post_results = BTreeMap::new();
+        let mut metadata = Metadata::new();
 
         for (name, plugin) in plugins {
             let id = LocalizationId::new(name, all_results.len());
             let mut results = Results::new(Self::n_results(config, &id));
 
             let handle = logger.perf(format!("{} (post)", name));
-            plugin.run_post(&api, &all_results_by_name, &mut results)?;
+            plugin.run_post(&api, &all_results_by_name, &mut results, &mut metadata)?;
             handle.stop();
 
             if results.any() {
@@ -383,7 +384,7 @@ impl Driver {
             all_results.insert(id, results);
         }
 
-        Ok(all_results)
+        Ok((all_results, metadata))
     }
 
     fn display_results<'a>(
@@ -391,6 +392,7 @@ impl Driver {
         config: &'a Config,
         api: &'a Api,
         results: BTreeMap<LocalizationId<'a>, NormalizedResults>,
+        metadata: Metadata,
     ) {
         ui.prolog(api);
 
@@ -403,6 +405,8 @@ impl Driver {
                 }
             }
         }
+
+        ui.metadata(&metadata, api);
 
         ui.epilog(api);
     }

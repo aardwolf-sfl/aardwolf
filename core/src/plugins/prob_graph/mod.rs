@@ -9,7 +9,7 @@ use yaml_rust::Yaml;
 use self::models::*;
 use self::trace::*;
 use crate::api::Api;
-use crate::plugins::{AardwolfPlugin, IrrelevantItems, PluginError, PluginInitError, Results};
+use crate::plugins::{AardwolfPlugin, Preprocessing, PluginError, PluginInitError, Results};
 use crate::queries::Tests;
 
 enum ModelType {
@@ -40,7 +40,7 @@ impl AardwolfPlugin for ProbGraph {
         &self,
         api: &Api,
         results: &mut Results,
-        _irrelevant: &IrrelevantItems,
+        _preprocessing: &Preprocessing,
     ) -> Result<(), PluginError> {
         match self.model {
             ModelType::Dependence => self.run_loc_typed::<DependencyNetwork>(api, results),

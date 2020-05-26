@@ -41,45 +41,93 @@ pub mod irrelevant;
 pub mod prob_graph;
 pub mod sbfl;
 
-/// This structure records what statements and tests are considered as irrelevant.
-pub struct IrrelevantItems {
-    // Store relevant items and remove them if they are marked as irrelevant.
-    pub stmts: HashSet<StmtId>,
-    pub tests: HashSet<S<TestName>>,
+/// This structure records the priorities for statements and test cases.
+pub struct Preprocessing {
+    stmts: Vec<(StmtId, f32)>,
+    irrelevant_stmts: HashSet<StmtId>,
+    tests: Vec<(S<TestName>, f32)>,
+    irrelevant_tests: HashSet<S<TestName>>,
 }
 
-impl IrrelevantItems {
+impl Preprocessing {
     /// Initializes the data structure.
     pub fn new(api: &Api) -> Self {
         // By default, all items are relevant.
-        IrrelevantItems {
-            stmts: api.query::<Stmts>().unwrap().iter_ids().copied().collect(),
+        Preprocessing {
+            stmts: api
+                .query::<Stmts>()
+                .unwrap()
+                .iter_ids()
+                .map(|stmt| (*stmt, 1.0))
+                .collect(),
+            irrelevant_stmts: HashSet::new(),
             tests: api
                 .query::<Tests>()
                 .unwrap()
                 .iter_names()
-                .copied()
+                .map(|test| (*test, 1.0))
                 .collect(),
+            irrelevant_tests: HashSet::new(),
         }
     }
 
-    /// Marks given statement as irrelevant.
-    pub fn mark_stmt(&mut self, stmt: &Statement) {
-        self.stmts.remove(&stmt.id);
+    /// Sets the priority of every statement.
+    pub fn set_stmt_priorities<F>(&mut self, setter: F)
+    where
+        F: Fn(&StmtId, f32) -> f32,
+    {
+        for stmt in self.stmts.iter_mut() {
+            let prio = setter(&stmt.0, stmt.1);
+            assert!(prio >= 0.0 && prio <= 1.0, "invalid priority");
+            if prio == 0.0 {
+                self.irrelevant_stmts.insert(stmt.0);
+            }
+            *stmt = (stmt.0, prio);
+        }
+
+        // Sort in descending order.
+        self.stmts
+            .sort_unstable_by(|lhs, rhs| rhs.1.partial_cmp(&lhs.1).unwrap());
     }
 
-    /// Marks given test case as irrelevant.
-    pub fn mark_test(&mut self, test: &S<TestName>) {
-        self.tests.remove(test);
+    /// Iterates over the statements sorted by priority.
+    pub fn iter_stmts(&self) -> impl Iterator<Item = &(StmtId, f32)> {
+        // Statement are sorted in `set_stmt_priorities`.
+        self.stmts.iter()
     }
 
     /// Gets whether given statement is marked as irrelevant.
     pub fn is_stmt_relevant(&self, stmt: &Statement) -> bool {
-        self.stmts.contains(&stmt.id)
+        !self.irrelevant_stmts.contains(&stmt.id)
+    }
+
+    /// Sets the priority of every statement.
+    pub fn set_test_priorities<F>(&mut self, setter: F)
+    where
+        F: Fn(&S<TestName>, f32) -> f32,
+    {
+        for test in self.tests.iter_mut() {
+            let prio = setter(&test.0, test.1);
+            assert!(prio >= 0.0 && prio <= 1.0, "invalid priority");
+            if prio == 0.0 {
+                self.irrelevant_tests.insert(test.0);
+            }
+            *test = (test.0, prio);
+        }
+
+        // Sort in descending order.
+        self.tests
+            .sort_unstable_by(|lhs, rhs| rhs.1.partial_cmp(&lhs.1).unwrap());
+    }
+
+    /// Iterates over the statements sorted by priority.
+    pub fn iter_tests(&self) -> impl Iterator<Item = &(S<TestName>, f32)> {
+        // Tests are sorted in `set_test_priorities`.
+        self.tests.iter()
     }
 
     pub fn is_test_relevant(&self, test: &S<TestName>) -> bool {
-        self.tests.contains(test)
+        !self.irrelevant_tests.contains(test)
     }
 }
 
@@ -327,6 +375,33 @@ impl fmt::Debug for Rationale {
     }
 }
 
+/// A list of supplementary information displayed along the localization
+/// results.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Metadata(Vec<String>);
+
+impl Metadata {
+    /// Initializes empty metadata.
+    pub fn new() -> Self {
+        Metadata(Vec::new())
+    }
+
+    /// Adds given metadata to the collection.
+    pub fn add<M: Into<String>>(&mut self, metadata: M) {
+        self.0.push(metadata.into());
+    }
+
+    /// Checks whether the metadata collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Iterates over metadata items.
+    pub fn iter(&self) -> impl Iterator<Item = &String> {
+        self.0.iter()
+    }
+}
+
 /// An item produced by a fault localization technique. It holds all information
 /// that is then presented to the user.
 #[derive(Clone, PartialEq)]
@@ -407,10 +482,9 @@ pub trait AardwolfPlugin {
     where
         Self: Sized;
 
-    // TODO: Make general structure Preprocessing instead of IrrelevantItems.
-    //  Runs te preprocessing stage in the pipeline. The default implementation
-    //  does not nothing.
-    fn run_pre(&self, _api: &Api, _irrelevant: &mut IrrelevantItems) -> Result<(), PluginError> {
+    /// Runs te preprocessing stage in the pipeline. The default implementation
+    /// does not nothing.
+    fn run_pre(&self, _api: &Api, _preprocessing: &mut Preprocessing) -> Result<(), PluginError> {
         Ok(())
     }
 
@@ -420,7 +494,7 @@ pub trait AardwolfPlugin {
         &self,
         _api: &Api,
         _results: &mut Results,
-        _irrelevant: &IrrelevantItems,
+        _preprocessing: &Preprocessing,
     ) -> Result<(), PluginError> {
         Ok(())
     }
@@ -433,6 +507,7 @@ pub trait AardwolfPlugin {
         _api: &Api,
         _base: &HashMap<&str, &NormalizedResults>,
         _results: &mut Results,
+        _metadata: &mut Metadata,
     ) -> Result<(), PluginError> {
         Ok(())
     }
