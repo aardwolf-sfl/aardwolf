@@ -422,5 +422,6 @@ impl Ui for CliUi {
         self.newline();
         self.color(color::YELLOW);
         self.writeln(error);
+        self.reset();
     }
 }
