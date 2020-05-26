@@ -25,8 +25,7 @@ fn main() {
                 .short("c")
                 .long("config")
                 .value_name("FILE")
-                // Sets path to the config file. By default it searches for .aardwolf.yml in the current parent directories.
-                .help("")
+                .help("Sets the path to the configuration file. By default, it searches the current directory and its parents until `.aardwolf.yml` is found.")
                 .takes_value(true),
         )
         .arg(
@@ -34,9 +33,9 @@ fn main() {
                 .long("ui")
                 .takes_value(true)
                 .possible_values(&["cli", "json"])
-                .help(""),
+                .help("Sets the UI which will be used for results presentation."),
         )
-        .arg(Arg::with_name("reuse").long("reuse").help(""))
+        .arg(Arg::with_name("reuse").long("reuse").help("If set to true, Aardwolf will not run the script and will reuse already generated data which are expected to exist."))
         .get_matches();
 
     let args = DriverArgs::new()

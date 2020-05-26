@@ -1,9 +1,16 @@
+//! Representation of variable access.
+
 use std::fmt;
 
 use crate::arena::{Arena, Dummy, DummyValue, P};
 
 pub type VarId = u64;
 
+/// The `Access` type represents an access to a variable. Such variable can be
+/// either *scalar* (e.g., `foo`) or more complex, in particular *structural*
+/// (e.g., `foo.bar`) and *array-like* (e.g., `foo[0]`). Complex accesses are
+/// nested, so for example `foo[0].bar` is a structural access to array-like
+/// access.
 #[derive(Hash, PartialEq, Eq)]
 pub enum Access {
     Scalar(VarId),
@@ -45,22 +52,30 @@ impl P<Access> {
     }
 }
 
+/// Implements a chain of raw variable/components identifiers specific for a
+/// particular `Access`, such that it represents a *use* chain or *definition*
+/// chain.
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct AccessChain(Vec<VarId>);
 
 impl AccessChain {
+    /// Creates new `AccessChain` for case of variable use.
     pub fn from_uses(access: &Access) -> Self {
         let mut uses = Vec::new();
         find_uses(access, &mut uses);
         AccessChain(uses)
     }
 
+    /// Creates new `AccessChain` for case of variable definition.
     pub fn from_defs(access: &Access) -> Self {
         let mut defs = Vec::new();
         find_defs(access, &mut defs);
         AccessChain(defs)
     }
 
+    /// Determines if the access chain (presumably "variable use" chain) is
+    /// influenced by given definition access chain in the sense of data-flow
+    /// analysis.
     pub fn influenced_by(&self, def_access: &AccessChain) -> bool {
         // A use is influenced by a definition if their access trees share the
         // same prefix. For instance:
@@ -76,6 +91,7 @@ impl AccessChain {
             .all(|(lhs, rhs)| lhs == rhs)
     }
 
+    /// Iterates over raw variable/components identifiers.
     pub fn iter(&self) -> std::slice::Iter<'_, VarId> {
         self.0.iter()
     }

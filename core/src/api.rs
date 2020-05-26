@@ -1,3 +1,6 @@
+//! API used throughout the Aardwolf ecosystem, mainly in fault localization
+//! plugins.
+
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -39,6 +42,16 @@ impl fmt::Display for InvalidData {
     }
 }
 
+/// The main entry point for Aardwolf plugins.
+///
+/// It holds the raw data and offers the API for querying these data using
+/// [`Query`] system. All the queries are memoized so they do not need to be
+/// recomputed if requested again.
+///
+/// Moreover, it provides several useful methods which retrieve some information
+/// from the raw data in a nice form.
+///
+/// [`Query`]: ../queries/index.html
 pub struct Api {
     data: RawData,
     // RefCell enables to mutably borrow the cache even when Api is borrowed
@@ -70,10 +83,21 @@ impl Api {
         }
     }
 
+    /// Makes the query without any argument. See [`query_with`] for more
+    /// details.
+    ///
+    /// This function is not thread-safe!
+    ///
+    /// [`query_with`]: #method.query_with
     pub fn query<Q: Query<Args = ()>>(&self) -> Result<Rc<Q>, Q::Error> {
         self.query_with(&())
     }
 
+    /// Makes the query with given argument. All queries are type-based and by
+    /// their type and the argument they are also memoized. The return value is
+    /// either a reference-counted pointer or an error if it happens.
+    ///
+    /// This function is not thread-safe!
     pub fn query_with<Q: Query>(&self, args: &Q::Args) -> Result<Rc<Q>, Q::Error> {
         let type_id = TypeId::of::<Q>();
         let key = args.key();
@@ -114,13 +138,20 @@ impl Api {
         Ok(value)
     }
 
+    /// Gets relative file path corresponding to given file identifier. The path
+    /// is relative to the current working directory, but this will change in
+    /// the future.
     pub fn file(&self, file_id: &FileId) -> Option<PathBuf> {
         self.full_file(file_id)?
+            // TODO: Should be project root directory, that is, the directory
+            // where `.aardwolf.yml` is.
             .strip_prefix(env::current_dir().ok()?)
             .ok()
             .map(|path| path.to_path_buf())
     }
 
+    /// Gets the absolute path corresponding to given file identifier as is
+    /// stored in the raw data.
     pub fn full_file(&self, file_id: &FileId) -> Option<PathBuf> {
         let ptr = self.data.modules.files.get(file_id)?;
         let raw = PathBuf::from(ptr.as_ref());

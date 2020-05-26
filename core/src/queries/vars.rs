@@ -1,3 +1,5 @@
+//! Variable values for statements in a given test case.
+
 use std::mem;
 
 use super::stmts::Stmts;
@@ -16,6 +18,7 @@ pub struct VarItem {
 }
 
 impl VarItem {
+    /// Iterates over all statement definitions and their corresponding values.
     pub fn zip(&self) -> impl Iterator<Item = (&P<Access>, &ValueRef)> {
         self.stmt.as_ref().defs.iter().zip(self.defs.iter())
     }

@@ -1,3 +1,5 @@
+//! Statement coverage spectrum for the whole program.
+
 use std::collections::{HashMap, HashSet};
 
 use super::Query;

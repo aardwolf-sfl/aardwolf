@@ -1,20 +1,14 @@
 # Aardwolf: A Modular Tool for Software Fault Localization
 
-## Usage
+**In alpha stage of development. Only for experimental purposes!**
 
-```sh
-# Clone this repository
-git clone https://gitlab.fit.cvut.cz/nevyhpet/master-thesis-code aardwolf
-# Go to the repository
-cd aardwolf
-# Run the installation script (note: if you want to install Python frontend system-wide, use `--system-python` flag)
-python aardwolf-install.py
-# You can find all (successfully) built components in $HOME/.aardwolf directory
-```
+## Installation
 
-The installation script automatically checks for existence of required commands
-as well as their versions.
+* Clone this repository and go to its directory
+* Run `python aardwolf-install.py`
 
+The installation script will automatically check for dependencies and by default copies compiled artifacts into `$HOME/.aardwolf` directory.
+Type `python aardwolf-install.py --help` for more information.
 
 ## Try
 
@@ -39,3 +33,16 @@ git apply bug1.patch # generally bugN.patch
 # Run Aardwolf
 poetry run ~/.aardwolf/aardwolf
 ```
+
+## Dev Guide
+
+The structure of the repository is as follows:
+
+* [`core`](core) -- Rust's project containing Aardwolf core (driver, data loading, plugins, user interfaces, etc.).
+* [`examples`](examples) -- A collection of toy projects that utilize Aardwolf to show how it can be used.
+* [`frontends`](frontends) -- Directory for official frontends.
+    * [`llvm`](frontends/llvm) -- LLVM frontend for C language.
+    * [`python`](frontends/python) -- Python frontend for Python language.
+* [`runtime`](runtime) -- C runtime used by LLVM frontend that can be considered as the official implementation.
+* [`tools`](tools) -- Small Python package that implements some tools aiding the development of Aardwolf ecosystem.
+* [`aardwolf-install.py`](aardwolf-install.py) -- Installation script that compiles all te necessary components and copies them into specified directory.

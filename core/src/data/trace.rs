@@ -1,24 +1,36 @@
+//! Data related to the instrumented program execution.
+
 use super::types::{StmtId, TestName};
 use super::values::ValueRef;
 use crate::arena::S;
 
+/// An item in the trace.
 pub enum TraceItem {
+    /// Statement execution.
     Statement(StmtId),
+    /// Indication of test case beginning.
     Test(S<TestName>),
+    /// Variable value.
     Value(ValueRef),
 }
 
+/// Runtime trace.
+///
+/// It is simply a long sequence of items.
 pub struct Trace {
     pub trace: Vec<TraceItem>,
 }
 
 impl Trace {
+    /// Initializes empty data.
     pub(crate) fn new() -> Self {
         Trace { trace: Vec::new() }
     }
 
-    // FIXME: Very inefficient. Probably use global Vars query as before.
+    /// Filters the trace such that all the items belong to just the given test
+    /// case.
     pub fn find_test(&self, test: &S<TestName>) -> TestTraceIter<'_> {
+        // FIXME: Very inefficient. Probably use global Vars query as before.
         TestTraceIter {
             inner: self.trace.iter(),
             state: TestTraceIterState::Fresh,
@@ -33,6 +45,7 @@ enum TestTraceIterState {
     Finished,
 }
 
+/// Iterator over the trace where all items belong to a single test case.
 pub struct TestTraceIter<'a> {
     inner: std::slice::Iter<'a, TraceItem>,
     state: TestTraceIterState,

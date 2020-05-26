@@ -1,3 +1,5 @@
+//! Command line interface UI. Currently the only actual UI in Aardwolf.
+
 use std::fs::File;
 use std::io::{prelude::*, BufReader, SeekFrom};
 

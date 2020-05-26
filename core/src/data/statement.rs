@@ -1,3 +1,5 @@
+//! Data related to individual statements.
+
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -7,6 +9,11 @@ use super::consts;
 use super::types::{FileId, FuncName, StmtId};
 use crate::arena::{Arena, Dummy, DummyValue, P, S};
 
+/// Location information.
+///
+/// It contains file identifier, which can be used to obtain absolute path to
+/// the file, and line and column information about the statement beginning and
+/// end in the source code.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Loc {
     pub file_id: FileId,
@@ -17,6 +24,8 @@ pub struct Loc {
 }
 
 impl Loc {
+    /// Merges two location together producing a new one which spans over both
+    /// original ones.
     pub fn merge(&self, other: &Self) -> Self {
         let line_begin = u32::min(self.line_begin, other.line_begin);
         let col_begin = u32::min(self.col_begin, other.col_begin);
@@ -31,6 +40,7 @@ impl Loc {
         }
     }
 
+    /// Determines whether given location is inside the `self` location.
     pub fn contains(&self, other: &Self) -> bool {
         let file = self.file_id == other.file_id;
 
@@ -72,6 +82,8 @@ impl DummyValue for Loc {
     }
 }
 
+/// High-level structure for accessing statement metadata encoded in a byte
+/// form.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Metadata(u8);
 
@@ -80,18 +92,22 @@ impl Metadata {
         Metadata(byte)
     }
 
+    /// Indicates whether the statement is a function argument.
     pub fn is_arg(&self) -> bool {
         self.is_meta(consts::META_ARG)
     }
 
+    /// Indicates whether the statement is a return from a function.
     pub fn is_ret(&self) -> bool {
         self.is_meta(consts::META_RET)
     }
 
+    /// Indicates whether the statement is a call to a function.
     pub fn is_call(&self) -> bool {
         self.is_meta(consts::META_CALL)
     }
 
+    /// Determines if the statement has no metadata assigned.
     pub fn empty(&self) -> bool {
         self.0 == 0
     }
@@ -132,21 +148,32 @@ impl fmt::Debug for Metadata {
     }
 }
 
+/// Structure representing the statement in the program.
 pub struct Statement {
+    /// Globally unique identifier.
     pub id: StmtId,
+    /// Statement's successors in the control flow graph.
     pub succ: Vec<StmtId>,
+    /// List of variable accesses the statement defines.
     pub defs: Vec<P<Access>>,
+    /// List of variable accesses the statement uses.
     pub uses: Vec<P<Access>>,
+    /// Statement's location in the source code.
     pub loc: Loc,
+    /// Statement's metadata.
     pub metadata: Metadata,
+    /// The function name in which the statement resides.
     pub func: S<FuncName>,
 }
 
 impl Statement {
+    /// Determines whether the statement is predicate node. It does so by
+    /// checking the number of successors.
     pub fn is_predicate(&self) -> bool {
         self.succ.len() > 1
     }
 
+    /// Determines if the given statement is `self`'s successor.
     pub fn is_succ(&self, stmt: &Statement) -> bool {
         self.succ.iter().any(|succ| succ == &stmt.id)
     }

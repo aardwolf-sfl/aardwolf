@@ -1,3 +1,5 @@
+//! Aardwolf analysis driver.
+
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::env;
@@ -25,15 +27,22 @@ pub const LOG_FILE: &'static str = "aard.log";
 pub const DEFAULT_CONFIG_FILE: &'static str = ".aardwolf.yml";
 pub const DEFAULT_SHELL: &'static str = "bash";
 
+/// Collection of file paths used by the driver.;
 pub struct DriverPaths {
+    /// Output directory for Aardwolf-related data.
     pub output_dir: PathBuf,
+    /// Working directory where `.aardwolf.yml` is located.
     pub work_dir: PathBuf,
+    /// Directory where Aardwolf artifacts (binaries and libraries) are located.
     pub aardwolf_dir: PathBuf,
+    /// The absolute path to the trace file.
     pub trace_file: PathBuf,
+    /// The absolute path to the test results file.
     pub result_file: PathBuf,
 }
 
 impl DriverPaths {
+    /// Sets all driver paths using given config and its location.
     pub fn new<P: AsRef<Path>>(config: &Config, config_path: P) -> io::Result<Self> {
         let output_dir = config_path.as_ref().join(&config.output_dir);
         let current_exe = env::current_exe()?;
@@ -48,6 +57,7 @@ impl DriverPaths {
     }
 }
 
+/// Command line arguments for the driver.
 pub struct DriverArgs<P: AsRef<Path>> {
     config_path: Option<P>,
     ui: UiName,
@@ -55,6 +65,7 @@ pub struct DriverArgs<P: AsRef<Path>> {
 }
 
 impl<P: AsRef<Path>> DriverArgs<P> {
+    /// Creates default arguments.
     pub fn new() -> Self {
         DriverArgs {
             config_path: None,
@@ -63,6 +74,7 @@ impl<P: AsRef<Path>> DriverArgs<P> {
         }
     }
 
+    /// Sets the configuration filepath.
     pub fn with_config_path(self, config_path: Option<P>) -> Self {
         Self {
             config_path,
@@ -70,10 +82,12 @@ impl<P: AsRef<Path>> DriverArgs<P> {
         }
     }
 
+    /// Sets the UI name.
     pub fn with_ui(self, ui: UiName) -> Self {
         Self { ui, ..self }
     }
 
+    /// Indicates to the driver whether it should reuse already generated data.
     pub fn with_reuse(self, reuse: bool) -> Self {
         Self { reuse, ..self }
     }
@@ -108,9 +122,11 @@ impl<'a> PartialEq for LocalizationId<'a> {
     }
 }
 
+/// The main driver for the Aardwolf analysis.
 pub struct Driver;
 
 impl Driver {
+    /// Runs the analysis.
     pub fn run<P: AsRef<Path>>(args: &DriverArgs<P>) {
         let mut ui: Box<dyn Ui> = match args.ui {
             UiName::Cli => Box::new(CliUi::new().expect("Standard output is inaccessible.")),

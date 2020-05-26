@@ -1,3 +1,5 @@
+//! Simple types used in other data structures.
+
 use std::fmt;
 
 use crate::arena::{Dummy, DummyValue, StringArena, S};
@@ -5,39 +7,54 @@ use crate::arena::{Dummy, DummyValue, StringArena, S};
 // String-like types (FuncName, TestName, FileName) act only as a distinguishing
 // opaque type for `StringArena`s.
 
+/// A placeholder type for function name (see [`Arena`] module for more
+/// details).
+///
+/// [`Arena`]: ../../arena/index.html
 #[derive(PartialEq, Eq, Hash)]
 pub struct FuncName(());
 
 impl_arena_type!(S<FuncName>, StringArena<FuncName>);
 
 impl S<FuncName> {
+    /// Gets the actual function name of the reference from the arena.
     pub fn as_ref(&self) -> &str {
         Self::arena().get(self)
     }
 }
 
+/// A placeholder type for test case name (see [`Arena`] module for more
+/// details).
+///
+/// [`Arena`]: ../../arena/index.html
 #[derive(PartialEq, Eq, Hash)]
 pub struct TestName(());
 
 impl_arena_type!(S<TestName>, StringArena<TestName>);
 
 impl S<TestName> {
+    /// Gets the actual test case name of the reference from the arena.
     pub fn as_ref(&self) -> &str {
         Self::arena().get(self)
     }
 }
 
+/// A placeholder type for file path (see [`Arena`] module for more details).
+///
+/// [`Arena`]: ../../arena/index.html
 #[derive(PartialEq, Eq, Hash)]
 pub struct FileName(());
 
 impl_arena_type!(S<FileName>, StringArena<FileName>);
 
 impl S<FileName> {
+    /// Gets the actual file path of the reference from the arena.
     pub fn as_ref(&self) -> &str {
         Self::arena().get(self)
     }
 }
 
+/// Globally unique file identifier.
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Default, Debug)]
 pub struct FileId(u64);
 
@@ -59,6 +76,7 @@ impl DummyValue for FileId {
     }
 }
 
+/// Globally unique statement identifier.
 #[derive(Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash, Default, Debug)]
 pub struct StmtId(u32);
 

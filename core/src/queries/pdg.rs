@@ -1,3 +1,5 @@
+//! Program dependence graph for a function.
+
 use std::collections::{HashMap, HashSet};
 
 use petgraph::algo::dominators;

@@ -1,3 +1,5 @@
+//! Several utilities for statements in the whole program.
+
 use std::collections::{
     hash_map::{HashMap, Keys, Values},
     HashSet,
@@ -20,26 +22,32 @@ pub struct Stmts {
 }
 
 impl Stmts {
+    /// Iterates over all statement identifiers in the program.
     pub fn iter_ids(&self) -> Keys<StmtId, P<Statement>> {
         self.mapping.keys()
     }
 
+    /// Iterates over all statements in the program.
     pub fn iter_stmts(&self) -> Values<StmtId, P<Statement>> {
         self.mapping.values()
     }
 
+    /// Gets a statement by its identifier.
     pub fn get(&self, id: &StmtId) -> Option<&P<Statement>> {
         self.mapping.get(id)
     }
 
+    /// Gets the function name where the statement is located in.
     pub fn find_fn(&self, id: &StmtId) -> Option<&S<FuncName>> {
         self.get(id).map(|stmt| &stmt.as_ref().func)
     }
 
+    /// Gets the total number of statements in the program.
     pub fn get_n_total(&self) -> usize {
         self.n_total
     }
 
+    /// Gets the total number of *executed* statements in the program.
     pub fn get_n_executed(&self) -> usize {
         self.n_executed
     }

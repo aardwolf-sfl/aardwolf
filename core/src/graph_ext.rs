@@ -1,4 +1,5 @@
 #![deny(warnings)]
+#![doc(hidden)]
 
 use petgraph::algo::dominators::Dominators;
 use petgraph::visit::{

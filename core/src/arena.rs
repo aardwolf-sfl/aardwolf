@@ -1,20 +1,32 @@
+//! Arena allocation.
+
 use std::any::type_name;
 use std::cmp::Ordering;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-// `P` struct is completely opaque to the user. The only thing they can do with
-// it is to get its pointed value using the appropriate arena.
-//
-// In order to derived equality trait implementations to work properly, the
-// allocator must ensure that equal values are given exactly the same `P`.
+/// Reference type for [`Arena`].
+///
+/// It is implemented as 4-byte numeric index (which limits the maximum number
+/// of values an arena can hold). The generic type is used for distinguishing
+/// between pointers belonging to different arenas.
+///
+/// The structure is completely opaque for the user and the only thing they can
+/// do with it is to obtain the value which it points at in the corresponding
+/// arena.
+///
+/// It implements equality traits by comparing the numeric index and **the user
+/// must guarantee that equal values have identical `P` pointers** throughout
+/// the whole program.
+///
+/// [`Arena`] struct.Arena.html
 #[derive(PartialEq, Eq, Hash)]
 pub struct P<T> {
     index: u32,
     // Specify the type of value which this pointer represents. If there is
     // unique arena for each type, getting the value using `P` is safe and
-    // guaranteed to success.
+    // guaranteed to succeed.
     typ: PhantomData<T>,
 }
 
@@ -38,10 +50,16 @@ impl<T> fmt::Debug for P<T> {
     }
 }
 
+/// An arena can pre-allocate some dummy values for types which implement this
+/// trait. These can be used as some placeholders for values which are not
+/// actually loaded from raw files. (Example: artificial ENTRY and EXIT
+/// statements in control flow graph.)
 pub trait DummyValue {
     fn dummy(dummy: Dummy) -> Self;
 }
 
+// TODO: I don't like this enum-based approach, at least not in  its pure form.
+/// A fixed number of dummy values.
 #[derive(Clone, Copy)]
 pub enum Dummy {
     D1,
@@ -74,6 +92,11 @@ impl Dummy {
     }
 }
 
+/// A classic arena for generic types.
+///
+/// It stores the values inside a vector. No magic happens here. If your type
+/// could possibly benefit from a special representation, consider
+/// implementation of custom arena.
 pub struct Arena<T> {
     storage: Vec<T>,
 }
@@ -90,6 +113,7 @@ impl<T> Arena<T> {
         }
     }
 
+    /// Allocates the value by simply adding it to the internal vector.
     pub(crate) fn alloc(&mut self, value: T) -> P<T> {
         assert!(
             self.storage.len() <= u32::MAX as usize,
@@ -105,10 +129,12 @@ impl<T> Arena<T> {
         ptr
     }
 
+    /// Gets shared reference to the value represented by given pointer.
     pub fn get(&self, ptr: &P<T>) -> &T {
         &self.storage[ptr.index as usize]
     }
 
+    /// Gets mutable reference to the value represented by given pointer.
     pub fn get_mut(&mut self, ptr: &P<T>) -> &mut T {
         &mut self.storage[ptr.index as usize]
     }
@@ -137,6 +163,22 @@ impl<T: DummyValue> Arena<T> {
     }
 }
 
+/// Reference type for [`StringArena`].
+///
+/// It is implemented as 4-byte numeric number. The generic type is used for
+/// distinguishing between pointers belonging to different arenas. The internal
+/// representation stores the index and length of the string. The limits are
+/// currently: 1_048_576 of strings, 4096 maximum length of each string.
+///
+/// The structure is completely opaque for the user and the only thing they can
+/// do with it is to obtain the value which it points at in the corresponding
+/// arena.
+///
+/// It implements equality traits by comparing the numeric index and **the user
+/// must guarantee that equal values have identical `P` pointers** throughout
+/// the whole program.
+///
+/// [`StringArena`] struct.StringArena.html
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct S<T> {
     // +--------------------+------------+
@@ -171,10 +213,12 @@ impl<T> S<T> {
         }
     }
 
+    /// Parses the index value from the internal representation.
     fn index(&self) -> usize {
         ((self.repr & MASK_INDEX) >> LEN_BITWIDTH) as usize
     }
 
+    /// Parses the string length from the internal representation.
     fn len(&self) -> usize {
         (self.repr & MASK_LEN) as usize
     }
@@ -207,6 +251,10 @@ impl<T> DummyValue for S<T> {
     }
 }
 
+/// An arena customized for strings.
+///
+/// It appends strings to a single big string. This reduces the number of string
+/// allocations.
 pub struct StringArena<T> {
     storage: String,
     typ: PhantomData<T>,
@@ -237,6 +285,7 @@ impl<T> StringArena<T> {
         ptr
     }
 
+    /// Gets the immutable reference to the string represented by given pointer.
     pub fn get(&self, ptr: &S<T>) -> &str {
         let lo = ptr.index();
         let hi = lo + ptr.len();
@@ -244,10 +293,16 @@ impl<T> StringArena<T> {
     }
 }
 
-// Cheap index-based Ord-related trait implementation for P pointers. The new
-// type pattern is used not to confuse users by implementing this opaque
-// ordering for P itself, since it does not relate to ordering of inner values
-// at all.
+/// Wrapper for [`P`] pointers that implements a cheap index-based ordering.
+///
+/// It does not consider the value it points to so the ordering is generally
+/// wrong in the sense of the inner type semantics. It is mostly used for
+/// allowing storing them in ordering-based collections.
+///
+/// The new type pattern is used not to confuse users. If the ordering was
+/// implemented for `P` itself, it might be misleading and lead to hidden bugs.
+///
+/// [`P`] struct.P.html
 #[derive(Clone, Copy, Hash, Debug)]
 pub struct CheapOrd<T>(T);
 
@@ -285,7 +340,59 @@ impl<T> Deref for CheapOrd<T> {
     }
 }
 
-// Ideally custom derive macros.
+/// Implements safe assignment and usage of global arena which belongs to the
+/// pointer type. Thanks to this, the maintainer of the arena can allocate its
+/// data and then initialize the global variable which can be later accessed by
+/// all its pointers to reference real data from it.
+///
+/// It implements two static methods for public use: `init_once(arena)`
+/// assigning given arena to the global variable and `arena()` returning
+/// immutable static reference to the initialized arena.
+///
+/// The arena should be initialized exactly once. If it is never assigned, then
+/// getting its reference will panic, if it is assigned multiple times, then the
+/// other initializations do not make any effect. As mentioned, it must be
+/// accessed only after the initialization. To function properly, user must
+/// ensure these assumptions.
+///
+/// # Examples
+///
+/// ```
+/// impl_arena_type!(P<YourType>, Arena<YourType>);
+///
+/// impl P<YourType> {
+///    pub fn get(&self) -> &YourType {
+///        Self::arena().get(self)
+///    }
+/// }
+///
+/// fn load() {
+///     let mut arena = Arena::new();
+///
+///     // Data loading code.
+///
+///     // After this moment, the arena will be globally accessible.
+///     P::<YourType>::init_once(arena);
+/// }
+/// ```
+///
+/// # Panics
+///
+/// Accessing the arena using `arena()` method before initializing it with
+/// `init_once(arena)` will result into a panic. User must ensure that this
+/// invariant holds in the program.
+///
+/// # Safety
+///
+/// Initialization of the global variable is guarded by [`Once`] synchronization
+/// primitive. This ensures thread safety when multiple thread would try to
+/// initialize the arena.
+///
+/// Accessing the arena is then completely safe as one gets immutable static
+/// reference to it.
+///
+/// [`Once`]: https://doc.rust-lang.org/std/sync/struct.Once.html
+#[macro_export]
 macro_rules! impl_arena_type {
     ($ptr_ty:ty, $arena_ty:ty) => {
         impl $ptr_ty {

@@ -1,3 +1,46 @@
+//! Aardwolf configuration.
+//!
+//! The configuration is stored (by default) in `.aardwolf.yml` file in the
+//! project root. There are currently four options that can be specified.
+//!
+//! * `script` **(required)** -- The script which is executed before the
+//!   localization process begins. Its purpose is to compile the sources using
+//!   an Aardwolf frontend and then run the test suite. After it is completed,
+//!   all data (static analysis, runtime and test results) are expected to be
+//!   generated on expected locations. The script is list of lines at the
+//!   moment, but more flexible approach will be implemented in the future
+//!   (script file, platform-specific scripts, etc.). If the script execution,
+//!   then the whole Aardwolf process is terminated. For ignoring expected
+//!   errors, use the shell features like `|| true`.
+//!
+//! * `plugins` **(required)** -- List of plugins which will be used in the
+//!   localization process. A custom name can be given to each plugin
+//!   "instance". Plugins are usually customizable via their options.
+//!
+//! * `output_dir` (optional, default: `.aardwolf`) -- Path to a directory where
+//!   Aardwolf will store all its data. The path is relative to the project root
+//!   where the configuration file was found.
+//!
+//! * `n_results` (optional, default: `10`) -- Number of predicated items that
+//!   will be displayed to the user from each plugin. If set to `0`, then the
+//!   limit will be ignored. This option can be also set to each plugin
+//!   individually.
+//!
+//! # Examples
+//!
+//! ```yml
+//! script:
+//!   # In Python frontend, all the machinery is done in test files.
+//!   - pytest || true
+//!
+//! plugins:
+//!   - sbfl: D* Spectrum
+//!     options:
+//!       metric: ochiai
+//!   - prob-graph: Probabilistic Dependence
+//!   - invariants: Likely Invariants
+//! ```
+
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
@@ -9,6 +52,10 @@ use yaml_rust::{ScanError, Yaml, YamlLoader};
 pub const DEFAULT_OUTPUT_DIR: &'static str = ".aardwolf";
 pub const DEFAULT_N_RESULTS: usize = 10;
 
+/// Plugin instance inside the configuration.
+///
+/// It contains the plugin identifier, optionally a custom name and set of
+/// options.
 #[derive(Debug)]
 pub struct Plugin {
     pub id: String,
@@ -17,6 +64,7 @@ pub struct Plugin {
 }
 
 impl Plugin {
+    /// Creates plugin with given identifier with default name and empty options.
     pub fn new<T: Into<String>>(id: T) -> Self {
         Plugin {
             id: id.into(),
@@ -25,10 +73,13 @@ impl Plugin {
         }
     }
 
+    /// Creates plugin with given identifier and custom name.
     pub fn with_name<T1: Into<String>, T2: Into<String>>(id: T1, name: T2) -> Self {
         Self::with_name_and_opts(id, name, HashMap::new())
     }
 
+    /// Creates plugin with given identifier, custom name and the set of
+    /// options.
     pub fn with_name_and_opts<T1: Into<String>, T2: Into<String>>(
         id: T1,
         name: T2,
@@ -41,6 +92,8 @@ impl Plugin {
         }
     }
 
+    /// Gets the identification of the plugin inside configuration. Custom name
+    /// has higher priority than original identifier.
     pub fn id(&self) -> &str {
         match &self.name {
             Some(name) => name,
@@ -49,11 +102,16 @@ impl Plugin {
     }
 }
 
+/// Configuration structure.
 #[derive(Debug)]
 pub struct Config {
+    /// Script lines.
     pub script: Vec<String>,
+    /// Output directory.
     pub output_dir: PathBuf,
+    /// Number of results to display.
     pub n_results: usize,
+    /// Collection of plugins.
     pub plugins: Vec<Plugin>,
 }
 
@@ -79,6 +137,8 @@ impl fmt::Display for LoadConfigError {
 }
 
 impl Config {
+    /// Loads the configuration from given file. If optional items are not
+    /// specified, default values are used.
     pub fn load_from_file<P: AsRef<Path>>(filepath: P) -> Result<Self, LoadConfigError> {
         let mut file = File::open(&filepath).map_err(|err| LoadConfigError::Io(err))?;
         let mut content = String::new();

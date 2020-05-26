@@ -1,3 +1,5 @@
+//! Def-use sets in a function.
+
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
@@ -19,10 +21,14 @@ struct DefUseItem {
 pub struct DefUse(HashMap<StmtId, DefUseItem>);
 
 impl DefUse {
+    /// Gets the variables defined by given statement. The statement must be
+    /// from the function for which the def-use set was computed.
     pub fn get_defs(&self, stmt: &Statement) -> Option<&HashSet<P<Access>>> {
         self.0.get(&stmt.id).map(|item| &item.defs)
     }
 
+    /// Gets the variables used by given statement. The statement must be from
+    /// the function for which the def-use set was computed.
     pub fn get_uses(&self, stmt: &Statement) -> Option<&HashSet<P<Access>>> {
         self.0.get(&stmt.id).map(|item| &item.uses)
     }

@@ -1,3 +1,5 @@
+//! JSON output that can be consumed by an external tool such as editor plugin.
+
 use std::io::{self, Stdout, Write};
 
 use chrono::prelude::*;

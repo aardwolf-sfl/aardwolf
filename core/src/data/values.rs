@@ -1,29 +1,46 @@
+//! Data related to variable trace.
+
 use std::convert::TryInto;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
+/// Reference type for [`ValueArena`] container.
+///
+/// [`ValueArena`]: struct.ValueArena.html
 #[derive(Clone, Copy, Debug)]
 pub struct ValueRef {
     index: u32,
 }
 
+/// An arena-like collection for variable values.
+///
+/// The data are stored as raw bytes in a compressed form. Each item starts with
+/// a token which determines the type of values that follows it. The actual
+/// values are stored in a compressed forms if the value allows it (e.g., even
+/// if the variable has type `i32`, if its value is `0`, it is encoded as one
+/// byte).
 pub struct ValueArena {
     storage: Vec<u8>,
 }
 
 impl ValueArena {
+    /// Initializes empty arena.
     pub(crate) const fn empty() -> Self {
         ValueArena {
             storage: Vec::new(),
         }
     }
 
+    /// Initializes empty arena with given capacity.
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         ValueArena {
             storage: Vec::with_capacity(capacity),
         }
     }
 
+    /// Allocates (i.e., stores into internal storage) given value of given data
+    /// type. It returns the reference which can be used to obtain the allocated
+    /// data back.
     pub(crate) fn alloc(&mut self, value: Value, value_type: ValueType) -> ValueRef {
         assert!(
             self.storage.len() <= u32::MAX as usize,
@@ -103,6 +120,10 @@ impl ValueArena {
         ptr
     }
 
+    /// Returns data type of given reference. This is very cheap operation since
+    /// the data type is determined by the token where the reference directly
+    /// points to. If you need just the type and not the value, prefer this
+    /// method.
     pub fn value_type(&self, ptr: &ValueRef) -> ValueType {
         let byte = self.storage[ptr.index as usize];
         match byte & consts::MASK_TYPE {
@@ -122,6 +143,11 @@ impl ValueArena {
         }
     }
 
+    /// Returns value and the actual data type of given reference. This
+    /// generally involves decompression of the data. If you need just the type,
+    /// prefer [`value_type`] method.
+    ///
+    /// [`value_type`]: struct.ValueArena.html#method.value_type
     pub fn value(&self, ptr: &ValueRef) -> (Value, ValueType) {
         let value_type = self.value_type(ptr);
 
@@ -176,6 +202,11 @@ impl ValueArena {
     }
 }
 
+/// Data type of a value.
+///
+/// This is the enumeration of all types which are supported by Aardwolf at the
+/// moment. A dummy value `Unsupported` then represents all the types that are
+/// not supported.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum ValueType {
     Unsupported,
@@ -192,6 +223,12 @@ pub enum ValueType {
     Boolean,
 }
 
+/// Actual value of a variable.
+///
+/// The value is stored in the biggest representation of the data type. For
+/// example, even if a variable is of type `i8`, it is given as `i64`. This
+/// simplifies the usage as one does not need to do many type conversions on
+/// their own.
 #[derive(Clone, PartialOrd, Debug)]
 pub enum Value {
     Unsupported,
@@ -245,6 +282,11 @@ impl Value {
         }
     }
 
+    /// Determines whether the value is exceptional.
+    ///
+    /// Currently, these values are considered exceptional:
+    ///
+    /// * When floating point number is not finite (i.e., is NaN or infinity).
     pub fn is_exceptional(&self) -> bool {
         match self {
             Value::Floating(value) => !value.is_finite(),
@@ -312,6 +354,8 @@ impl fmt::Display for ValueType {
     }
 }
 
+/// Helper trait for conversions of real data types into Aardwolf's
+/// representation.
 pub trait IntoValue {
     fn into_value(self) -> (Value, ValueType);
 }
@@ -341,14 +385,17 @@ impl_into_value!(bool, bool, Value::Boolean, ValueType::Boolean);
 impl_arena_type!(ValueRef, ValueArena);
 
 impl ValueRef {
+    /// Gets the value of the reference from the arena.
     pub fn value(&self) -> Value {
         Self::arena().value(self).0
     }
 
+    /// Gets the value type of the reference from the arena.
     pub fn value_type(&self) -> ValueType {
         Self::arena().value_type(self)
     }
 
+    /// Gets both the value and its type of the reference from the arena.
     pub fn value_and_type(&self) -> (Value, ValueType) {
         Self::arena().value(self)
     }

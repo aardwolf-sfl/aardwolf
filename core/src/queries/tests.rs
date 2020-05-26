@@ -1,3 +1,5 @@
+//! Several utilities for test suite.
+
 use std::collections::hash_map::{HashMap, Iter, Keys};
 use std::mem;
 
@@ -15,18 +17,22 @@ pub struct Tests {
 }
 
 impl Tests {
+    /// Iterates over all test names in the test suite.
     pub fn iter_names(&self) -> Keys<S<TestName>, TestStatus> {
         self.tests.keys()
     }
 
+    /// Iterates over all test result statuses in the test suite.
     pub fn iter_statuses(&self) -> Iter<S<TestName>, TestStatus> {
         self.tests.iter()
     }
 
+    /// Iterates over all statements which were executed in given test case.
     pub fn iter_stmts(&self, test: &S<TestName>) -> Option<impl Iterator<Item = &P<Statement>>> {
         self.traces.get(test).map(|stmts| stmts.iter())
     }
 
+    /// Checks if given test case is passing.
     pub fn is_passed(&self, test: &S<TestName>) -> bool {
         if let Some(status) = self.tests.get(test) {
             *status == TestStatus::Passed
@@ -35,18 +41,23 @@ impl Tests {
         }
     }
 
+    /// Iterates over all passing test cases.
     pub fn iter_passed(&self) -> impl Iterator<Item = &S<TestName>> {
         self.iter_statuses()
             .filter(|(_, status)| **status == TestStatus::Passed)
             .map(|(name, _)| name)
     }
 
+    /// Iterates over all failing test cases.
     pub fn iter_failed(&self) -> impl Iterator<Item = &S<TestName>> {
         self.iter_statuses()
             .filter(|(_, status)| **status == TestStatus::Failed)
             .map(|(name, _)| name)
     }
 
+    /// Gets the most relevant failed test case. This should be used when a
+    /// localization techniques is designed to work on a single failing
+    /// execution.
     pub fn get_failed(&self) -> &S<TestName> {
         // Aardwolf performs validation whether there is at least one failed test.
         // We can therefore unwrap the first value of the iterator.
