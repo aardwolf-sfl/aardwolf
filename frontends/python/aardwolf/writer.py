@@ -7,6 +7,9 @@ class Writer:
     def close(self):
         self.fh_.close()
 
+    def flush(self):
+        self.fh_.flush()
+
     def _write_packed(self, formatter, value):
         self.fh_.write(struct.pack(formatter, value))
 
