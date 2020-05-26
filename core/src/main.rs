@@ -36,6 +36,11 @@ fn main() {
                 .help("Sets the UI which will be used for results presentation."),
         )
         .arg(Arg::with_name("reuse").long("reuse").help("If set to true, Aardwolf will not run the script and will reuse already generated data which are expected to exist."))
+        .arg(
+            Arg::with_name("ignore-corrupted")
+                .long("ignore-corrupted")
+                .help(""),
+        )
         .get_matches();
 
     let args = DriverArgs::new()
@@ -50,7 +55,8 @@ fn main() {
                 })
                 .unwrap_or_default(),
         )
-        .with_reuse(matches.is_present("reuse"));
+        .with_reuse(matches.is_present("reuse"))
+        .with_ignore_corrupted(matches.is_present("ignore-corrupted"));
 
     Driver::run(&args);
 }

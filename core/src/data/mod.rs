@@ -144,6 +144,7 @@ impl RawData {
         module_files: impl Iterator<Item = &'a mut R1>,
         trace_file: &mut R2,
         test_suite_file: &mut R3,
+        ignore_corrupted: bool,
     ) -> parser::ParseResult<RawData> {
         let mut modules = Modules::new();
         let mut trace = Trace::new();
@@ -154,7 +155,7 @@ impl RawData {
             parser::parse_module(module_file, &mut modules, &mut arenas)?;
         }
 
-        parser::parse_trace(trace_file, &mut trace, &mut arenas)?;
+        parser::parse_trace(trace_file, &mut trace, &mut arenas, ignore_corrupted)?;
         parser::parse_test_suite(test_suite_file, &mut test_suite, &mut arenas)?;
 
         // Set global singletons.

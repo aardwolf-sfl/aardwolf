@@ -272,6 +272,7 @@ pub(crate) fn parse_trace<'a, 'b, R: BufRead>(
     source: &'a mut R,
     trace: &mut Trace,
     arenas: &'b mut Arenas,
+    ignore_corrupted: bool,
 ) -> ParseResult<()> {
     let mut parser = Parser::new(source, arenas);
 
@@ -290,11 +291,26 @@ pub(crate) fn parse_trace<'a, 'b, R: BufRead>(
         } => return Err(ParseError::InvalidFormat),
     }
 
+    macro_rules! try_parse {
+        ($action:expr) => {
+            match $action {
+                Ok(value) => value,
+                Err(error) => {
+                    if ignore_corrupted {
+                        continue;
+                    } else {
+                        return Err(error.into());
+                    }
+                }
+            }
+        };
+    }
+
     while let Ok(token) = parser.parse_u8() {
         let trace_item = match token {
-            consts::TOKEN_STATEMENT => TraceItem::Statement(parser.parse_stmt_id()?),
+            consts::TOKEN_STATEMENT => TraceItem::Statement(try_parse!(parser.parse_stmt_id())),
             consts::TOKEN_EXTERNAL => {
-                let parsed = parser.parse_cstr()?;
+                let parsed = try_parse!(parser.parse_cstr());
                 TraceItem::Test(parser.arenas.test.alloc(parsed))
             }
             consts::TOKEN_DATA_UNSUPPORTED
@@ -308,28 +324,33 @@ pub(crate) fn parse_trace<'a, 'b, R: BufRead>(
             | consts::TOKEN_DATA_U64
             | consts::TOKEN_DATA_F32
             | consts::TOKEN_DATA_F64
-            | consts::TOKEN_DATA_BOOL => TraceItem::Value(parser.parse_value(token)?),
+            | consts::TOKEN_DATA_BOOL => TraceItem::Value(try_parse!(parser.parse_value(token))),
             byte => {
-                return Err(ParseError::UnexpectedByte {
-                    pos: parser.source.byte_pos(),
-                    byte,
-                    expected: vec![
-                        consts::TOKEN_STATEMENT,
-                        consts::TOKEN_EXTERNAL,
-                        consts::TOKEN_DATA_UNSUPPORTED,
-                        consts::TOKEN_DATA_I8,
-                        consts::TOKEN_DATA_I16,
-                        consts::TOKEN_DATA_I32,
-                        consts::TOKEN_DATA_I64,
-                        consts::TOKEN_DATA_U8,
-                        consts::TOKEN_DATA_U16,
-                        consts::TOKEN_DATA_U32,
-                        consts::TOKEN_DATA_U64,
-                        consts::TOKEN_DATA_F32,
-                        consts::TOKEN_DATA_F64,
-                        consts::TOKEN_DATA_BOOL,
-                    ],
-                })
+                if ignore_corrupted {
+                    // Read next byte.
+                    continue;
+                } else {
+                    return Err(ParseError::UnexpectedByte {
+                        pos: parser.source.byte_pos(),
+                        byte,
+                        expected: vec![
+                            consts::TOKEN_STATEMENT,
+                            consts::TOKEN_EXTERNAL,
+                            consts::TOKEN_DATA_UNSUPPORTED,
+                            consts::TOKEN_DATA_I8,
+                            consts::TOKEN_DATA_I16,
+                            consts::TOKEN_DATA_I32,
+                            consts::TOKEN_DATA_I64,
+                            consts::TOKEN_DATA_U8,
+                            consts::TOKEN_DATA_U16,
+                            consts::TOKEN_DATA_U32,
+                            consts::TOKEN_DATA_U64,
+                            consts::TOKEN_DATA_F32,
+                            consts::TOKEN_DATA_F64,
+                            consts::TOKEN_DATA_BOOL,
+                        ],
+                    });
+                }
             }
         };
 

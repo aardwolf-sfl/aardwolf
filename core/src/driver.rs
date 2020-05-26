@@ -62,6 +62,7 @@ pub struct DriverArgs<P: AsRef<Path>> {
     config_path: Option<P>,
     ui: UiName,
     reuse: bool,
+    ignore_corrupted: bool,
 }
 
 impl<P: AsRef<Path>> DriverArgs<P> {
@@ -71,6 +72,7 @@ impl<P: AsRef<Path>> DriverArgs<P> {
             config_path: None,
             ui: UiName::default(),
             reuse: false,
+            ignore_corrupted: false,
         }
     }
 
@@ -90,6 +92,13 @@ impl<P: AsRef<Path>> DriverArgs<P> {
     /// Indicates to the driver whether it should reuse already generated data.
     pub fn with_reuse(self, reuse: bool) -> Self {
         Self { reuse, ..self }
+    }
+
+    pub fn with_ignore_corrupted(self, ignore_corrupted: bool) -> Self {
+        Self {
+            ignore_corrupted,
+            ..self
+        }
     }
 }
 
@@ -150,7 +159,7 @@ impl Driver {
         }
 
         let data_handle = logger.perf("load data");
-        let data = ui.unwrap(Self::load_data(&driver_paths));
+        let data = ui.unwrap(Self::load_data(&driver_paths, args.ignore_corrupted));
         data_handle.stop();
 
         let api = ui.unwrap(Api::new(data));
@@ -216,15 +225,23 @@ impl Driver {
         }
     }
 
-    fn load_data(driver_paths: &DriverPaths) -> Result<RawData, LoadDataError> {
+    fn load_data(
+        driver_paths: &DriverPaths,
+        ignore_corrupted: bool,
+    ) -> Result<RawData, LoadDataError> {
         let mut static_files = Self::find_static_files(driver_paths);
         let mut dynamic_file =
             BufReader::new(File::open(&driver_paths.trace_file).map_err(LoadDataError::Io)?);
         let mut test_file =
             BufReader::new(File::open(&driver_paths.result_file).map_err(LoadDataError::Io)?);
 
-        RawData::parse(static_files.iter_mut(), &mut dynamic_file, &mut test_file)
-            .map_err(LoadDataError::Parse)
+        RawData::parse(
+            static_files.iter_mut(),
+            &mut dynamic_file,
+            &mut test_file,
+            ignore_corrupted,
+        )
+        .map_err(LoadDataError::Parse)
     }
 
     fn find_static_files(driver_paths: &DriverPaths) -> Vec<BufReader<File>> {
