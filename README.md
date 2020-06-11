@@ -2,6 +2,9 @@
 
 **In alpha stage of development. Only for experimental purposes!**
 
+The tool was developed as my [master thesis](thesis.pdf).
+Based on the experience, I plan to reimplement it from scratch while reusing many of the ideas, but introducing new ones and fixing the issues I encountered.
+
 ## Installation
 
 * Clone this repository and go to its directory
