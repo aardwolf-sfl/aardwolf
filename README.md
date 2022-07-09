@@ -1,51 +1,27 @@
 # Aardwolf: A Modular Tool for Software Fault Localization
 
-**In alpha stage of development. Only for experimental purposes!**
+Aardwolf is<sup>1</sup> a software fault localization<sup>2</sup> tool with focus on
 
-The tool was developed as my [master thesis](thesis.pdf).
-Based on the experience, I plan to reimplement it from scratch while reusing many of the ideas, but introducing new ones and fixing the issues I encountered.
+* *Extensibility* -- It should be possible and convenient to implement or extend a technique
+* *Language independence* -- All implemented techniques should be available to many programming languages and implementing a new frontend should be reasonably difficult
+* *User experience* -- The tool should be actually usable, which not only means
+  accurate, but also offering rich output, being scalable and allowing
+  convenient integration into real-world projects
 
-## Installation
+<sup>1</sup> will be
 
-* Clone this repository and go to its directory
-* Run `python aardwolf-install.py`
+<sup>2</sup> *Software fault localization* (SFL) is an area of research that
+aims to help programmers with understanding program errors and locating their
+cause by developing techniques that partially or fully automate the
+localization of faults in the source code.
 
-The installation script will automatically check for dependencies and by default copies compiled artifacts into `$HOME/.aardwolf` directory.
-Type `python aardwolf-install.py --help` for more information.
+## Status
 
-## Try
+*The tool is now under a complete rewrite. See
+[legacy](https://github.com/aardwolf-sfl/aardwolf/tree/legacy) branch for the
+original version.*
 
-### C
+## License
 
-**example/c**
-
-```sh
-# Apply a bug
-git apply bug1.patch # generally bugN.patch
-# Run Aardwolf
-~/.aardwolf/aardwolf
-```
-
-### Python
-
-**example/python**
-
-```sh
-# Apply a bug
-git apply bug1.patch # generally bugN.patch
-# Run Aardwolf
-poetry run ~/.aardwolf/aardwolf
-```
-
-## Dev Guide
-
-The structure of the repository is as follows:
-
-* [`core`](core) -- Rust's project containing Aardwolf core (driver, data loading, plugins, user interfaces, etc.).
-* [`examples`](examples) -- A collection of toy projects that utilize Aardwolf to show how it can be used.
-* [`frontends`](frontends) -- Directory for official frontends.
-    * [`llvm`](frontends/llvm) -- LLVM frontend for C language.
-    * [`python`](frontends/python) -- Python frontend for Python language.
-* [`runtime`](runtime) -- C runtime used by LLVM frontend that can be considered as the official implementation.
-* [`tools`](tools) -- Small Python package that implements some tools aiding the development of Aardwolf ecosystem.
-* [`aardwolf-install.py`](aardwolf-install.py) -- Installation script that compiles all te necessary components and copies them into specified directory.
+Licensed under [MIT](LICENSE). Feel free to use it, contribute or spread the
+word.
